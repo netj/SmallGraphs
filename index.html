@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html xmlns:svg="http://www.w3.org/2000/svg">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <title>SmallGraphs</title>
+    <script type="text/javascript" src="d3/d3.js"></script>
+    <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
+    <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
+    <script type="text/javascript" src="jquery-svg/jquery.svgdom.js"></script>
+    <script type="text/javascript" src="jquery-ui/js/jquery-ui-1.8.16.custom.min.js"></script>
+    <style type="text/css">
+      @import url("jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css");
+
+      #query {
+        width: 300px;
+        height: 300px;
+        border: 1px solid #ccc;
+      }
+
+      #query-type-entry {
+        display: none;
+      }
+      #query-type-entry.active {
+        display: block;
+        position: absolute;
+      }
+
+      #query-sketchpad .edge {
+        stroke: #33c;
+        stroke-width: 4px;
+      }
+      #query-sketchpad .node {
+        fill: #c33;
+      }
+      #query-sketchpad .node:hover {
+        fill: rgba(255,64,64, 0.8);
+      }
+      #query-sketchpad .selected {
+        fill: #3c3;
+        stroke: #3c3;
+        stroke-width: 2px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>SmallGraphs</h1>
+    <div id="query">
+      <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
+      <circle cx="20" cy="20" r="10" fill="red"/>
+      </svg>
+      <div id="query-type-entry" class="ui-widget">
+        <input type="text" id="query-type-input">
+      </div>
+    </div>
+
+    <script type="text/javascript">
+var SVGNameSpace = "http://www.w3.org/2000/svg";
+var MouseMoveThreshold = 5;
+
+////////////////////////////////////////////////////////////////////////////////
+// graph schema/ontology
+var NodeTypes = [
+  "user",
+  "fanpage",
+  "post",
+  "url",
+];
+var EdgeTypes = [
+  "wrote",
+  "contains",
+  "has-post",
+];
+
+////////////////////////////////////////////////////////////////////////////////
+
+function isNode(e) {
+  return $(e).hasClass("node");
+}
+function isEdge(e) {
+  return $(e).hasClass("edge");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// sketchpad
+var sketchpad = $("#query-sketchpad")[0];
+var sketchpadDoc = sketchpad.ownerDocument;
+
+function addToSketchpad(name, attrs) {
+  var node = sketchpadDoc.createElementNS(SVGNameSpace, name);
+  $(node).attr(attrs);
+  sketchpad.appendChild(node);
+  return node;
+}
+
+var queryTypeEntryHandler = null;
+$("#query-type-input")
+  .keyup(function() {
+      switch (event.keyCode) {
+        case 27: // esc
+          break;
+        case 14: // enter
+        case 13: // return
+          break;
+        default:
+          return;
+      }
+      this.blur();
+    })
+  .blur(function() {
+      if (queryTypeEntryHandler)
+        queryTypeEntryHandler(this.value);
+      $("#query-type-entry").removeClass("active");
+    })
+  ;
+
+function queryTypeEntryShow(x, y, list, done) {
+  queryTypeEntryHandler = done;
+  $("#query-type-input").autocomplete({
+      minLength: 0,
+      source: list,
+    });
+  $("#query-type-entry")
+    .css({
+        left: x,
+        top:  y,
+      })
+    .addClass("active")
+    ;
+  var input = $("#query-type-input")[0];
+  if (list.indexOf(input.value) < 0)
+    input.value = "";
+  setTimeout(function() {
+      input.focus();
+      input.select();
+    }, 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+function sketchpadChooseNodeType(node) {
+  queryTypeEntryShow(
+      sketchpad.offsetLeft + parseInt(node.getAttribute("cx") - 10),
+      sketchpad.offsetTop  + parseInt(node.getAttribute("cy")) + 20,
+      NodeTypes,
+      function(type) {
+        if (type) {
+          // TODO
+          $("<text>")
+            .append(type)
+            .appendTo(node);
+        } else {
+          // cancel node creation
+          $(node).remove();
+        }
+      }
+      );
+}
+function sketchpadChooseEdgeType(edge) {
+  queryTypeEntryShow(
+      sketchpad.offsetLeft + (parseInt(edge.getAttribute("x1"))+parseInt(edge.getAttribute("x2")))/2,
+      sketchpad.offsetTop  + (parseInt(edge.getAttribute("y1"))+parseInt(edge.getAttribute("y2")))/2,
+      EdgeTypes,
+      function(type) {
+        if (type) {
+          // TODO
+        } else {
+          // cancel edge creation
+          $(edge).remove();
+        }
+      }
+      );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+var sketchpadActions = [];
+
+sketchpadActions.push({
+  name: "add node",
+  mousedown: function() {
+    if (event.target == sketchpad) {
+      // create node
+      var node = addToSketchpad("circle", {
+        class: "node",
+        cx: event.offsetX,
+        cy: event.offsetY,
+        r: 10
+      });
+      // ask user to choose type
+      sketchpadChooseNodeType(node);
+      return false;
+    }
+  },
+});
+
+sketchpadActions.push({
+  name: "move node",
+  mousedown: function() {
+    if (event.shiftKey && isNode(event.target)) {
+      this.node = event.target;
+      return this;
+    }
+  },
+  mousemove: function() {
+    $(this.node).attr({
+      cx: event.offsetX,
+      cy: event.offsetY,
+    });
+  },
+});
+
+var sketchpadCurrentSelection = [];
+sketchpadActions.push({
+  name: "select node or edge",
+  mousedown: function() {
+    var isDoingMultipleSelection = event.metaKey || event.ctrlKey;
+    if (!isDoingMultipleSelection) {
+      $(sketchpadCurrentSelection).removeClass("selected");
+      sketchpadCurrentSelection = [];
+    }
+    if (isNode(event.target) || isEdge(event.target)) {
+      $(event.target).addClass("selected");
+      sketchpadCurrentSelection.push(event.target);
+    }
+    return false;
+  },
+});
+
+sketchpadActions.push({
+  name: "draw edge from a node",
+  mousedown: function() {
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey)
+      return null;
+    if (isNode(event.target)) {
+      this.source = event.relatedTarget;
+      this.target = null;
+      // create edge
+      this.edge = addToSketchpad("line", {
+        class: "edge",
+        x1: event.offsetX,
+        y1: event.offsetY,
+        x2: event.offsetX,
+        y2: event.offsetY,
+      });
+      return this;
+    }
+  },
+  mousemove: function() {
+    // drawing edge
+    var x = event.offsetX;
+    var y = event.offsetY;
+    $(this.edge).attr({
+      x2: x + (this.edge.getAttribute("x1") - x < 0 ? -1 : 1),
+      y2: y + (this.edge.getAttribute("y1") - y < 0 ? -1 : 1),
+    });
+    // TODO highlight tentative target node
+  },
+  mouseup: function() {
+    if (isNode(event.target)) {
+      // TODO finish edge
+      // TODO ask user to choose type
+      sketchpadChooseEdgeType(this.edge);
+    } else {
+      // cancel edge
+      $(this.edge).remove();
+    }
+  },
+});
+
+sketchpadActions.push({
+  name: "select area",
+});
+
+////////////////////////////////////////////////////////////////////////////////
+// sketchpad action dispatcher
+////////////////////////////////////////////////////////////////////////////////
+var sketchpadCurrentMouseActions = [];
+function SketchpadAction(def) {
+  for (var i in def)
+    this[i] = def[i];
+}
+function sketchpadMouseDown() {
+  sketchpadActions.forEach(function(actionDef) {
+      if (actionDef.mousedown) {
+        try {
+          // FIXME there must be a better way than copying contents of actionDef
+          var a = new SketchpadAction(actionDef);
+          var r = actionDef.mousedown.call(a);
+          if (r != null) {
+            console.log(a, a.name);
+            if (r) sketchpadCurrentMouseActions.push(a);
+          }
+        } catch (err) {
+          console.log(""+err);
+        }
+      }
+  });
+}
+function sketchpadMouseMove() {
+  sketchpadCurrentMouseActions.forEach(function(a) {
+    try {
+      if (a.mousemove)
+        a.mousemove();
+    } catch (err) {
+      console.log(""+err);
+    }
+  });
+}
+function sketchpadMouseUp() {
+  sketchpadCurrentMouseActions.forEach(function(a) {
+    try {
+        if (a.mouseup)
+          a.mouseup();
+    } catch (err) {
+      console.log(""+err);
+    }
+  });
+  sketchpadCurrentMouseActions = [];
+}
+$(sketchpad)
+  .bind("mousedown", sketchpadMouseDown)
+  .bind("mousemove", sketchpadMouseMove)
+  .bind("mouseup",   sketchpadMouseUp)
+  ;
+    </script>
+  </body>
+</html>
+<!--
+vim:sw=2:sts=2
+-->

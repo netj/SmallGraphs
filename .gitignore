@@ -2,3 +2,4 @@
 .DS_Store
 *~
 
+/jquery-ui/development-bundle
