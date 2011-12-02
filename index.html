@@ -56,19 +56,19 @@
       #query-sketchpad .node rect {
         fill: #c33;
         opacity: 0.9;
-        z-index: 1;
-      }
-      #query-sketchpad .node rect:hover {
-        fill: rgba(255,64,64, 0.8);
-      }
-      #query-sketchpad .selected rect {
-        fill: #3c3;
-        stroke: #3c3;
         stroke-width: 2px;
+        z-index: 1;
       }
       #query-sketchpad text {
         text-anchor: middle;
       }
+
+      #query-sketchpad .node:hover rect { stroke: #900; }
+      #query-sketchpad .edge:hover line { stroke: #009; }
+      #query-sketchpad .node.selected:hover rect,
+      #query-sketchpad .edge.selected:hover line { stroke: #090; }
+      #query-sketchpad .node.selected       rect,
+      #query-sketchpad .edge.selected       line { fill: #3c3; stroke: #3c3; }
     </style>
   </head>
 
@@ -205,16 +205,8 @@ var sketchpadActions = [];
 
 sketchpadActions.push({
   name: "add node",
-  mousedown: function() {
+  click: function() {
     if (event.target == sketchpad) {
-      this.lastEvent = event;
-      return this;
-    }
-  },
-  mouseup: function() {
-    // unless it was a dragging motion,
-    if (Math.abs(event.pageX-this.lastEvent.pageX) < MouseMoveThreshold &&
-        Math.abs(event.pageY-this.lastEvent.pageY) < MouseMoveThreshold) {
       // create node
       var node = addToSketchpad("g", {
         class: "node",
@@ -299,16 +291,25 @@ sketchpadActions.push({
 var sketchpadCurrentSelection = [];
 sketchpadActions.push({
   name: "select node or edge",
-  mousedown: function() {
-    var isDoingMultipleSelection = event.metaKey || event.ctrlKey;
-    if (!isDoingMultipleSelection) {
-      $(sketchpadCurrentSelection).removeClass("selected");
-      sketchpadCurrentSelection = [];
-    }
+  click: function() {
     var nodeOrEdge = getNode(event.target) || getEdge(event.target);
     if (nodeOrEdge) {
-      $(nodeOrEdge).addClass("selected");
-      sketchpadCurrentSelection.push(nodeOrEdge);
+      var isDoingMultipleSelection = event.metaKey || event.ctrlKey;
+      if (isDoingMultipleSelection) {
+        if ($(nodeOrEdge).hasClass("selected")) {
+          removeAll(sketchpadCurrentSelection, [nodeOrEdge]);
+          $(nodeOrEdge).removeClass("selected");
+        } else {
+          $(nodeOrEdge).addClass("selected");
+          sketchpadCurrentSelection.push(nodeOrEdge);
+        }
+      } else {
+        $(sketchpadCurrentSelection).removeClass("selected");
+        sketchpadCurrentSelection = [];
+        $(nodeOrEdge).addClass("selected");
+        sketchpadCurrentSelection.push(nodeOrEdge);
+        // TODO when selecting an edge, we should immediately do something?
+      }
     }
     return false;
   },
@@ -435,7 +436,7 @@ sketchpadActions.push({
       ;
     var nodesOutOfBoxNow = removeAll(this.lastNodesInBox, nodesInBox.concat(this.initialSelection));
     $(nodesOutOfBoxNow).removeClass("selected");
-    console.debug(nodesInBox.length, nodesOutOfBoxNow.length);
+    //console.debug(nodesInBox.length, nodesOutOfBoxNow.length);
     this.lastNodesInBox = nodesInBox;
     sketchpadCurrentSelection = this.initialSelection.concat(nodesInBox);
   },
@@ -458,18 +459,21 @@ sketchpadActions.push({
 ////////////////////////////////////////////////////////////////////////////////
 // sketchpad action dispatcher
 ////////////////////////////////////////////////////////////////////////////////
+// TODO build an index of actions for each event
 var sketchpadCurrentMouseActions = [];
+var sketchpadFirstMouseEvent = null;
 function SketchpadAction(def) {
   for (var i in def)
     this[i] = def[i];
 }
 function sketchpadMouseDown() {
+  sketchpadFirstMouseEvent = event;
   sketchpadActions.forEach(function(actionDef) {
       if (actionDef.mousedown) {
         try {
           // FIXME there must be a better way than copying contents of actionDef
           var a = new SketchpadAction(actionDef);
-          var r = actionDef.mousedown.call(a);
+          var r = a.mousedown();
           if (r != null) {
             console.log(event.type, event, a, a.name);
             if (r) sketchpadCurrentMouseActions.push(a);
@@ -504,6 +508,21 @@ function sketchpadMouseUp() {
     }
   });
   sketchpadCurrentMouseActions = [];
+  // process clicks if were not dragging
+  if (Math.abs(event.pageX-sketchpadFirstMouseEvent.pageX) < MouseMoveThreshold &&
+      Math.abs(event.pageY-sketchpadFirstMouseEvent.pageY) < MouseMoveThreshold) {
+    sketchpadActions.forEach(function(actionDef) {
+      try {
+        var a = new SketchpadAction(actionDef);
+        if (a.click) {
+          console.log("click", event, a, a.name);
+          a.click();
+        }
+      } catch (err) {
+        console.error(err, err+"");
+      }
+    });
+  }
 }
 $(sketchpad)
   .bind("mousedown", sketchpadMouseDown)
