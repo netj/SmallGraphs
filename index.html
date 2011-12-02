@@ -119,6 +119,10 @@ function getEdge(e) {
   return null;
 }
 
+function removeAll(allElements, elementsToRemove) {
+  return allElements.filter(function(n) { return (elementsToRemove.indexOf(n) == -1) });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // transforms, coordinates stuff
 
@@ -386,27 +390,54 @@ sketchpadActions.push({
     if (event.target == sketchpad) {
       var x1 = this.x1 = event.offsetX;
       var y1 = this.y1 = event.offsetY;
-      this.rect = $("rect", sketchpadSelectionBox).attr({
-            x: x1,
-            y: y1,
-            width:  0,
-            height: 0,
-          })
-        ;
+      this.rect = $("rect", sketchpadSelectionBox)
+        .attr({ x: x1, y: y1, width: 0, height: 0 });
       $(sketchpadSelectionBox).addClass("active");
+      // TODO invert selection? or exclude range from current selection?
+      // incremental selection
+      var isDoingMultipleSelection = event.metaKey || event.ctrlKey;
+      if (isDoingMultipleSelection) {
+        this.initialSelection = sketchpadCurrentSelection;
+      } else {
+        $(sketchpadCurrentSelection).removeClass("selected");
+        this.initialSelection = sketchpadCurrentSelection = [];
+      }
+      this.lastNodesInBox = [];
       return this;
     }
+    // TODO index nodes by coordinates (linear search might be better for mere set of small number of nodes)
   },
   mousemove: function() {
+    var x1 = this.x1;
+    var y1 = this.y1;
     var x2 = event.pageX - sketchpad.offsetLeft;
     var y2 = event.pageY - sketchpad.offsetTop ;
     this.rect.attr({
-        x: Math.min(this.x1, x2),
-        y: Math.min(this.y1, y2),
-        width:  Math.abs(x2 - this.x1),
-        height: Math.abs(y2 - this.y1),
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        width:  Math.abs(x2 - x1),
+        height: Math.abs(y2 - y1),
       });
-    // TODO update selection
+    // update selection
+    var xl = Math.min(x1,x2);
+    var xu = Math.max(x1,x2);
+    var yl = Math.min(y1,y2);
+    var yu = Math.max(y1,y2);
+    var nodesInBox = $(".node", sketchpad)
+      .filter(function(i) {
+          var x = this.getAttribute("x");
+          var y = this.getAttribute("y");
+          return (xl <= x && x <= xu &&
+                  yl <= y && y <= yu);
+        })
+      .addClass("selected")
+      .toArray()
+      ;
+    var nodesOutOfBoxNow = removeAll(this.lastNodesInBox, nodesInBox.concat(this.initialSelection));
+    $(nodesOutOfBoxNow).removeClass("selected");
+    console.debug(nodesInBox.length, nodesOutOfBoxNow.length);
+    this.lastNodesInBox = nodesInBox;
+    sketchpadCurrentSelection = this.initialSelection.concat(nodesInBox);
   },
   mouseup: function() {
     $(sketchpadSelectionBox).removeClass("active");
@@ -452,9 +483,10 @@ function sketchpadMouseDown() {
 function sketchpadMouseMove() {
   sketchpadCurrentMouseActions.forEach(function(a) {
     try {
-      console.log(event.type, event, a, a.name);
-      if (a.mousemove)
+      if (a.mousemove) {
+        console.log(event.type, event, a, a.name);
         a.mousemove();
+      }
     } catch (err) {
       console.error(err, err+"");
     }
@@ -463,9 +495,10 @@ function sketchpadMouseMove() {
 function sketchpadMouseUp() {
   sketchpadCurrentMouseActions.forEach(function(a) {
     try {
-      console.log(event.type, event, a, a.name);
-      if (a.mouseup)
+      if (a.mouseup) {
+        console.log(event.type, event, a, a.name);
         a.mouseup();
+      }
     } catch (err) {
       console.error(err, err+"");
     }
