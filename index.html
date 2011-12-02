@@ -33,16 +33,29 @@
         font-size: 0.8em;
       }
 
-      #query-skechpad .edge {
+      #query-sketchpad-selectionbox path {
+        fill-opacity: 0;
+        stroke-opacity: 0;
+      }
+      #query-sketchpad-selectionbox.active path {
+        stroke-opacity: 0.5;
+        stroke-dasharray: 5,5;
+        stroke-width: 2px;
+        stroke: #ccc;
+      }
+
+      #query-sketchpad .edge {
         z-index: -1;
       }
 
       #query-sketchpad .edge line {
+        opacity: 0.7;
         stroke: #33c;
-        stroke-width: 4px;
+        stroke-width: 7px;
       }
       #query-sketchpad .node rect {
         fill: #c33;
+        opacity: 0.9;
         z-index: 1;
       }
       #query-sketchpad .node rect:hover {
@@ -63,6 +76,7 @@
     <h1>SmallGraphs</h1>
     <div id="query">
       <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
+        <g id="query-sketchpad-selectionbox"><path/><text/></g>
       </svg>
       <div id="query-type-entry" class="ui-widget">
         <input type="text" id="query-type-input">
@@ -75,6 +89,7 @@ var MouseMoveThreshold = 5;
 
 var NodeWidth  = 80;//px
 var NodeHeight = 40;//px
+var NodeRounding = 5;//px
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
@@ -111,10 +126,19 @@ function translate(x,y) {
   return "translate("+ x +","+ y +")";
 }
 
+function pathbox(x1,y1, x2,y2) {
+  return "M"+x1+" "+y1+" "+
+         "L"+x2+" "+y1+" "+
+         "L"+x2+" "+y2+" "+
+         "L"+x1+" "+y2+" "+
+         "Z";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // sketchpad
 var sketchpad = $("#query-sketchpad")[0];
 var sketchpadDoc = sketchpad.ownerDocument;
+var sketchpadSelectionBox = $("#query-sketchpad-selectionbox")[0];
 $(sketchpad).bind("selectstart", function() { event.preventDefault(); });
 
 function addToSketchpad(name, attrs, target) {
@@ -195,10 +219,9 @@ sketchpadActions.push({
         transform: translate(event.offsetX, event.offsetY),
       });
       addToSketchpad("rect", {
-            x: -NodeWidth /2,
-            y: -NodeHeight/2,
-            width : NodeWidth ,
-            height: NodeHeight,
+                rx: NodeRounding ,      ry: NodeRounding,
+                 x: -NodeWidth /2,      y: -NodeHeight/2,
+            width :  NodeWidth   , height:  NodeHeight  ,
           }, node);
       addToSketchpad("text", {
             dy: 5,
@@ -359,7 +382,26 @@ sketchpadActions.push({
 
 sketchpadActions.push({
   name: "select area",
-  // TODO
+  mousedown: function() {
+    if (event.target == sketchpad) {
+      var x1 = this.x1 = event.offsetX;
+      var y1 = this.y1 = event.offsetY;
+      this.path = $("path", sketchpadSelectionBox)
+        .attr({ d: pathbox(x1,y1, x1,y1) })
+        ;
+      $(sketchpadSelectionBox).addClass("active");
+      return this;
+    }
+  },
+  mousemove: function() {
+    var x2 = event.pageX - sketchpad.offsetLeft;
+    var y2 = event.pageY - sketchpad.offsetTop ;
+    this.path.attr({ d: pathbox(this.x1,this.y1, x2,y2) });
+    // TODO update selection
+  },
+  mouseup: function() {
+    $(sketchpadSelectionBox).removeClass("active");
+  }
 });
 
 sketchpadActions.push({
