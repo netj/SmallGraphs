@@ -33,15 +33,15 @@
         font-size: 0.8em;
       }
 
-      #query-sketchpad-selectionbox path {
+      #query-sketchpad-selectionbox rect {
         fill-opacity: 0;
         stroke-opacity: 0;
       }
-      #query-sketchpad-selectionbox.active path {
-        stroke-opacity: 0.5;
-        stroke-dasharray: 5,5;
-        stroke-width: 2px;
-        stroke: #ccc;
+      #query-sketchpad-selectionbox.active rect {
+        stroke-opacity: 0.75;
+        stroke-dasharray: 3,3;
+        stroke-width: 1px;
+        stroke: #333;
       }
 
       #query-sketchpad .edge {
@@ -76,7 +76,7 @@
     <h1>SmallGraphs</h1>
     <div id="query">
       <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
-        <g id="query-sketchpad-selectionbox"><path/><text/></g>
+        <g id="query-sketchpad-selectionbox"><rect/><text/></g>
       </svg>
       <div id="query-type-entry" class="ui-widget">
         <input type="text" id="query-type-input">
@@ -386,8 +386,12 @@ sketchpadActions.push({
     if (event.target == sketchpad) {
       var x1 = this.x1 = event.offsetX;
       var y1 = this.y1 = event.offsetY;
-      this.path = $("path", sketchpadSelectionBox)
-        .attr({ d: pathbox(x1,y1, x1,y1) })
+      this.rect = $("rect", sketchpadSelectionBox).attr({
+            x: x1,
+            y: y1,
+            width:  0,
+            height: 0,
+          })
         ;
       $(sketchpadSelectionBox).addClass("active");
       return this;
@@ -396,11 +400,17 @@ sketchpadActions.push({
   mousemove: function() {
     var x2 = event.pageX - sketchpad.offsetLeft;
     var y2 = event.pageY - sketchpad.offsetTop ;
-    this.path.attr({ d: pathbox(this.x1,this.y1, x2,y2) });
+    this.rect.attr({
+        x: Math.min(this.x1, x2),
+        y: Math.min(this.y1, y2),
+        width:  Math.abs(x2 - this.x1),
+        height: Math.abs(y2 - this.y1),
+      });
     // TODO update selection
   },
   mouseup: function() {
     $(sketchpadSelectionBox).removeClass("active");
+    this.rect.attr({ width: 0, height: 0 });
   }
 });
 
