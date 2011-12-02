@@ -152,6 +152,7 @@ function queryTypeEntryShow(x, y, list, done) {
     queryTypeEntryHandler();
   queryTypeEntryHandler = done;
   $("#query-type-input").autocomplete({
+      delay: 0,
       minLength: 0,
       source: list,
     });
@@ -178,6 +179,14 @@ sketchpadActions.push({
   name: "add node",
   mousedown: function() {
     if (event.target == sketchpad) {
+      this.lastEvent = event;
+      return this;
+    }
+  },
+  mouseup: function() {
+    // unless it was a dragging motion,
+    if (Math.abs(event.pageX-this.lastEvent.pageX) < MouseMoveThreshold &&
+        Math.abs(event.pageY-this.lastEvent.pageY) < MouseMoveThreshold) {
       // create node
       var node = addToSketchpad("g", {
         class: "node",
