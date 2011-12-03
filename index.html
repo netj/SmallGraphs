@@ -82,13 +82,14 @@
     <h1>SmallGraphs</h1>
     <div id="query">
       <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
-      <marker id="query-arrow-cap"
-        viewBox="0 0 10 10" refX="5" refY="5" 
-        markerUnits="strokeWidth"
-        markerWidth="4" markerHeight="3"
-        orient="auto">
-        <path d="M 0 0 L 10 5 L 0 10 Z"/>
-      </marker>
+        <g id="query-sketch"/>
+        <marker id="query-arrow-cap"
+          viewBox="0 0 10 10" refX="5" refY="5" 
+          markerUnits="strokeWidth"
+          markerWidth="4" markerHeight="3"
+          orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 Z"/>
+        </marker>
         <g id="query-sketchpad-selectionbox"><rect/><text/></g>
       </svg>
       <div id="query-type-entry" class="ui-widget">
@@ -133,6 +134,8 @@ function getEdge(e) {
 }
 
 function removeAll(allElements, elementsToRemove) {
+  if (!elementsToRemove || elementsToRemove.length == 0)
+    return allElements;
   return allElements.filter(function(n) { return (elementsToRemove.indexOf(n) == -1) });
 }
 
@@ -170,11 +173,12 @@ var sketchpad = $("#query-sketchpad")[0];
 var sketchpadDoc = sketchpad.ownerDocument;
 var sketchpadSelectionBox = $("#query-sketchpad-selectionbox")[0];
 $(sketchpad).bind("selectstart", function() { event.preventDefault(); });
+var sketch = $("#query-sketch")[0];
 
 function addToSketchpad(name, attrs, target) {
   var node = sketchpadDoc.createElementNS(SVGNameSpace, name);
   $(node).attr(attrs);
-  (target || sketchpad).appendChild(node);
+  (target || sketch).appendChild(node);
   return node;
 }
 
@@ -231,6 +235,7 @@ var sketchpadActions = [];
 
 sketchpadActions.push({
   name: "add node",
+  modifierKeys: ["alt"],
   click: function() {
     if (event.target == sketchpad) {
       // create node
@@ -269,8 +274,9 @@ sketchpadActions.push({
 sketchpadActions.push({
   name: "move node",
   mousedown: function() {
+    // TODO move all selected nodes
     var n = getNode(event.target);
-    if (event.shiftKey && n) {
+    if (n) {
       this.node = n;
       this.offsetX = event.offsetX - parseInt(n.getAttribute("x"));
       this.offsetY = event.offsetY - parseInt(n.getAttribute("y"));
@@ -313,9 +319,8 @@ sketchpadActions.push({
 
 sketchpadActions.push({
   name: "draw edge from a node",
+  modifierKeys: ["alt"],
   mousedown: function() {
-    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey)
-      return null;
     var n = getNode(event.target);
     if (n) {
       // create edge
@@ -509,10 +514,24 @@ function SketchpadAction(def) {
   for (var i in def)
     this[i] = def[i];
 }
+var ModifierKeys = ["shift", "alt", "ctrl", "meta"];
+function sketchpadActionDefSatisfyModifierKey(actionDef) {
+  if (actionDef.modifierKeys) {
+    var keyIsOn = function(modifier){ return event[modifier+"Key"]; }
+    if (!(actionDef.modifierKeys.every(keyIsOn) &&
+          !removeAll(ModifierKeys, actionDef.modifierKeys).some(keyIsOn)))
+      return false;
+  } else {
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey)
+      return false;
+  }
+  return true;
+}
 function sketchpadMouseDown() {
   sketchpadFirstMouseEvent = event;
   sketchpadActions.forEach(function(actionDef) {
       if (actionDef.mousedown) {
+        if (!sketchpadActionDefSatisfyModifierKey(actionDef)) return;
         try {
           var a = new SketchpadAction(actionDef);
           var r = a.mousedown();
@@ -555,6 +574,7 @@ function sketchpadMouseUp() {
       Math.abs(event.pageY-sketchpadFirstMouseEvent.pageY) < MouseMoveThreshold) {
     sketchpadActions.forEach(function(actionDef) {
       if (actionDef.click) {
+        if (!sketchpadActionDefSatisfyModifierKey(actionDef)) return;
         try {
           var a = new SketchpadAction(actionDef);
           console.log("click", event, a, a.name);
@@ -565,6 +585,7 @@ function sketchpadMouseUp() {
       }
     });
   }
+  // TODO double clicks?
 }
 
 var sketchpadCurrentKeyActions = [];
