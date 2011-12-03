@@ -243,7 +243,6 @@ sketchpadActions.push({
 sketchpadActions.push({
   name: "move node",
   mousedown: function() {
-    //return null; // FIXME update edges accordingly
     var n = getNode(event.target);
     if (event.shiftKey && n) {
       this.node = n;
@@ -285,33 +284,6 @@ sketchpadActions.push({
         $("line", e).attr({ x2: x2    ,  y2: y2     });
         $("text", e).attr({ x : x2 / 2,  y : y2 / 2 });
       });
-  },
-});
-
-var sketchpadCurrentSelection = [];
-sketchpadActions.push({
-  name: "select node or edge",
-  click: function() {
-    var nodeOrEdge = getNode(event.target) || getEdge(event.target);
-    if (nodeOrEdge) {
-      var isDoingMultipleSelection = event.metaKey || event.ctrlKey;
-      if (isDoingMultipleSelection) {
-        if ($(nodeOrEdge).hasClass("selected")) {
-          removeAll(sketchpadCurrentSelection, [nodeOrEdge]);
-          $(nodeOrEdge).removeClass("selected");
-        } else {
-          $(nodeOrEdge).addClass("selected");
-          sketchpadCurrentSelection.push(nodeOrEdge);
-        }
-      } else {
-        $(sketchpadCurrentSelection).removeClass("selected");
-        sketchpadCurrentSelection = [];
-        $(nodeOrEdge).addClass("selected");
-        sketchpadCurrentSelection.push(nodeOrEdge);
-        // TODO when selecting an edge, we should immediately do something?
-      }
-    }
-    return false;
   },
 });
 
@@ -385,6 +357,33 @@ sketchpadActions.push({
   },
 });
 
+var sketchpadCurrentSelection = [];
+sketchpadActions.push({
+  name: "select node or edge",
+  click: function() {
+    var nodeOrEdge = getNode(event.target) || getEdge(event.target);
+    if (nodeOrEdge) {
+      var isDoingMultipleSelection = event.metaKey || event.ctrlKey;
+      if (isDoingMultipleSelection) {
+        if ($(nodeOrEdge).hasClass("selected")) {
+          removeAll(sketchpadCurrentSelection, [nodeOrEdge]);
+          $(nodeOrEdge).removeClass("selected");
+        } else {
+          $(nodeOrEdge).addClass("selected");
+          sketchpadCurrentSelection.push(nodeOrEdge);
+        }
+      } else {
+        $(sketchpadCurrentSelection).removeClass("selected");
+        sketchpadCurrentSelection = [];
+        $(nodeOrEdge).addClass("selected");
+        sketchpadCurrentSelection.push(nodeOrEdge);
+        // TODO when selecting an edge, we should immediately do something?
+      }
+    }
+    return false;
+  },
+});
+
 sketchpadActions.push({
   name: "select area",
   mousedown: function() {
@@ -401,7 +400,7 @@ sketchpadActions.push({
         this.initialSelection = sketchpadCurrentSelection;
       } else {
         $(sketchpadCurrentSelection).removeClass("selected");
-        this.initialSelection = sketchpadCurrentSelection = [];
+        sketchpadCurrentSelection = this.initialSelection = [];
       }
       this.lastNodesInBox = [];
       return this;
@@ -447,6 +446,25 @@ sketchpadActions.push({
 });
 
 sketchpadActions.push({
+  name: "remove selection",
+  forKeys: [
+    8,  // DOM_VK_BACK_SPACE
+    46, // DOM_VK_DELETE
+  ],
+  keypress: function() {
+    // first, remove edges that will become dangling by removing the selection
+    $(".edge", sketchpad).filter(function() {
+        return (sketchpadCurrentSelection.indexOf(this.source) >= 0 ||
+                sketchpadCurrentSelection.indexOf(this.target) >= 0);
+      }).remove();
+    // then, remove the selection
+    $(sketchpadCurrentSelection).remove();
+    sketchpadCurrentSelection = [];
+  },
+});
+
+
+sketchpadActions.push({
   name: "add aggregation",
   // TODO
 });
@@ -459,10 +477,12 @@ sketchpadActions.push({
 ////////////////////////////////////////////////////////////////////////////////
 // sketchpad action dispatcher
 ////////////////////////////////////////////////////////////////////////////////
+// See for keycodes: https://developer.mozilla.org/en/DOM/KeyboardEvent#Virtual_key_codes
 // TODO build an index of actions for each event
 var sketchpadCurrentMouseActions = [];
 var sketchpadFirstMouseEvent = null;
 function SketchpadAction(def) {
+  // FIXME there must be a better way than copying contents of actionDef
   for (var i in def)
     this[i] = def[i];
 }
@@ -471,7 +491,6 @@ function sketchpadMouseDown() {
   sketchpadActions.forEach(function(actionDef) {
       if (actionDef.mousedown) {
         try {
-          // FIXME there must be a better way than copying contents of actionDef
           var a = new SketchpadAction(actionDef);
           var r = a.mousedown();
           if (r != null) {
@@ -512,22 +531,74 @@ function sketchpadMouseUp() {
   if (Math.abs(event.pageX-sketchpadFirstMouseEvent.pageX) < MouseMoveThreshold &&
       Math.abs(event.pageY-sketchpadFirstMouseEvent.pageY) < MouseMoveThreshold) {
     sketchpadActions.forEach(function(actionDef) {
-      try {
-        var a = new SketchpadAction(actionDef);
-        if (a.click) {
+      if (actionDef.click) {
+        try {
+          var a = new SketchpadAction(actionDef);
           console.log("click", event, a, a.name);
           a.click();
+        } catch (err) {
+          console.error(err, err+"");
         }
-      } catch (err) {
-        console.error(err, err+"");
       }
     });
   }
 }
+
+var sketchpadCurrentKeyActions = [];
+function sketchpadKeyDown() {
+  sketchpadFirstMouseEvent = event;
+  sketchpadActions.forEach(function(actionDef) {
+    if (actionDef.forKeys && actionDef.forKeys.indexOf(event.keyCode) != -1) {
+      if (actionDef.keydown) {
+        try {
+          var a = new SketchpadAction(actionDef);
+          var r = a.keydown();
+          if (r != null) {
+            console.log(event.type, event, a, a.name);
+            if (r) sketchpadCurrentKeyActions.push(a);
+          }
+        } catch (err) {
+          console.error(err, err+"");
+        }
+      }
+    }
+  });
+}
+function sketchpadKeyUp() {
+  sketchpadCurrentKeyActions.forEach(function(a) {
+    try {
+      if (a.keyup) {
+        console.log(event.type, event, a, a.name);
+        a.keyup();
+      }
+    } catch (err) {
+      console.error(err, err+"");
+    }
+  });
+  sketchpadCurrentKeyActions = [];
+  // process keypresses TODO if were not repeating?
+  // if (true) {
+    sketchpadActions.forEach(function(actionDef) {
+      if (actionDef.keypress && actionDef.forKeys && actionDef.forKeys.indexOf(event.keyCode) != -1) {
+        try {
+          var a = new SketchpadAction(actionDef);
+          console.log("keypress", event, a, a.name);
+          a.keypress();
+        } catch (err) {
+          console.error(err, err+"");
+        }
+      }
+    });
+  // }
+}
 $(sketchpad)
   .bind("mousedown", sketchpadMouseDown)
+  ;
+$(window)
   .bind("mousemove", sketchpadMouseMove)
   .bind("mouseup",   sketchpadMouseUp)
+  .bind("keydown",   sketchpadKeyDown)
+  .bind("keyup",     sketchpadKeyUp)
   ;
     </script>
   </body>
