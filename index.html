@@ -48,10 +48,16 @@
         z-index: -1;
       }
 
+      #query-arrow-cap,
+      #query-sketchpad .edge line {
+        fill: #33c;
+        stroke: #33c;
+      }
       #query-sketchpad .edge line {
         opacity: 0.7;
-        stroke: #33c;
         stroke-width: 7px;
+        stroke-linecap: round;
+        marker-end: url(#query-arrow-cap);
       }
       #query-sketchpad .node rect {
         fill: #c33;
@@ -76,6 +82,13 @@
     <h1>SmallGraphs</h1>
     <div id="query">
       <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
+      <marker id="query-arrow-cap"
+        viewBox="0 0 10 10" refX="5" refY="5" 
+        markerUnits="strokeWidth"
+        markerWidth="4" markerHeight="3"
+        orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 Z"/>
+      </marker>
         <g id="query-sketchpad-selectionbox"><rect/><text/></g>
       </svg>
       <div id="query-type-entry" class="ui-widget">
@@ -86,10 +99,10 @@
     <script type="text/javascript">
 var SVGNameSpace = "http://www.w3.org/2000/svg";
 var MouseMoveThreshold = 5;
-
-var NodeWidth  = 80;//px
-var NodeHeight = 40;//px
+var NodeWidth  = 40;//px
+var NodeHeight = 20;//px
 var NodeRounding = 5;//px
+var EdgeMarkerSize = 11;//px
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
@@ -136,6 +149,19 @@ function pathbox(x1,y1, x2,y2) {
          "L"+x2+" "+y2+" "+
          "L"+x1+" "+y2+" "+
          "Z";
+}
+
+function updateEdgeCoordinates(e, x2, y2, line, label, dangling) {
+    var r = Math.sqrt(x2*x2 + y2*y2);
+    var x1 = r < NodeWidth  ? 0 : NodeWidth  * x2/r;
+    var y1 = r < NodeHeight ? 0 : NodeHeight * y2/r;
+    var dx = x2/r * EdgeMarkerSize;
+    var dy = y2/r * EdgeMarkerSize;
+    (line || $("line", e)).attr({
+        x1: x1, y1: y1,
+        x2: x2 -dx -(dangling?0:x1), y2: y2 -dy -(dangling?0:y1),
+      });
+    (label || $("text", e)).attr({ x : x2 / 2, y : y2 / 2 });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,16 +242,16 @@ sketchpadActions.push({
       });
       addToSketchpad("rect", {
                 rx: NodeRounding ,      ry: NodeRounding,
-                 x: -NodeWidth /2,      y: -NodeHeight/2,
-            width :  NodeWidth   , height:  NodeHeight  ,
+                 x: -NodeWidth   ,      y: -NodeHeight  ,
+            width :  NodeWidth*2 , height:  NodeHeight*2,
           }, node);
       addToSketchpad("text", {
             dy: 5,
           }, node);
       // ask user to choose type
       queryTypeEntryShow(
-          sketchpad.offsetLeft + event.offsetX -.5*NodeWidth +5,
-          sketchpad.offsetTop  + event.offsetY -.5*NodeHeight+5,
+          sketchpad.offsetLeft + event.offsetX -NodeWidth +5,
+          sketchpad.offsetTop  + event.offsetY -NodeHeight+5,
           NodeTypes, function(type) {
             if (type) {
               $("text", node).text(type);
@@ -275,14 +301,12 @@ sketchpadActions.push({
         $(e).attr({ transform: translate(x,y) });
         var x2 = e.target.getAttribute("x") - x;
         var y2 = e.target.getAttribute("y") - y;
-        $("line", e).attr({ x2: x2    ,  y2: y2     });
-        $("text", e).attr({ x : x2 / 2,  y : y2 / 2 });
+        updateEdgeCoordinates(e, x2, y2);
       });
     this.edgesEnding.forEach(function(e) {
         var x2 = x - e.source.getAttribute("x");
         var y2 = y - e.source.getAttribute("y");
-        $("line", e).attr({ x2: x2    ,  y2: y2     });
-        $("text", e).attr({ x : x2 / 2,  y : y2 / 2 });
+        updateEdgeCoordinates(e, x2, y2);
       });
   },
 });
@@ -303,13 +327,13 @@ sketchpadActions.push({
         });
       e.source = n;
       e.target = null;
-      this.line = addToSketchpad("line", {
+      this.line = $(addToSketchpad("line", {
           x1: 0, y1: 0,
           x2: 0, y2: 0,
-        }, e);
-      this.label = addToSketchpad("text", {
+        }, e));
+      this.label = $(addToSketchpad("text", {
           dy: 20,
-        }, e);
+        }, e));
       return this;
     }
   },
@@ -325,8 +349,7 @@ sketchpadActions.push({
     }
     var x2 = tx - this.sx;
     var y2 = ty - this.sy;
-    $(this.line ).attr({ x2: x2    , y2: y2     });
-    $(this.label).attr({ x : x2 / 2, y : y2 / 2 });
+    updateEdgeCoordinates(null, x2, y2, this.line, this.label, n==null);
     // TODO highlight tentative target node
   },
   mouseup: function() {
@@ -338,8 +361,8 @@ sketchpadActions.push({
       e.target = n;
       // ask user to choose type
       queryTypeEntryShow(
-          sketchpad.offsetLeft + this.sx + parseInt(this.label.getAttribute("x")),
-          sketchpad.offsetTop  + this.sy + parseInt(this.label.getAttribute("y")),
+          sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
+          sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
           EdgeTypes, function(type) {
             if (type) {
               // TODO
