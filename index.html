@@ -44,6 +44,17 @@
         stroke: #333;
       }
 
+      #query-sketchpad-attribute-phantom-node rect {
+        fill-opacity: 0;
+        stroke-opacity: 0;
+      }
+      #query-sketchpad-attribute-phantom-node.active rect {
+        stroke-opacity: 1;
+        stroke-dasharray: 5,5;
+        stroke-width: 2px;
+        stroke: #ccc;
+      }
+
       .node rect {
         fill: #c33;
         opacity: 0.9;
@@ -105,6 +116,7 @@
           <path d="M 0 0 L 10 5 L 0 10 Z"/>
         </marker>
         <g id="query-sketchpad-selectionbox"><rect/><text/></g>
+        <g id="query-sketchpad-attribute-phantom-node"><rect/><text/></g>
       </svg>
       <div id="query-type-entry" class="ui-widget">
         <input type="text" id="query-type-input">
@@ -123,20 +135,35 @@ var EdgeMarkerSize = 11;//px
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
-var NodeTypes = [
-  "user",
-  "fanpage",
-  "post",
-  "url",
-];
-var EdgeTypes = [
-  "wrote",
-  "contains",
-  "has-post",
-];
-// TODO more complex schema, e.g. edge limiting allowed types of source/target nodes and vice versa
+var NodeTypes = [];
+// retreive schema in advance, e.g. edge limiting allowed types of source/target nodes and vice versa
+var GraphSchema;
+$.getJSON("schema.json", function(schema) {
+    GraphSchema = schema;
+    NodeTypes = [];
+    for (var objName in schema.Objects)
+      NodeTypes.push(objName);
+  });
 
 ////////////////////////////////////////////////////////////////////////////////
+
+function createNode(x, y) {
+  var node = addToSketchpad("g", {
+      class: "node",
+      transform: translate(x, y),
+    });
+  node.x = x;
+  node.y = y;
+  addToSketchpad("rect", {
+      rx: NodeRounding ,      ry: NodeRounding,
+      x: -NodeWidth   ,      y: -NodeHeight  ,
+      width :  NodeWidth*2 , height:  NodeHeight*2,
+    }, node);
+  addToSketchpad("text", {
+      dy: 5,
+    }, node);
+  return node;
+}
 
 function getNode(e) {
   if ($(e.parentNode).hasClass("node"))
@@ -147,6 +174,13 @@ function getEdge(e) {
   if ($(e.parentNode).hasClass("edge"))
     return e.parentNode;
   return null;
+}
+
+function keySet(obj) {
+  var keys = [];
+  for (var key in obj)
+    keys.push(key);
+  return keys;
 }
 
 function removeAll(allElements, elementsToRemove) {
@@ -188,6 +222,7 @@ function updateEdgeCoordinates(e, x2, y2, line, label, dangling) {
 var sketchpad = $("#query-sketchpad")[0];
 var sketchpadDoc = sketchpad.ownerDocument;
 var sketchpadSelectionBox = $("#query-sketchpad-selectionbox")[0];
+var sketchpadAttributePhantomNode = $("#query-sketchpad-attribute-phantom-node")[0];
 $(sketchpad).bind("selectstart", function() { event.preventDefault(); });
 var sketch = $("#query-sketch")[0];
 
@@ -238,7 +273,9 @@ function queryTypeEntryShow(x, y, list, done) {
     .addClass("active")
     ;
   var input = $("#query-type-input")[0];
-  if (list.indexOf(input.value) < 0)
+  if (list.length == 1)
+    input.value = list[0];
+  else if (list.indexOf(input.value) < 0)
     input.value = "";
   setTimeout(function() {
       input.focus();
@@ -255,26 +292,14 @@ sketchpadActions.push({
   click: function() {
     if (event.target == sketchpad) {
       // create node
-      var node = addToSketchpad("g", {
-        class: "node",
-        transform: translate(event.offsetX, event.offsetY),
-      });
-      node.x = event.offsetX;
-      node.y = event.offsetY;
-      addToSketchpad("rect", {
-                rx: NodeRounding ,      ry: NodeRounding,
-                 x: -NodeWidth   ,      y: -NodeHeight  ,
-            width :  NodeWidth*2 , height:  NodeHeight*2,
-          }, node);
-      addToSketchpad("text", {
-            dy: 5,
-          }, node);
+      var node = createNode(event.offsetX, event.offsetY);
       // ask user to choose type
       queryTypeEntryShow(
           sketchpad.offsetLeft + event.offsetX -NodeWidth +5,
           sketchpad.offsetTop  + event.offsetY -NodeHeight+5,
           NodeTypes, function(type) {
             if (type) {
+              node.objectType = type;
               $("text", node).text(type);
               console.log("added node", type, node);
             } else {
@@ -339,6 +364,8 @@ sketchpadActions.push({
   mousedown: function() {
     var n = getNode(event.target);
     if (n) {
+      if (n.isAttributeNode) // preventing edges being created from attribute nodes
+        return null;
       // create edge
       this.sx = parseInt(n.x);
       this.sy = parseInt(n.y);
@@ -355,6 +382,12 @@ sketchpadActions.push({
       this.label = $(addToSketchpad("text", {
           dy: 20,
         }, e));
+      // prepare related schema for this source node
+      this.objectSchema = GraphSchema.Objects[n.objectType];
+      var targetObjects = [];
+      for (var l in this.objectSchema.Links)
+        targetObjects = targetObjects.concat(this.objectSchema.Links[l]);
+      this.allowedTargetObjectTypes = targetObjects;
       return this;
     }
   },
@@ -363,30 +396,62 @@ sketchpadActions.push({
     var tx = event.offsetX;
     var ty = event.offsetY;
     var n = getNode(event.target);
-    if (n == this.edge.source) n = null; 
-    if (n != null) {
+    if (n) {
+      if (n == this.edge.source) { // disallowing self/reflexive/recursive edges
+        n = null; 
+      } else if (n.isAttributeNode) { // preventing edges being created to existing attribute nodes
+        n = null;
+      }
+    }
+    if (n) { // pointing on a node
+      // hide phantom attribute node
+      $(sketchpadAttributePhantomNode).removeClass("active");
+      $("rect", sketchpadAttributePhantomNode).attr({ width : 0, height: 0 });
+      // attract end of edge to the node
       tx = n.x;
       ty = n.y;
+      // check graph schema
+      var targetObjectType = n.objectType;
+      var allowedEdgeTypes = [];
+      var objectsByLinks = this.objectSchema.Links;
+      for (var l in objectsByLinks)
+        if (objectsByLinks[l].indexOf(targetObjectType) != -1)
+          allowedEdgeTypes.push(l);
+      this.allowedEdgeTypes = allowedEdgeTypes;
+      // TODO highlight tentative target node
+      // TODO show edge is invalid
+    } else { // not pointing on a node
+      // show phantom attribute node
+      $(sketchpadAttributePhantomNode).addClass("active");
+      $("rect", sketchpadAttributePhantomNode)
+        .attr({
+            x: tx+10, // FIXME displace this phantom node
+            y: ty+10,
+            width : NodeWidth,
+            height: NodeHeight,
+          })
+        ;
     }
     var x2 = tx - this.sx;
     var y2 = ty - this.sy;
     updateEdgeCoordinates(null, x2, y2, this.line, this.label, n==null);
-    // TODO highlight tentative target node
   },
   mouseup: function() {
     var n = getNode(event.target);
-    if (n == this.edge.source) n = null; // TODO self/reflexive/recursive edges?
-    if (n) {
-      // TODO finish edge
+    if (n == this.edge.source) { // disallowing self/reflexive/recursive edges
+      // cancel edge
+      $(this.edge).remove();
+    } else if (n) { // finish edge
       var e = this.edge;
       e.target = n;
       // ask user to choose type
       queryTypeEntryShow(
           sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
           sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
-          EdgeTypes, function(type) {
+          this.allowedEdgeTypes,
+          function(type) {
             if (type) {
-              // TODO
+              e.linkType = type;
               $("text", e).text(type);
               console.log("added edge", type, e);
             } else {
@@ -394,9 +459,24 @@ sketchpadActions.push({
               $(e).remove();
             }
           });
-    } else {
-      // cancel edge
-      $(this.edge).remove();
+    } else { // add attribute and an edge to it
+      var e = this.edge;
+      queryTypeEntryShow(
+          sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
+          sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
+          keySet(this.objectSchema.Attributes),
+          function(type) {
+            if (type) {
+              // TODO add attribute node
+              //e.target = n;
+              e.linkType = type;
+              $("text", e).text(type);
+              console.log("added attribute edge", type, e);
+            } else {
+              // cancel edge creation
+              $(e).remove();
+            }
+          });
     }
   },
 });

@@ -1,0 +1,54 @@
+SmallGraphs Schema
+==================
+
+Initial Ideas
+-------------
+Distinguish objects vs. primitive attributes?
+Which edge type leads to an object's label should be expressible.
+
+    {
+        "Namespaces": {
+            "": "http://netj.org/2011/example",
+            "xsd": "http://www.w3.org/2001/XMLSchema"
+        },
+        "Objects": {
+            "user": {
+                "Links": {
+                    "wrote": ["post"],
+                    "friend-of": ["user"],
+                    "fan-of": ["fanpage"]
+                },
+                "Attributes": {
+                    "id": "xsd:string",
+                    "name": "xsd:string"
+                },
+                "Label": "name"
+            },
+            "post": {
+                "Links": {
+                    "contains": ["url"]
+                },
+                "Attributes": {
+                    "content": "xsd:string",
+                    "created": "xsd:dateTime"
+                }
+            },
+            "url": {
+                "Links": {
+                },
+                "Attributes": {
+                    "url": "xsd:anyURI",
+                    "is-malicious": "xsd:boolean"
+                }
+            },
+            "fanpage": {
+                "Links": {
+                    "has-post": ["post"]
+                },
+                "Attributes": {
+                    "name": "xsd:string",
+                    "url": "xsd:anyURI"
+                }
+            }
+        }
+    }
