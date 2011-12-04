@@ -665,7 +665,6 @@ $(window)
     <script type="text/javascript">
 
 var results = $("#result");
-var resultpad = $("#resultpad")[0];
 
 function smallgraphsRunQuery() {
   // TODO formulate/serialize query from sketch
@@ -684,10 +683,8 @@ function showResults(data) {
   var minX, maxX; minX = maxX = firstNode.x;
   var minY, maxY; minY = maxY = firstNode.y;
   $(".node", sketch).each(function(i,n){
-      minX = Math.min(minX, n.x);
-      maxX = Math.max(maxX, n.x);
-      minY = Math.min(minY, n.y);
-      maxY = Math.max(maxY, n.y);
+      minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+      minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
     });
   sketchWidth  = maxX - minX + 2*NodeWidth;
   sketchHeight = maxY - minY + 2*NodeHeight;
@@ -695,21 +692,26 @@ function showResults(data) {
   var translateY = - minY + NodeHeight;
   var resultWidth  = resultScale * sketchWidth;
   var resultHeight = resultScale * sketchHeight;
+  // build a prototype for individual result
+  // TODO adjust edge coords, or add an arrow-ending?
+  var resultPrototype = $(sketch)
+    .clone()
+    .removeAttr("id")
+    .attr({
+        transform: "scale("+ resultScale +"), translate("+ translateX +","+ translateY +")",
+      })
+    ;
+  $(".edge text", resultPrototype)
+    .remove()
+    ;
+  // now, show each of them
   for (var i=0; i<100; i++) {
-    // XXX should we create svg documents for each individual result or put them in a single svg doc?
     var aResultSVG = document.createElementNS(SVGNameSpace, "svg");
-    $(sketch)
+    resultPrototype
       .clone()
-      .removeAttr("id")
-      .attr({
-          transform: "scale("+ resultScale +"), translate("+ translateX +","+ translateY +")",
-        })
       .appendTo(aResultSVG)
       ;
     // TODO fill data
-    $(".edge text", aResultSVG)
-      .remove()
-      ;
     $("<div>")
       .attr({
           class: "result",
