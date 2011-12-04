@@ -59,7 +59,7 @@
         fill: #fc3;
       }
       .node rect {
-        fill: #c33;
+        fill: #f88;
         opacity: 0.9;
         stroke-width: 2px;
       }
@@ -70,13 +70,11 @@
 
       #arrow-cap,
       .edge line {
-        fill: #33c;
-        stroke: #33c;
-        stroke-width: 1px;
-        stroke-linecap: round;
+        fill: #06c;
+        stroke: #06c;
       }
       .edge line {
-        opacity: 0.7;
+        opacity: 0.8;
         stroke-width: 7px;
         stroke-linecap: round;
         marker-end: url(#arrow-cap);
@@ -84,7 +82,7 @@
 
       #query-sketchpad .attribute.node:hover rect { stroke: #f63; }
       #query-sketchpad .node:hover rect { stroke: #900; }
-      #query-sketchpad .edge:hover line { stroke: #009; }
+      #query-sketchpad .edge:hover line { stroke: #039; }
       #query-sketchpad .node.selected:hover rect,
       #query-sketchpad .edge.selected:hover line { stroke: #090; }
       #query-sketchpad .node.selected       rect,
@@ -402,8 +400,9 @@ sketchpadActions.push({
       // prepare related schema for this source node
       this.objectSchema = GraphSchema.Objects[n.objectType];
       var targetObjects = [];
-      for (var l in this.objectSchema.Links)
-        targetObjects = targetObjects.concat(this.objectSchema.Links[l]);
+      if (this.objectSchema)
+        for (var l in this.objectSchema.Links)
+          targetObjects = targetObjects.concat(this.objectSchema.Links[l]);
       this.allowedTargetObjectTypes = targetObjects;
       return this;
     }
@@ -462,7 +461,7 @@ sketchpadActions.push({
     if (n == this.edge.source) { // disallowing self/reflexive/recursive edges
       // cancel edge
       $(this.edge).remove();
-    } else if (n) { // finish edge
+    } else if (n && !n.isAttributeNode) { // finish edge
       var e = this.edge;
       e.target = n;
       // ask user to choose type
@@ -485,7 +484,7 @@ sketchpadActions.push({
       queryTypeEntryShow(
           sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
           sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
-          keySet(this.objectSchema.Attributes),
+          keySet(this.objectSchema.Attributes), // TODO exclude label attribute from here?
           function(type) {
             // hide phantom node
             $(sketchpadAttributePhantomNode).removeClass("active");
@@ -609,13 +608,22 @@ sketchpadActions.push({
     46, // DOM_VK_DELETE
   ],
   keypress: function() {
+    function alsoRemoveTargetAttributeNodes() {
+      if (this.target && this.target.isAttributeNode)
+        $(this.target).remove();
+    }
     // first, remove edges that will become dangling by removing the selection
+    // along with the attribute nodes without its edge
     $(".edge", sketchpad).filter(function() {
         return (sketchpadCurrentSelection.indexOf(this.source) >= 0 ||
                 sketchpadCurrentSelection.indexOf(this.target) >= 0);
-      }).remove();
+      })
+      .each(alsoRemoveTargetAttributeNodes)
+      .remove();
     // then, remove the selection
-    $(sketchpadCurrentSelection).remove();
+    $(sketchpadCurrentSelection)
+      .each(alsoRemoveTargetAttributeNodes)
+      .remove();
     sketchpadCurrentSelection = [];
   },
 });
