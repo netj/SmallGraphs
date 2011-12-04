@@ -55,17 +55,21 @@
         stroke: #333;
       }
 
-      .attribute.node rect {
-        fill: #fc3;
+      .node text,
+      .edge text {
+        text-anchor: middle;
       }
+
       .node rect {
         fill: #f88;
         opacity: 0.9;
         stroke-width: 2px;
       }
-      .node text,
-      .edge text {
-        text-anchor: middle;
+      .attribute.node rect {
+        fill: #fc3;
+      }
+      .attribute.node text {
+        font-size: 0.7em;
       }
 
       #arrow-cap,
@@ -78,6 +82,9 @@
         stroke-width: 7px;
         stroke-linecap: round;
         marker-end: url(#arrow-cap);
+      }
+      .edge text {
+        font-size: 0.8em;
       }
 
       #query-sketchpad .attribute.node:hover rect { stroke: #f63; }
@@ -134,19 +141,38 @@ var SVGNameSpace = "http://www.w3.org/2000/svg";
 var MouseMoveThreshold = 5;
 var NodeWidth  = 40;//px
 var NodeHeight = 20;//px
-var NodeRounding = 5;//px
-var EdgeMarkerSize = 11;//px
+var NodeRounding = 10;//px
+var EdgeMarkerSize = 12;//px
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
+// label for atribute nodes
+var LabelForType = {
+  "xsd:string"  : "abc",
+  "xsd:decimal" : "#",
+  "xsd:integer" : "#",
+  "xsd:float"   : "#.#",
+  "xsd:double"  : "#.###",
+  "xsd:boolean" : "y/n",
+  "xsd:anyURI"  : "URI",
+  "xsd:date"    : "📅",
+  "xsd:dateTime": "📅⏰",
+  "xsd:time"    : "⏰",
+};
+
+// known types of nodes
 var NodeTypes = [];
-// retreive schema in advance, e.g. edge limiting allowed types of source/target nodes and vice versa
+
+// retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
 var GraphSchema;
 $.getJSON("schema.json", function(schema) {
     GraphSchema = schema;
+    // learn nodes types
     NodeTypes = [];
     for (var objName in schema.Objects)
       NodeTypes.push(objName);
+    // learn labels for types
+    $.extend(LabelForType, schema.TypeLabels);
   });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +220,12 @@ function removeAll(allElements, elementsToRemove) {
   if (!elementsToRemove || elementsToRemove.length == 0)
     return allElements;
   return allElements.filter(function(n) { return (elementsToRemove.indexOf(n) == -1) });
+}
+
+
+function attributeNodeLabelForType(xsdType) {
+  var label = LabelForType[xsdType];
+  return label ? label : xsdType;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -461,12 +493,12 @@ sketchpadActions.push({
     updateEdgeCoordinates(e, x2, y2);
   },
   mouseup: function() {
+    var e = this.edge;
     var n = getNode(event.target);
     if (n == this.edge.source) { // disallowing self/reflexive/recursive edges
       // cancel edge
-      $(this.edge).remove();
+      $(e).remove();
     } else if (n && !n.isAttributeNode) { // finish edge
-      var e = this.edge;
       e.target = n;
       // ask user to choose type
       queryTypeEntryShow(
@@ -484,26 +516,27 @@ sketchpadActions.push({
             }
           });
     } else { // add attribute and an edge to it
-      var e = this.edge;
+      var attrSchema = this.objectSchema.Attributes;
       queryTypeEntryShow(
           sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
           sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
-          keySet(this.objectSchema.Attributes), // TODO exclude label attribute from here?
+          keySet(attrSchema), // TODO exclude label attribute from here?
           function(type) {
             // hide phantom node
             $(sketchpadAttributePhantomNode).removeClass("active");
             $("rect", sketchpadAttributePhantomNode).attr({ width : 0, height: 0 });
             if (type) {
-              // add attribute node
+              // add an attribute node
               var attrNode = createNode(
                 sketchpadAttributePhantomNode.x, sketchpadAttributePhantomNode.y,
                 NodeWidth/2, NodeHeight/2,
                 0
                 );
-              $(attrNode)
-                .addClass("attribute")
-                ;
+              $(attrNode).addClass("attribute");
+              attrNode.attributeType = attrSchema[type];
+              $("text", attrNode).text(attributeNodeLabelForType(attrSchema[type]));
               attrNode.isAttributeNode = true;
+              // finish attribute edge
               e.target = attrNode;
               e.linkType = type;
               $("text", e).text(type);
@@ -537,7 +570,7 @@ sketchpadActions.push({
         sketchpadCurrentSelection = [];
         $(nodeOrEdge).addClass("selected");
         sketchpadCurrentSelection.push(nodeOrEdge);
-        // TODO when selecting an edge, we should immediately do something?
+        // TODO when selecting an edge, should we immediately do something?
       }
     }
     return false;

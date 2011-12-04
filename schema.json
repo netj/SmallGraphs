@@ -42,5 +42,8 @@
                 "url": "xsd:anyURI"
             }
         }
+    },
+    "TypeLabels": {
+        "attribute-type": "it's label"
     }
 }
