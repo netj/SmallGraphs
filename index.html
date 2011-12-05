@@ -35,6 +35,12 @@
         right: 8px;
         text-align: right;
       }
+      #tools > div {
+        display: none;
+      }
+      #tools > *.active {
+        display: block;
+      }
 
       .ui-accordion .ui-accordion-header {
         font-size: 12px;
@@ -171,11 +177,12 @@
         <button id="query-run">Search!</button>
       </div>
       <div id="result-tools">
+        <button id="result-refine">Retry</button>
       </div>
     </div>
 
     <div id="frame">
-      <h3><a href="#">Sketch Query</a></h3>
+      <h3 id="query-header"><a href="#">Sketch Query</a></h3>
       <div id="query">
         <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
           <defs>
@@ -1016,11 +1023,11 @@ function smallgraphsRunQuery() {
   // TODO formulate/serialize query from sketch
   // TODO send it to server and get response
   // TODO show each subgraph instance as small multiples
-  showResults(null);
+  smallgraphsShowResults(null);
 }
 
 var resultScale = 0.33;
-function showResults(data) {
+function smallgraphsShowResults(data) {
   $("#result-header").click();
   $(".result", results).remove();
   // dynamically determine the bounding box of sketch and use that as the size for each
@@ -1080,6 +1087,10 @@ $("#query-run")
   .button()
   .click(smallgraphsRunQuery)
   ;
+$("#result-refine")
+  .button()
+  .click(function(){ $("#query-header").click(); })
+  ;
 
 ////////////////////////////////////////////////////////////////////////////////
 // overall UI layout
@@ -1093,7 +1104,12 @@ $("#frame").accordion({
       animated: true,
       //fillSpace: true,
       event: "click",
+      changestart: function(event, ui) {
+          $("#"+ ui.oldContent.attr("id") +"-tools").removeClass("active");
+          $("#"+ ui.newContent.attr("id") +"-tools").   addClass("active");
+        },
     });
+$("#query-tools").addClass("active");
 sketchpadPageLeft = sketchpad.offsetLeft + sketchpad.offsetParent.offsetLeft;
 sketchpadPageTop  = sketchpad.offsetTop  + sketchpad.offsetParent.offsetTop;
     </script>
