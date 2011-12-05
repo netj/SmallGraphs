@@ -12,8 +12,10 @@
       @import url("jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css");
 
       #query {
-        width: 600px;
-        height: 400px;
+        min-width: 600px;
+        min-height: 400px;
+        height: 80%;
+        padding: 10px;
         border: 1px solid #ccc;
       }
 
@@ -86,6 +88,9 @@
       .edge text {
         font-size: 0.8em;
       }
+      .attribute.edge line {
+        stroke-width: 4px;
+      }
 
       #query-sketchpad .attribute.node:hover rect { stroke: #f63; }
       #query-sketchpad .node:hover rect { stroke: #900; }
@@ -116,7 +121,13 @@
   <body>
     <h1>SmallGraphs</h1>
     <div id="query">
-      <button id="query-run">Search Instances</button>
+      <span id="query-mode">
+        <input type="radio" id="query-mode-sketch" name="query-mode" value="sketch" checked="checked"><label for="query-mode-sketch">Sketch</label>
+        <input type="radio" id="query-mode-layout" name="query-mode" value="layout"                  ><label for="query-mode-layout">Layout</label>
+        <!--<input type="radio" id="query-mode-pan"    name="query-mode" value="pan"                     ><label for="query-mode-pan"   >Pan   </label>-->
+      </span>
+      <button id="query-run">Search!</button>
+      
       <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
         <g id="query-sketch"/>
         <marker id="arrow-cap"
@@ -331,11 +342,9 @@ function queryTypeEntryShow(x, y, list, done) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-var sketchpadActions = [];
-
-sketchpadActions.push({
+// sketchpad actions
+var sketchpadAction_AddNode = {
   name: "add node",
-  modifierKeys: ["alt"],
   click: function() {
     if (event.target == sketchpad) {
       // create node
@@ -357,9 +366,9 @@ sketchpadActions.push({
       return false;
     }
   },
-});
+};
 
-sketchpadActions.push({
+var sketchpadAction_MoveNode = {
   name: "move node",
   mousedown: function() {
     // TODO move all selected nodes
@@ -403,12 +412,11 @@ sketchpadActions.push({
         updateEdgeCoordinates(e, x2, y2);
       });
   },
-});
+};
 
 var nullNode = { w: 0, h: 0 };
-sketchpadActions.push({
+var sketchpadAction_DrawEdgeFromANode = {
   name: "draw edge from a node",
-  modifierKeys: ["alt"],
   mousedown: function() {
     var n = getNode(event.target);
     if (n) {
@@ -539,6 +547,7 @@ sketchpadActions.push({
               // finish attribute edge
               e.target = attrNode;
               e.linkType = type;
+              $(e).addClass("attribute");
               $("text", e).text(type);
               console.log("added attribute edge", type, e);
             } else {
@@ -548,10 +557,21 @@ sketchpadActions.push({
           });
     }
   },
-});
+};
+
+var sketchpadAction_AddAggregation = {
+  name: "add aggregation",
+  // TODO
+};
+
+var sketchpadAction_AddConstraint = {
+  name: "add constraints",
+  // TODO
+};
+
 
 var sketchpadCurrentSelection = [];
-sketchpadActions.push({
+var sketchpadAction_SelectNodeOrEdge = {
   name: "select node or edge",
   click: function() {
     var nodeOrEdge = getNode(event.target) || getEdge(event.target);
@@ -575,9 +595,9 @@ sketchpadActions.push({
     }
     return false;
   },
-});
+};
 
-sketchpadActions.push({
+var sketchpadAction_SelectArea = {
   name: "select area",
   mousedown: function() {
     if (event.target == sketchpad) {
@@ -636,14 +656,10 @@ sketchpadActions.push({
     $(sketchpadSelectionBox).removeClass("active");
     this.rect.attr({ width: 0, height: 0 });
   }
-});
+};
 
-sketchpadActions.push({
+var sketchpadAction_RemoveSelection = {
   name: "remove selection",
-  forKeys: [
-    8,  // DOM_VK_BACK_SPACE
-    46, // DOM_VK_DELETE
-  ],
   keypress: function() {
     function alsoRemoveTargetAttributeNodes() {
       if (this.target && this.target.isAttributeNode)
@@ -663,18 +679,83 @@ sketchpadActions.push({
       .remove();
     sketchpadCurrentSelection = [];
   },
-});
+};
 
 
-sketchpadActions.push({
-  name: "add aggregation",
-  // TODO
-});
+var sketchpadAction_SwitchMode = {
+  name: "cycle mode",
+  keypress: function() {
+    var currentMode = $("#query-mode :checked")[0];
+    var modes = $("#query-mode input");
+    modes.each(function(i,b){
+        if (b == currentMode)
+          $(modes[(i+1) % modes.length]).click();
+      });
+  }
+}
 
-sketchpadActions.push({
-  name: "add constraints",
-  // TODO
-});
+
+////////////////////////////////////////////////////////////////////////////////
+// sketchpad modes of mapping actions
+var sketchpadMode = {};
+var sketchpadModeButton = $("#query-mode")
+  .buttonset()
+  ;
+
+var sketchpadMouseActions = [];
+var sketchpadKeyActions = [];
+function SketchpadActionHandler(handlerPrototype) {
+  // FIXME there must be a better way than copying contents of handler
+  for (var i in handlerPrototype)
+    this[i] = handlerPrototype[i];
+}
+
+var sketchpadPervasiveMode = [
+    { handler: sketchpadAction_SelectNodeOrEdge },
+    { handler: sketchpadAction_SelectArea       },
+    { handler: sketchpadAction_RemoveSelection  , forKeys: [ /*DOM_VK_BACK_SPACE*/8, /*DOM_VK_DELETE*/46, ] },
+    { handler: sketchpadAction_SwitchMode       , forKeys: [ /*DOM_VK_M*/77, ] },
+    { handler: sketchpadAction_AddAggregation   },
+    { handler: sketchpadAction_AddConstraint    },
+  ];
+
+sketchpadMode.sketch = sketchpadPervasiveMode.concat([
+    { handler: sketchpadAction_AddNode          ,                       },
+    { handler: sketchpadAction_DrawEdgeFromANode,                       },
+    { handler: sketchpadAction_MoveNode         , modifierKeys: ["alt"] },
+  ]);
+
+sketchpadMode.layout = sketchpadPervasiveMode.concat([
+    { handler: sketchpadAction_AddNode          , modifierKeys: ["alt"] },
+    { handler: sketchpadAction_DrawEdgeFromANode, modifierKeys: ["alt"] },
+    { handler: sketchpadAction_MoveNode         ,                       },
+  ]);
+
+var sketchpadCurrentMode;
+function sketchpadSwitchToMode(modeName) {
+  console.log("switching mode to", modeName);
+  var mode = sketchpadMode[modeName];
+  var mouseActionHandlers = [];
+  var keyActionHandlers = [];
+  mode.forEach(function(mapping){
+      var h = new SketchpadActionHandler(mapping.handler);
+      h.modifierKeys = mapping.modifierKeys;
+      if (h.mousedown || h.click || h.dblclick) {
+        mouseActionHandlers.push(h);
+      } else if (h.keydown || h.keypress) {
+        h.forKeys = mapping.forKeys;
+        keyActionHandlers.push(h);
+      }
+    });
+  sketchpadCurrentMode = mode;
+  sketchpadMouseActions = mouseActionHandlers;
+  sketchpadKeyActions = keyActionHandlers;
+}
+sketchpadSwitchToMode($("#query-mode input[checked]").val());
+sketchpadModeButton
+  .change(function() { sketchpadSwitchToMode(event.target.value); })
+  ;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // sketchpad action dispatcher
@@ -683,17 +764,17 @@ sketchpadActions.push({
 // TODO build an index of actions for each event
 var sketchpadCurrentMouseActions = [];
 var sketchpadFirstMouseEvent = null;
-function SketchpadAction(def) {
-  // FIXME there must be a better way than copying contents of actionDef
-  for (var i in def)
-    this[i] = def[i];
+function SketchpadAction(handler) {
+  // FIXME there must be a better way than copying contents of handler
+  for (var i in handler)
+    this[i] = handler[i];
 }
 var ModifierKeys = ["shift", "alt", "ctrl", "meta"];
-function sketchpadActionDefSatisfyModifierKey(actionDef) {
-  if (actionDef.modifierKeys) {
+function sketchpadActionDefSatisfyModifierKey(handler) {
+  if (handler.modifierKeys) {
     var keyIsOn = function(modifier){ return event[modifier+"Key"]; }
-    if (!(actionDef.modifierKeys.every(keyIsOn) &&
-          !removeAll(ModifierKeys, actionDef.modifierKeys).some(keyIsOn)))
+    if (!(handler.modifierKeys.every(keyIsOn) &&
+          !removeAll(ModifierKeys, handler.modifierKeys).some(keyIsOn)))
       return false;
   } else {
     if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey)
@@ -703,11 +784,11 @@ function sketchpadActionDefSatisfyModifierKey(actionDef) {
 }
 function sketchpadMouseDown() {
   sketchpadFirstMouseEvent = event;
-  sketchpadActions.forEach(function(actionDef) {
-      if (actionDef.mousedown) {
-        if (!sketchpadActionDefSatisfyModifierKey(actionDef)) return;
+  sketchpadMouseActions.forEach(function(handler) {
+      if (handler.mousedown) {
+        if (!sketchpadActionDefSatisfyModifierKey(handler)) return;
         try {
-          var a = new SketchpadAction(actionDef);
+          var a = new SketchpadAction(handler);
           var r = a.mousedown();
           if (r != null) {
             console.log(event.type, event, a, a.name);
@@ -746,11 +827,11 @@ function sketchpadMouseUp() {
   // process clicks if were not dragging
   if (Math.abs(event.pageX-sketchpadFirstMouseEvent.pageX) < MouseMoveThreshold &&
       Math.abs(event.pageY-sketchpadFirstMouseEvent.pageY) < MouseMoveThreshold) {
-    sketchpadActions.forEach(function(actionDef) {
-      if (actionDef.click) {
-        if (!sketchpadActionDefSatisfyModifierKey(actionDef)) return;
+    sketchpadMouseActions.forEach(function(handler) {
+      if (handler.click) {
+        if (!sketchpadActionDefSatisfyModifierKey(handler)) return;
         try {
-          var a = new SketchpadAction(actionDef);
+          var a = new SketchpadAction(handler);
           console.log("click", event, a, a.name);
           a.click();
         } catch (err) {
@@ -765,11 +846,11 @@ function sketchpadMouseUp() {
 var sketchpadCurrentKeyActions = [];
 function sketchpadKeyDown() {
   sketchpadFirstMouseEvent = event;
-  sketchpadActions.forEach(function(actionDef) {
-    if (actionDef.forKeys && actionDef.forKeys.indexOf(event.keyCode) != -1) {
-      if (actionDef.keydown) {
+  sketchpadKeyActions.forEach(function(handler) {
+    if (handler.forKeys && handler.forKeys.indexOf(event.keyCode) != -1) {
+      if (handler.keydown) {
         try {
-          var a = new SketchpadAction(actionDef);
+          var a = new SketchpadAction(handler);
           var r = a.keydown();
           if (r != null) {
             console.log(event.type, event, a, a.name);
@@ -796,10 +877,10 @@ function sketchpadKeyUp() {
   sketchpadCurrentKeyActions = [];
   // process keypresses TODO if were not repeating?
   // if (true) {
-    sketchpadActions.forEach(function(actionDef) {
-      if (actionDef.keypress && actionDef.forKeys && actionDef.forKeys.indexOf(event.keyCode) != -1) {
+    sketchpadKeyActions.forEach(function(handler) {
+      if (handler.keypress && handler.forKeys && handler.forKeys.indexOf(event.keyCode) != -1) {
         try {
-          var a = new SketchpadAction(actionDef);
+          var a = new SketchpadAction(handler);
           console.log("keypress", event, a, a.name);
           a.keypress();
         } catch (err) {
@@ -884,7 +965,10 @@ function showResults(data) {
   }
 }
 
-$("#query-run").click(smallgraphsRunQuery);
+$("#query-run")
+  .button()
+  .click(smallgraphsRunQuery)
+  ;
     </script>
   </body>
 </html>
