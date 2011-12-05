@@ -57,8 +57,10 @@
       }
       #query-type-entry input {
         opacity: 0.8;
-        width: 100px;
-        height: 25px;
+        text-align: center;
+      }
+      .ui-autocomplete {
+        text-align: center;
       }
       #query-type-entry input, .ui-widget {
         font-size: 0.8em;
@@ -198,8 +200,14 @@ var SVGNameSpace = "http://www.w3.org/2000/svg";
 var MouseMoveThreshold = 5;
 var NodeWidth  = 40;//px
 var NodeHeight = 20;//px
+var NodeLabelLeft = 0;//px
+var NodeLabelTop  = 5;//px
 var NodeRounding = 10;//px
 var EdgeMarkerSize = 12;//px
+var EdgeLabelLeft = 0;//px
+var EdgeLabelTop  = 10;//px
+var EntryWidth  = 100/2;//px
+var EntryHeight = 25/2;//px
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
@@ -250,7 +258,7 @@ function createNode(x, y, w, h, nr) {
       width: w*2, height: h*2,
     }, node);
   addToSketchpad("text", {
-      dy: 5,
+      dx: NodeLabelLeft, dy: NodeLabelTop,
     }, node);
   return node;
 }
@@ -317,6 +325,8 @@ function updateEdgeCoordinates(e, x2, y2) {
 // sketchpad
 var sketchpad = $("#query-sketchpad")[0];
 var sketchpadDoc = sketchpad.ownerDocument;
+var sketchpadPageLeft;
+var sketchpadPageTop;
 var sketchpadSelectionBox = $("#query-sketchpad-selectionbox")[0];
 var sketchpadAttributePhantomNode = $("#query-sketchpad-attribute-phantom-node")[0];
 $("rect", sketchpadAttributePhantomNode)
@@ -340,6 +350,10 @@ function addToSketchpad(name, attrs, target) {
 var queryTypeEntryHandler = null;
 var queryTypeEntryWasBlurred = null;
 $("#query-type-input")
+  .css({
+      width:  EntryWidth *2+"px",
+      height: EntryHeight*2+"px",
+    })
   .keyup(function() {
       switch (event.keyCode) {
         case 27: // esc
@@ -354,6 +368,7 @@ $("#query-type-input")
       queryTypeEntryHandler(this.value);
       queryTypeEntryHandler = null;
       $("#query-type-entry").removeClass("active");
+      this.blur();
     })
   .focus(function() {
       if (queryTypeEntryWasBlurred)
@@ -412,8 +427,8 @@ var sketchpadAction_AddNode = {
       var node = createNode(event.offsetX, event.offsetY);
       // ask user to choose type
       queryTypeEntryShow(
-          sketchpad.offsetLeft + event.offsetX -NodeWidth +5,
-          sketchpad.offsetTop  + event.offsetY -NodeHeight+5,
+          sketchpad.offsetLeft + event.offsetX -NodeWidth  +(NodeWidth -EntryWidth ),
+          sketchpad.offsetTop  + event.offsetY -NodeHeight +(NodeHeight-EntryHeight),
           NodeTypes, function(type) {
             if (type) {
               node.objectType = type;
@@ -436,8 +451,8 @@ var sketchpadAction_MoveNode = {
     var n = getNode(event.target);
     if (n) {
       this.node = n;
-      this.offsetX = event.offsetX - parseInt(n.x);
-      this.offsetY = event.offsetY - parseInt(n.y);
+      this.offsetX = event.pageX - sketchpadPageLeft - parseInt(n.x);
+      this.offsetY = event.pageY - sketchpadPageTop  - parseInt(n.y);
       var starting = [];
       var ending = [];
       $(".edge", sketchpad).each(function(i, e) {
@@ -453,8 +468,8 @@ var sketchpadAction_MoveNode = {
     }
   },
   mousemove: function() {
-    var x = event.pageX - sketchpad.offsetLeft - this.offsetX;
-    var y = event.pageY - sketchpad.offsetTop  - this.offsetY;
+    var x = event.pageX - sketchpadPageLeft - this.offsetX;
+    var y = event.pageY - sketchpadPageTop  - this.offsetY;
     this.node.x = x;
     this.node.y = y;
     $(this.node).attr({
@@ -497,7 +512,7 @@ var sketchpadAction_DrawEdgeFromANode = {
           x2: 0, y2: 0,
         }, e));
       this.label = $(addToSketchpad("text", {
-          dy: 20,
+          dx: EdgeLabelLeft, dy: EdgeLabelTop,
         }, e));
       // prepare related schema for this source node
       this.objectSchema = GraphSchema.Objects[n.objectType];
@@ -540,7 +555,6 @@ var sketchpadAction_DrawEdgeFromANode = {
         if (objectsByLinks[l].indexOf(targetObjectType) != -1)
           allowedEdgeTypes.push(l);
       this.allowedEdgeTypes = allowedEdgeTypes;
-      // TODO highlight tentative target node
       // TODO show edge is invalid
     } else { // not pointing on a node
       e.target = nullNode;
@@ -564,6 +578,8 @@ var sketchpadAction_DrawEdgeFromANode = {
   mouseup: function() {
     var e = this.edge;
     var n = getNode(event.target);
+    var lx = sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")) -EntryWidth ;
+    var ly = sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")) -EntryHeight;
     if (n == this.edge.source) { // disallowing self/reflexive/recursive edges
       // hide phantom node
       $(sketchpadAttributePhantomNode).removeClass("active");
@@ -574,8 +590,7 @@ var sketchpadAction_DrawEdgeFromANode = {
       e.target = n;
       // ask user to choose type
       queryTypeEntryShow(
-          sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
-          sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
+          lx, ly,
           this.allowedEdgeTypes,
           function(type) {
             if (type) {
@@ -590,8 +605,7 @@ var sketchpadAction_DrawEdgeFromANode = {
     } else { // add attribute and an edge to it
       var attrSchema = this.objectSchema.Attributes;
       queryTypeEntryShow(
-          sketchpad.offsetLeft + this.sx + parseInt(this.label.attr("x")),
-          sketchpad.offsetTop  + this.sy + parseInt(this.label.attr("y")),
+          lx, ly,
           keySet(attrSchema), // TODO exclude label attribute from here?
           function(type) {
             // hide phantom node
@@ -654,7 +668,6 @@ var sketchpadAction_SelectNodeOrEdge = {
         sketchpadCurrentSelection = [];
         $(nodeOrEdge).addClass("selected");
         sketchpadCurrentSelection.push(nodeOrEdge);
-        // TODO when selecting an edge, should we immediately do something?
       }
     }
     return false;
@@ -682,13 +695,12 @@ var sketchpadAction_SelectArea = {
       this.lastNodesInBox = [];
       return this;
     }
-    // TODO index nodes by coordinates (linear search might be better for mere set of small number of nodes)
   },
   mousemove: function() {
     var x1 = this.x1;
     var y1 = this.y1;
-    var x2 = event.pageX - sketchpad.offsetLeft;
-    var y2 = event.pageY - sketchpad.offsetTop ;
+    var x2 = event.pageX - sketchpadPageLeft;
+    var y2 = event.pageY - sketchpadPageTop;
     this.rect.attr({
         x: Math.min(x1, x2),
         y: Math.min(y1, y2),
@@ -825,7 +837,6 @@ sketchpadModeButton
 // sketchpad action dispatcher
 ////////////////////////////////////////////////////////////////////////////////
 // See for keycodes: https://developer.mozilla.org/en/DOM/KeyboardEvent#Virtual_key_codes
-// TODO build an index of actions for each event
 var sketchpadCurrentMouseActions = [];
 var sketchpadFirstMouseEvent = null;
 function SketchpadAction(handler) {
@@ -956,6 +967,7 @@ function sketchpadKeyUp() {
       }
     });
   // }
+  // TODO longkeypress?
 }
 $(sketchpad)
   .bind("mousedown", sketchpadMouseDown)
@@ -969,7 +981,9 @@ $(window)
     </script>
 
     <script type="text/javascript">
-
+////////////////////////////////////////////////////////////////////////////////
+// query execution & result presentation
+////////////////////////////////////////////////////////////////////////////////
 var results = $("#result");
 
 function smallgraphsRunQuery() {
@@ -1051,6 +1065,8 @@ $("#frame").accordion({
       //fillSpace: true,
       event: "click",
     });
+sketchpadPageLeft = sketchpad.offsetLeft + sketchpad.offsetParent.offsetLeft;
+sketchpadPageTop  = sketchpad.offsetTop  + sketchpad.offsetParent.offsetTop;
     </script>
   </body>
 </html>
