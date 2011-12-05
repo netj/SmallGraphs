@@ -388,12 +388,10 @@ $("#query-type-input")
         queryTypeEntryWasBlurred = clearTimeout(queryTypeEntryWasBlurred);
     })
   .blur(function() {
-      var v = this.value;
       if (queryTypeEntryHandler)
         queryTypeEntryWasBlurred = setTimeout(function() {
-            queryTypeEntryWasBlurred = null;
             if (queryTypeEntryHandler)
-              queryTypeEntryHandler(v);
+              queryTypeEntryHandler();
             queryTypeEntryHandler = null;
             $("#query-type-entry").removeClass("active");
           }, 200);
@@ -401,11 +399,10 @@ $("#query-type-input")
   ;
 
 function queryTypeEntryShow(x, y, list, done) {
-  if (queryTypeEntryWasBlurred) {
+  if (queryTypeEntryWasBlurred)
     queryTypeEntryWasBlurred = clearTimeout(queryTypeEntryWasBlurred);
-    if (queryTypeEntryHandler)
-      queryTypeEntryHandler($("#query-type-input").val());
-  }
+  if (queryTypeEntryHandler)
+    queryTypeEntryHandler();
   queryTypeEntryHandler = done;
   $("#query-type-input").autocomplete({
       delay: 0,
@@ -1020,6 +1017,11 @@ $(window)
 var results = $("#result");
 
 function smallgraphsRunQuery() {
+  // XXX I know this is ugly, but it's required to prevent sketching elements from coming in
+  if (queryTypeEntryHandler) {
+    queryTypeEntryHandler();
+    queryTypeEntryHandler = null;
+  }
   // TODO formulate/serialize query from sketch
   // TODO send it to server and get response
   // TODO show each subgraph instance as small multiples
