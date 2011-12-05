@@ -105,22 +105,25 @@
         font-size: 0.7em;
       }
 
-      #arrow-cap,
-      .edge line {
+      #arrowhead {
         fill: #06c;
-        stroke: #06c;
       }
       .edge line {
+        stroke: #06c;
         opacity: 0.8;
         stroke-width: 7px;
         stroke-linecap: round;
-        marker-end: url(#arrow-cap);
+        marker-end: url(#arrowhead);
       }
       .edge text {
         font-size: 0.8em;
       }
       .attribute.edge line {
-        stroke-width: 4px;
+        stroke-width: 5px;
+      }
+      .invalid.edge line {
+        opacity: 0.4;
+        stroke-dasharray: 14,14;
       }
 
       #query-sketchpad .attribute.node:hover rect { stroke: #f63; }
@@ -143,11 +146,12 @@
       }
 
       .result .node rect {
-        fill: #eee;
+        fill: #ccc;
         stroke-width: 1px;
       }
       .result .edge line {
         stroke-width: 1px;
+        stroke: #000;
       }
     </style>
   </head>
@@ -174,14 +178,16 @@
       <h3><a href="#">Sketch Query</a></h3>
       <div id="query">
         <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
+          <defs>
+            <marker id="arrowhead"
+              viewBox="0 0 10 10" refX="5" refY="5" 
+              markerUnits="strokeWidth"
+              markerWidth="4" markerHeight="3"
+              orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 Z"/>
+            </marker>
+          </defs>
           <g id="query-sketch"/>
-          <marker id="arrow-cap"
-            viewBox="0 0 10 10" refX="5" refY="5" 
-            markerUnits="strokeWidth"
-            markerWidth="4" markerHeight="3"
-            orient="auto">
-            <path d="M 0 0 L 10 5 L 0 10 Z"/>
-          </marker>
           <g id="query-sketchpad-selectionbox"><rect/><text/></g>
           <g id="query-sketchpad-attribute-phantom-node"><rect/><text/></g>
         </svg>
@@ -491,6 +497,7 @@ var sketchpadAction_MoveNode = {
 };
 
 var nullNode = { w: 0, h: 0 };
+var emptySchema = { Links: {}, Attributes: {} }
 var sketchpadAction_DrawEdgeFromANode = {
   name: "draw edge from a node",
   mousedown: function() {
@@ -520,7 +527,13 @@ var sketchpadAction_DrawEdgeFromANode = {
       if (this.objectSchema)
         for (var l in this.objectSchema.Links)
           targetObjects = targetObjects.concat(this.objectSchema.Links[l]);
+      else
+        this.objectSchema = emptySchema;
       this.allowedTargetObjectTypes = targetObjects;
+      this.allowedAttributeNames = keySet(this.objectSchema.Attributes);
+      // exclude label attribute
+      if (this.objectSchema.Label)
+        this.allowedAttributeNames = removeAll(this.allowedAttributeNames, [this.objectSchema.Label]);
       return this;
     }
   },
@@ -555,7 +568,11 @@ var sketchpadAction_DrawEdgeFromANode = {
         if (objectsByLinks[l].indexOf(targetObjectType) != -1)
           allowedEdgeTypes.push(l);
       this.allowedEdgeTypes = allowedEdgeTypes;
-      // TODO show edge is invalid
+      // show whether edge is invalid or not
+      if (allowedEdgeTypes.length == 0)
+        $(e).addClass("invalid");
+      else
+        $(e).removeClass("invalid");
     } else { // not pointing on a node
       e.target = nullNode;
       // calculate some length for displacing the phantom node from cursor
@@ -572,6 +589,11 @@ var sketchpadAction_DrawEdgeFromANode = {
       sketchpadAttributePhantomNode.x = tx + x2/r * (NodeWidth /2);
       sketchpadAttributePhantomNode.y = ty + y2/r * (NodeHeight/2);
       $(sketchpadAttributePhantomNode).addClass("active");
+      // show whether edge is invalid or not
+      if (this.allowedAttributeNames.length == 0)
+        $(e).addClass("invalid");
+      else
+        $(e).removeClass("invalid");
     }
     updateEdgeCoordinates(e, x2, y2);
   },
@@ -604,9 +626,11 @@ var sketchpadAction_DrawEdgeFromANode = {
           });
     } else { // add attribute and an edge to it
       var attrSchema = this.objectSchema.Attributes;
+      var tx = sketchpadAttributePhantomNode.x;
+      var ty = sketchpadAttributePhantomNode.y;
       queryTypeEntryShow(
           lx, ly,
-          keySet(attrSchema), // TODO exclude label attribute from here?
+          this.allowedAttributeNames,
           function(type) {
             // hide phantom node
             $(sketchpadAttributePhantomNode).removeClass("active");
@@ -614,9 +638,9 @@ var sketchpadAction_DrawEdgeFromANode = {
             if (type) {
               // add an attribute node
               var attrNode = createNode(
-                sketchpadAttributePhantomNode.x, sketchpadAttributePhantomNode.y,
-                NodeWidth/2, NodeHeight/2,
-                0
+                  tx, ty,
+                  NodeWidth/2, NodeHeight/2,
+                  0
                 );
               $(attrNode).addClass("attribute");
               attrNode.attributeType = attrSchema[type];
@@ -1021,6 +1045,9 @@ function showResults(data) {
     .attr({
         transform: "scale("+ resultScale +"), translate("+ translateX +","+ translateY +")",
       })
+    ;
+  $(".edge", resultPrototype)
+    .removeClass("attribute invalid")
     ;
   $(".edge text", resultPrototype)
     .remove()
