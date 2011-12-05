@@ -11,11 +11,40 @@
     <style type="text/css">
       @import url("jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css");
 
-      #query {
-        min-width: 600px;
-        min-height: 400px;
-        height: 80%;
+      body {
+        overflow: hidden;
+        color: #fff;
+      }
+
+      #title {
+        height: 30px;
+        padding: 5px;
+        font-size: 14px;
+        color: #ccc;
+      }
+      #title h1 {
+        display: inline;
+        font-size: 20px;
+        color: #000;
+      }
+
+      #tools {
+        position: absolute;
+        font-size: 14px;
+        top: 12px;
+        right: 8px;
+        text-align: right;
+      }
+
+      .ui-accordion .ui-accordion-header {
+        font-size: 12px;
+      }
+      .ui-accordion .ui-accordion-content {
         padding: 10px;
+      }
+
+      #query {
+        overflow: hidden;
         border: 1px solid #ccc;
       }
 
@@ -28,7 +57,7 @@
       }
       #query-type-entry input {
         opacity: 0.8;
-        width: 65px;
+        width: 100px;
         height: 25px;
       }
       #query-type-entry input, .ui-widget {
@@ -102,6 +131,9 @@
 
 
 
+      #result {
+      }
+
       .result {
         display: inline-block;
         border: 1px solid #ccc;
@@ -119,32 +151,46 @@
   </head>
 
   <body>
-    <h1>SmallGraphs</h1>
-    <div id="query">
-      <span id="query-mode">
-        <input type="radio" id="query-mode-sketch" name="query-mode" value="sketch" checked="checked"><label for="query-mode-sketch">Sketch</label>
-        <input type="radio" id="query-mode-layout" name="query-mode" value="layout"                  ><label for="query-mode-layout">Layout</label>
-        <!--<input type="radio" id="query-mode-pan"    name="query-mode" value="pan"                     ><label for="query-mode-pan"   >Pan   </label>-->
-      </span>
-      <button id="query-run">Search!</button>
-      
-      <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
-        <g id="query-sketch"/>
-        <marker id="arrow-cap"
-          viewBox="0 0 10 10" refX="5" refY="5" 
-          markerUnits="strokeWidth"
-          markerWidth="4" markerHeight="3"
-          orient="auto">
-          <path d="M 0 0 L 10 5 L 0 10 Z"/>
-        </marker>
-        <g id="query-sketchpad-selectionbox"><rect/><text/></g>
-        <g id="query-sketchpad-attribute-phantom-node"><rect/><text/></g>
-      </svg>
-      <div id="query-type-entry" class="ui-widget">
-        <input type="text" id="query-type-input">
+    <div id="title">
+      <h1>SmallGraphs</h1>
+      <small>for searching motifs from large graphs</small>
+    </div>
+    <div id="tools">
+      <div id="query-tools">
+        <span id="query-mode">
+          <input type="radio" id="query-mode-sketch" name="query-mode" value="sketch" checked="checked"><label for="query-mode-sketch">Sketch</label>
+          <input type="radio" id="query-mode-layout" name="query-mode" value="layout"                  ><label for="query-mode-layout">Layout</label>
+          <!--<input type="radio" id="query-mode-pan"    name="query-mode" value="pan"                     ><label for="query-mode-pan"   >Pan   </label>-->
+        </span>
+        <button id="query-run">Search!</button>
+      </div>
+      <div id="result-tools">
       </div>
     </div>
-    <div id="result">
+
+    <div id="frame">
+      <h3><a href="#">Sketch Query</a></h3>
+      <div id="query">
+        <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
+          <g id="query-sketch"/>
+          <marker id="arrow-cap"
+            viewBox="0 0 10 10" refX="5" refY="5" 
+            markerUnits="strokeWidth"
+            markerWidth="4" markerHeight="3"
+            orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 Z"/>
+          </marker>
+          <g id="query-sketchpad-selectionbox"><rect/><text/></g>
+          <g id="query-sketchpad-attribute-phantom-node"><rect/><text/></g>
+        </svg>
+        <div id="query-type-entry" class="ui-widget">
+          <input type="text" id="query-type-input">
+        </div>
+      </div>
+
+      <h3 id="result-header"><a href="#result">See Results</a></h3>
+      <div id="result">
+      </div>
     </div>
 
     <script type="text/javascript">
@@ -935,6 +981,7 @@ function smallgraphsRunQuery() {
 
 var resultScale = 0.33;
 function showResults(data) {
+  $("#result-header").click();
   $(".result", results).remove();
   // dynamically determine the bounding box of sketch and use that as the size for each
   var sketchWidth  = sketchpad.offsetWidth;
@@ -990,6 +1037,20 @@ $("#query-run")
   .button()
   .click(smallgraphsRunQuery)
   ;
+
+////////////////////////////////////////////////////////////////////////////////
+// overall UI layout
+$(sketchpad)
+  .css({
+      width : window.innerWidth  - 40 + "px",
+      height: window.innerHeight - 140 + "px",
+    })
+  ;
+$("#frame").accordion({
+      animated: true,
+      //fillSpace: true,
+      event: "click",
+    });
     </script>
   </body>
 </html>
