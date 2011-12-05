@@ -292,6 +292,7 @@ function addToSketchpad(name, attrs, target) {
 }
 
 var queryTypeEntryHandler = null;
+var queryTypeEntryWasBlurred = null;
 $("#query-type-input")
   .keyup(function() {
       switch (event.keyCode) {
@@ -304,19 +305,33 @@ $("#query-type-input")
         default:
           return;
       }
-      this.blur();
-    })
-  .blur(function() {
-      if (queryTypeEntryHandler)
-        queryTypeEntryHandler(this.value);
+      queryTypeEntryHandler(this.value);
       queryTypeEntryHandler = null;
       $("#query-type-entry").removeClass("active");
+    })
+  .focus(function() {
+      if (queryTypeEntryWasBlurred)
+        queryTypeEntryWasBlurred = clearTimeout(queryTypeEntryWasBlurred);
+    })
+  .blur(function() {
+      var v = this.value;
+      if (queryTypeEntryHandler)
+        queryTypeEntryWasBlurred = setTimeout(function() {
+            queryTypeEntryWasBlurred = null;
+            if (queryTypeEntryHandler)
+              queryTypeEntryHandler(v);
+            queryTypeEntryHandler = null;
+            $("#query-type-entry").removeClass("active");
+          }, 200);
     })
   ;
 
 function queryTypeEntryShow(x, y, list, done) {
-  if (queryTypeEntryHandler)
-    queryTypeEntryHandler();
+  if (queryTypeEntryWasBlurred) {
+    queryTypeEntryWasBlurred = clearTimeout(queryTypeEntryWasBlurred);
+    if (queryTypeEntryHandler)
+      queryTypeEntryHandler($("#query-type-input").val());
+  }
   queryTypeEntryHandler = done;
   $("#query-type-input").autocomplete({
       delay: 0,
