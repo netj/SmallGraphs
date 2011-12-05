@@ -812,6 +812,8 @@ function SketchpadActionHandler(handlerPrototype) {
 
 var sketchpadPervasiveMode = [
     { handler: sketchpadAction_SelectNodeOrEdge },
+    { handler: sketchpadAction_SelectNodeOrEdge , modifierKeys: ["meta"] },
+    { handler: sketchpadAction_SelectNodeOrEdge , modifierKeys: ["ctrl"] },
     { handler: sketchpadAction_SelectArea       },
     { handler: sketchpadAction_RemoveSelection  , forKeys: [ /*DOM_VK_BACK_SPACE*/8, /*DOM_VK_DELETE*/46, ] },
     { handler: sketchpadAction_SwitchMode       , forKeys: [ /*DOM_VK_ALT18,*/ /*DOM_VK_M*/77, ] },
