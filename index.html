@@ -1023,14 +1023,21 @@ function smallgraphsRunQuery() {
     queryTypeEntryHandler = null;
   }
   // TODO formulate/serialize query from sketch
+  smallgraphsExportSketchAsQuery();
   // TODO send it to server and get response
   // TODO show each subgraph instance as small multiples
   smallgraphsShowResults(null);
 }
 
-var resultScale = 0.33;
+function smallgraphsExportSketchAsQuery() {
+  var nodes = $(".node", sketch).toArray();
+  var subgraphs;
+  var walks;
+  var aggregations;
+}
+
+var resultScale = 0.4;
 function smallgraphsShowResults(data) {
-  $("#result-header").click();
   $(".result", results).remove();
   // dynamically determine the bounding box of sketch and use that as the size for each
   var sketchWidth  = sketchpad.offsetWidth;
@@ -1064,7 +1071,7 @@ function smallgraphsShowResults(data) {
     .remove()
     ;
   // now, show each of them
-  for (var i=0; i<100; i++) {
+  for (var i=0; i<256; i++) {
     var aResultSVG = document.createElementNS(SVGNameSpace, "svg");
     resultPrototype
       .clone()
@@ -1083,6 +1090,7 @@ function smallgraphsShowResults(data) {
       .appendTo(results)
       ;
   }
+  $("#result-header").click();
 }
 
 $("#query-run")
