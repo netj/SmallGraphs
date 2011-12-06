@@ -8,6 +8,8 @@
     <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
     <script type="text/javascript" src="jquery-svg/jquery.svgdom.js"></script>
     <script type="text/javascript" src="jquery-ui/js/jquery-ui-1.8.16.custom.min.js"></script>
+    <script type="text/javascript" src="smallgraph/syntax.js"></script>
+    <script type="text/javascript" src="smallgraph/serialize.js"></script>
     <style type="text/css">
       @import url("jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css");
 
@@ -255,6 +257,7 @@ $.getJSON("schema.json", function(schema) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+var nodeId = 0;
 function createNode(x, y, w, h, nr) {
   if ( w == null)  w = NodeWidth;
   if ( h == null)  h = NodeHeight;
@@ -263,6 +266,7 @@ function createNode(x, y, w, h, nr) {
       class: "node",
       transform: translate(x, y),
     });
+  node.id = "n" + nodeId++;
   node.x = x; node.y = y;
   node.w = w; node.h = h;
   addToSketchpad("rect", {
@@ -1029,11 +1033,102 @@ function smallgraphsRunQuery() {
   smallgraphsShowResults(null);
 }
 
+var smallgraphsCurrentQuery;
 function smallgraphsExportSketchAsQuery() {
-  var nodes = $(".node", sketch).toArray();
-  var subgraphs;
-  var walks;
-  var aggregations;
+  function outAttributeNodes() {
+    return !$(this).hasClass("attribute");
+  }
+  var edges = $(".edge", sketch).filter(outAttributeNodes).toArray();
+  var subgraphs = []; // TODO
+  var aggregations = []; // TODO
+  // try to use all edges for stretching walks on both ends
+  var ws = [];
+  var w = edges.splice(0,1);
+  while (edges.length > 0) {
+    var first = w[0];
+    var last = w[w.length-1];
+    var edgesUsed = [];
+    for (var i in edges) {
+      var e = edges[i];
+      if (e.target == first.source) {
+        // extend left-end
+        w.unshift(e);
+        first = e;
+        edgesUsed.push(e);
+      } else if (last.target == e.source) {
+        // extend right-end
+        w.push(e);
+        last = e;
+        edgesUsed.push(e);
+      }
+    }
+    edges = removeAll(edges, edgesUsed);
+    if (edgesUsed.length == 0) {
+      // this walk is complete, no more edges can extend it
+      // save it and let's start a new walk
+      ws.push(w);
+      if (edges.length > 0)
+        w = edges.splice(0,1);
+      else
+        w = null;
+    }
+  }
+  if (w)
+    ws.push(w);
+  // count occurences of objects to use references or not
+  var nodeOccurs = {};
+  function seenNode(n) { if (nodeOccurs[n]) nodeOccurs[n]++; else nodeOccurs[n] = 1; }
+  ws.forEach(function(w){
+      seenNode(w[0].source.id);
+      w.forEach(function(e){
+        seenNode(e.target.id);
+        });
+    });
+  // build a SmallGraph query from it
+  function stepObject(o, noref) {
+    if (!noref && nodeOccurs[o.id] > 1)
+      return { objectRef: o.id };
+    else
+      return { objectType: o.objectType };
+    // TODO constraints
+  }
+  function stepLink(e) {
+    return { linkType: e.linkType };
+    // TODO constraints
+  }
+  // enumerate attributes we're interested in
+  var attributes = [];
+  $(".attribute.edge", sketch).each(function(i,e){
+        attributes.push({look:[e.source.id, [e.linkType]]});
+        nodeOccurs[e.source.id] += 2;
+      });
+  // declare objects we will reference first
+  var namedObjects = [];
+  for (var id in nodeOccurs) {
+    if (nodeOccurs[id] > 1)
+      namedObjects.push({let:[id, stepObject($("#"+id)[0], true)]});
+  }
+  // build walks
+  var walks = [];
+  for (var i in ws) {
+    var walk = [];
+    walk.push(stepObject(ws[i][0].source));
+    for (var j in ws[i]) {
+      var e = ws[i][j];
+      walk.push(stepLink(e));
+      walk.push(stepObject(e.target));
+    }
+    walks.push({walk:walk});
+  }
+  // TODO what about the remaining, unconnected, island nodes??
+  smallgraphsCurrentQuery = namedObjects
+    .concat(walks)
+    .concat(attributes)
+    .concat(subgraphs)
+    .concat(aggregations)
+    ;
+  console.log(serialize(smallgraphsCurrentQuery));
+  return smallgraphsCurrentQuery;
 }
 
 var resultScale = 0.4;
