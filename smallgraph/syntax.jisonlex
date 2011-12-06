@@ -32,8 +32,8 @@ alnum                       [A-Za-z_0-9]
 "max"                                                        return 'MAX';
 \"(?:{esc}["bfnrt/{esc}]|{esc}"u"[a-fA-F0-9]{4}|[^"{esc}])*\"  yytext = yytext.substr(1,yyleng-2); return 'STRING_LIT';
 {int}{frac}?{exp}?\b                                         return 'NUMBER_LIT';
-\${alpha}{alnum}*(-{alnum}+)*(\.{alpha}{alnum}*(-{alnum}+)*)* return 'VARREF';
-{alpha}{alnum}*(-{alnum}+)*                                  return 'NAME';
+\${alpha}{alnum}*("-"{alnum}+)*(\.{alpha}{alnum}*("-"{alnum}+)*)* return 'VARREF';
+{alpha}{alnum}*("-"{alnum}+)*                                return 'NAME';
 "="                                                          return '='
 <<EOF>>                                                      return 'EOF';
 

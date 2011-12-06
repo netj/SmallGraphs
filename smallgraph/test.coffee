@@ -33,6 +33,12 @@ queries = [
     aggregate $files as count;
 
 """
+    """
+    walk user -wrote-> post -contains-> url;
+    walk user -friend-of-> user -wrote-> post -contains-> url;
+    walk user -fan-of-> fanpage;
+    walk user -fan-of-> fanpage;
+"""
 ]
 
 i = 0
