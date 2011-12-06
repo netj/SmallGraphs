@@ -40,10 +40,6 @@ Above will be compiled into SQL looking like this:
 
     walk FanPage(pages) -Has-> Post(posts) -HasText-> Text(texts) -HasURL-> URL;
     walk User(user) -Wrote-> $posts;
-    
-    aggregate $pages as count;
-    aggregate $posts as count;
-    aggregate $texts as count;
 
 Given how each objects and links, attributes are layed out across the relational database, such as:
 
@@ -90,7 +86,7 @@ Above will be compiled into SQL looking like this:
 Once we add aggregations as following:
 
     walk FanPage(pages) -Has-> Post(posts) -HasText-> Text(texts) -HasURL-> URL;
-    walk User(user) -Wrote-> $posts
+    walk User(user) -Wrote-> $posts;
     
     aggregate $pages as count;
     aggregate $posts as count;

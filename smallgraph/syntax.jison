@@ -25,32 +25,39 @@ declarations
 
 declaration
     : WALK walk
-        {$$ = $2;}
-    | SUBGRAPH NAME '{' subgraph '}'
-        {$$ = $2;}
-    | ATTRIBUTE attribute
-        {$$ = $2;}
-    | NODE NAME '=' object
-        {$$ = $2;}
+        {$$ = {walk:$2};}
+    | SUBGRAPH NAME '=' '{' subgraph '}'
+        {$$ = {subgraph:[$NAME, $subgraph]};}
+    | LET NAME '=' object
+        {$$ = {let:[$NAME, $object]};}
+    | LOOK VARREF FOR attributes
+        {name=$VARREF.substring(1); $$ = {look:[name, $attributes]};}
+    | AGGREGATE VARREF AS aggregation
+        {name=$VARREF.substring(1); $$ = {aggregate:[name, $aggregation]};}
     ;
 
 walk
     : stepObject
-        {$$ = [$1];}
+        {$$ = [$stepObject];}
     | stepObject '-' stepLink '->' walk
-        {$$ = [$1,$3].concat($5);}
+        {$$ = [$stepObject,$stepLink].concat($walk);}
     ;
 
 stepObject
     : NAME optional_alias optional_constraint
         {$$ = {objectType:$1}; if($2)$$.alias=$2; if($3)$$.constraint=$3;}
     | VARREF optional_constraint
-        {$$ = {alias:$1.substring(1)}; if($2)$$.constraint=$2;}
+        {name=$VARREF.substring(1); $$ = {objectRef:name}; if($2)$$.constraint=$2;}
+    ;
+
+object
+    : NAME optional_constraint
+        {$$ = {objectType:$1}; if($2)$$.constraint=$2;}
     ;
 
 stepLink
-    : NAME optional_constraint
-        {$$ = {linkType:$1}; if($2)$$.constraint=$2;}
+    : NAME optional_alias optional_constraint
+        {$$ = {linkType:$1}; if($2)$$.alias=$2; if($3)$$.constraint=$3;}
     ;
 
 optional_alias
@@ -63,14 +70,24 @@ optional_alias
 optional_constraint
     :
         {$$ = null;}
+        /* TODO */
+    ;
+
+attributes
+    : NAME ',' attributes
+        {$$ = [$NAME].concat($attributes);}
+    | NAME
+        {$$ = [$NAME];}
+    ;
+
+aggregation
+    : COUNT | SUM | MIN | MAX
     ;
 
 subgraph
-    : 
-    ;
-
-attribute
-    :
+    : declarations
+        {$$ = $1;}
+        /* TODO */
     ;
 
 /*

@@ -1,9 +1,49 @@
-smallgraph = require "syntax"
+parser = require "syntax"
+serializer = require "serialize"
 
-query = """
-walk FanPage(pages) -Has-> Post(posts) -HasText-> Text(texts) -HasURL-> URL;
-walk User(user) -Wrote-> $posts;
+queries = [
+    """
+    walk FanPage(pages) -Has-> Post(posts) -HasText-> Text(texts) -HasURL-> URL;
+    walk User(user) -Wrote-> $posts;
 """
+    """
+    let Post = posts;
+    walk FanPage(pages) -Has-> $posts -HasText-> Text(texts) -HasURL-> URL;
+    walk User(user) -Wrote-> $posts;
+"""
+    """
+    walk FanPage(pages) -Has-> Post(posts) -HasText-> Text(texts) -HasURL-> URL;
+    walk User(user) -Wrote-> $posts;
+    
+    aggregate $pages as count;
+    aggregate $posts as count;
+    aggregate $texts as count;
 
-console.log query
-console.log smallgraph.parse query
+"""
+    """
+    subgraph files = {
+        let callee = Function;
+        walk File(calling) -Defines-> Function -Calls-> $callee;
+        walk File(called) -Defines-> $callee;
+    };
+    
+    walk Directory -Contains-> $files.calling;
+    walk Directory -Contains-> $files.called;
+    
+    aggregate $files as count;
+
+"""
+]
+
+i = 0
+for query in queries
+    console.log "- #{i} -------------------"
+    console.log query
+    console.log "------------------------"
+    sg = parser.parse query
+    #console.log sg
+    #console.log ""
+
+    console.log serializer.serialize sg
+    console.log "------------------- #{i} -"
+    i++
