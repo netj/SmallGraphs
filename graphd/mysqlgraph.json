@@ -1,0 +1,11 @@
+{"mysql": {
+    "user": "root",
+    "password": "vlad",
+    "host": "localhost",
+    "port": 3307,
+    "database": "reppler",
+    "layout": {
+        "objects": {
+        }
+    }
+}}

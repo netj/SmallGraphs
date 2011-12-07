@@ -3,6 +3,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
     <title>SmallGraphs</title>
+    <link rel="graphd" href="http://localhost:53411">
     <script type="text/javascript" src="d3/d3.js"></script>
     <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
@@ -226,6 +227,8 @@ var EntryHeight = 25/2;//px
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
+var graphdURL = $("link[rel='graphd']").attr("href") || "http://localhost:53411";
+
 // label for atribute nodes
 var LabelForType = {
   "xsd:string"  : "abc",
@@ -245,6 +248,7 @@ var NodeTypes = [];
 
 // retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
 var GraphSchema;
+// TODO use graphd
 $.getJSON("schema.json", function(schema) {
     GraphSchema = schema;
     // learn nodes types
@@ -1026,11 +1030,33 @@ function smallgraphsRunQuery() {
     queryTypeEntryHandler();
     queryTypeEntryHandler = null;
   }
-  // TODO formulate/serialize query from sketch
-  smallgraphsExportSketchAsQuery();
-  // TODO send it to server and get response
-  // TODO show each subgraph instance as small multiples
-  smallgraphsShowResults(null);
+
+  // TODO indicate something's in progress?
+
+  // derive SmallGraph query from the sketch
+  var query = smallgraphsExportSketchAsQuery();
+  // send it to server and get response
+  var queryURL = graphdURL + "/query";
+  console.log("sending query", queryURL, query);
+
+  $.ajax({
+        type: 'POST',
+        url: queryURL,
+        contentType: "application/json",
+        data: JSON.stringify(query),
+        processData: false,
+        dataType: "json",
+        success: function(result) {
+            // to show each subgraph instance as small multiples
+            smallgraphsShowResults(result);
+            // TODO remove progress indicator
+          },
+        error: function(jqXHR, textStatus, err) {
+            // TODO remove progress indicator
+            // TODO show error
+            console.error(textStatus, err);
+          },
+      });
 }
 
 var smallgraphsCurrentQuery;
@@ -1041,6 +1067,11 @@ function smallgraphsExportSketchAsQuery() {
   var edges = $(".edge", sketch).filter(outAttributeNodes).toArray();
   var subgraphs = []; // TODO
   var aggregations = []; // TODO
+  // prevent
+  if (edges.length == 0) {
+    // TODO UI feedback
+    return [];
+  }
   // try to use all edges for stretching walks on both ends
   var ws = [];
   var w = edges.splice(0,1);
