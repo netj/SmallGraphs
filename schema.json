@@ -6,9 +6,7 @@
     "Objects": {
         "user": {
             "Links": {
-                "wrote": ["post"],
-                "friend-of": ["user"],
-                "fan-of": ["fanpage"]
+                "wrote": ["post"]
             },
             "Attributes": {
                 "id": "xsd:string",
@@ -18,11 +16,18 @@
         },
         "post": {
             "Links": {
-                "contains": ["url"]
+                "contains-text": ["text"]
             },
             "Attributes": {
-                "content": "xsd:string",
                 "created": "xsd:dateTime"
+            }
+        },
+        "text": {
+            "Links": {
+                "contains-url": ["url"]
+            },
+            "Attributes": {
+                "content": "xsd:string"
             }
         },
         "url": {
@@ -33,7 +38,7 @@
                 "is-malicious": "xsd:boolean"
             }
         },
-        "fanpage": {
+        "fan-page": {
             "Links": {
                 "has-post": ["post"]
             },

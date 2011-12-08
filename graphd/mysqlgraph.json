@@ -6,6 +6,61 @@
     "database": "reppler",
     "layout": {
         "objects": {
+            "user": {
+                "id": { "table": "user", "field": "id" },
+                "attrs": {
+                    "name": { "field": "name" },
+                    "email":  { "field": "email" }
+                },
+                "label": "name",
+                "links": {
+                    "wrote": { "to": "post", "field": "id",
+                        "table": "ugc", "joinOn": "from_id" }
+                }
+            },
+            "fan-page": {
+                "id": { "table": "mobject", "field": "id" },
+                "attrs": {
+                    "name": { "field": "name" },
+                    "url":  { "field": "link" }
+                },
+                "label": "name",
+                "links": {
+                    "has-post": { "to": "post", "field": "id",
+                        "table": "ugc", "joinOn": "mobject_id" }
+                }
+            },
+            "post": {
+                "id": { "table": "ugc", "field": "id" },
+                "attrs": {
+                    "created": { "field": "link" }
+                },
+                "label": "link",
+                "links": {
+                    "contains-text": { "to": "text", "field": "ugc_txt_id" }
+                }
+            },
+            "text": {
+                "id": { "table": "ugc_txt", "field": "id" },
+                "attrs": {
+                    "content": { "field": "ugc_text" }
+                },
+                "links": {
+                    "contains-url": { "to": "url", "field": "url_id",
+                        "table": "url_ugc_txt", "joinOn": "ugc_txt_id" }
+                }
+            },
+            "url": {
+                "id": { "table": "url", "field": "id" },
+                "attrs": {
+                    "display_url": { "field": "display_url" },
+                    "actual_url":  { "field": "actual_url" },
+                    "detection_id": { "field": "detection_id",
+                        "table": "url_detection", "joinOn": "url_id" }
+                },
+                "links": {
+                }
+            }
         }
     }
 }}
