@@ -34,9 +34,11 @@
             "Links": {
             },
             "Attributes": {
-                "url": "xsd:anyURI",
-                "is-malicious": "xsd:boolean"
-            }
+                "display_url": "xsd:anyURI",
+                "actual_url": "xsd:anyURI",
+                "detection_id": "xsd:boolean"
+            },
+            "Label": "display_url"
         },
         "fan-page": {
             "Links": {
@@ -45,7 +47,8 @@
             "Attributes": {
                 "name": "xsd:string",
                 "url": "xsd:anyURI"
-            }
+            },
+            "Label": "name"
         }
     },
     "TypeLabels": {
