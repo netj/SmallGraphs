@@ -194,7 +194,10 @@ compileSmallGraphQueryToSQL = (query) ->
             walkSQLs.push """
                 SELECT #{fields.map(sqlField).join ",\n       "}
                 FROM #{tables.map(sqlTable).join ",\n     "}
-                WHERE #{conditions.map(sqlCond).join "\n  AND "}
+                #{
+                    if conditions.length == 0 then ""
+                    else "WHERE #{conditions.map(sqlCond).join "\n  AND "}"
+                }
                 """
             i++
     numWalks = i

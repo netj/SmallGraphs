@@ -225,6 +225,9 @@ var EdgeLabelTop  = 10;//px
 var EntryWidth  = 100/2;//px
 var EntryHeight = 25/2;//px
 
+var ResultPaddingH = 0.2;//ratio
+var ResultPaddingV = 0.2;//ratio
+
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
 var graphdURL = $("link[rel='graphd']").attr("href") || "http://localhost:53411";
@@ -510,6 +513,7 @@ var sketchpadAction_MoveNode = {
 
 var nullNode = { w: 0, h: 0 };
 var emptySchema = { Links: {}, Attributes: {} }
+var edgeId = 0;
 var sketchpadAction_DrawEdgeFromANode = {
   name: "draw edge from a node",
   mousedown: function() {
@@ -524,6 +528,7 @@ var sketchpadAction_DrawEdgeFromANode = {
           class: "edge",
           transform: translate(this.sx, this.sy),
         });
+      e.id = "e"+edgeId++;
       e.source = n;
       e.target = null;
       this.line = $(addToSketchpad("line", {
@@ -1060,19 +1065,15 @@ function smallgraphsRunQuery() {
 }
 
 var smallgraphsCurrentQuery;
+var smallgraphsCurrentResultMapping;
 function smallgraphsExportSketchAsQuery() {
-  function outAttributeNodes() {
+  function outAttributeRelated() {
     return !$(this).hasClass("attribute");
   }
-  var edges = $(".edge", sketch).filter(outAttributeNodes).toArray();
+  var edges = $(".edge", sketch).filter(outAttributeRelated).toArray();
   var subgraphs = []; // TODO
   var aggregations = []; // TODO
-  // prevent
-  if (edges.length == 0) {
-    // TODO UI feedback
-    return [];
-  }
-  // try to use all edges for stretching walks on both ends
+  //// try to use all edges for stretching walks on both ends
   var ws = [];
   var w = edges.splice(0,1);
   while (edges.length > 0) {
@@ -1104,7 +1105,7 @@ function smallgraphsExportSketchAsQuery() {
         w = null;
     }
   }
-  if (w)
+  if (w && w.length > 0)
     ws.push(w);
   // count occurences of objects to use references or not
   var nodeOccurs = {};
@@ -1112,10 +1113,50 @@ function smallgraphsExportSketchAsQuery() {
   ws.forEach(function(w){
       seenNode(w[0].source.id);
       w.forEach(function(e){
-        seenNode(e.target.id);
+          seenNode(e.target.id);
         });
     });
-  // build a SmallGraph query from it
+  // handle unconnected islands
+  $(".node", sketch)
+    .filter(outAttributeRelated)
+    .filter(function(){
+        return ! nodeOccurs[this.id];
+      })
+    .each(function(){
+        // insert fake/partial edges to create single step walks
+        ws.push([{source:this}]);
+        nodeOccurs[this.id] = 1;
+      })
+    ;
+  //// build a mapping from result data back to a diagram
+  var resultMappings = [];
+  function addResultMapping(i, j, obj) {
+    resultMappings.push(function(data, resultSVG) {
+        var step = data.walks[i][j];
+        if (step == null)
+          return;
+        if (typeof step == "string")
+          step = data.names[step];
+        var resultObj = $("#"+obj.id, resultSVG)[0];
+        resultObj.data = step;
+        $("text", resultObj).text(step.label || step.id);
+        for (var a in step.attrs) {
+           step.attrs[a]
+        }
+      });
+  }
+  var i = 0;
+  ws.forEach(function(w){
+      var j = 0;
+      addResultMapping(i, j++, w[0].source);
+      if (w[0].target)
+        w.forEach(function(e){
+            addResultMapping(i, j++, e);
+            addResultMapping(i, j++, e.target);
+          });
+      i++;
+    });
+  //// build a SmallGraph query from it
   function stepObject(o, noref) {
     if (!noref && nodeOccurs[o.id] > 1)
       return { objectRef: o.id };
@@ -1131,9 +1172,13 @@ function smallgraphsExportSketchAsQuery() {
   var attributes = [];
   $(".attribute.edge", sketch).each(function(i,e){
         attributes.push({look:[e.source.id, [e.linkType]]});
+        resultMappings.push(function(data, resultSVG) {
+            var v = data.names[e.source.id].attrs[e.linkType];
+            $("#"+e.target.id+" text", resultSVG).text(v);
+          });
         nodeOccurs[e.source.id] += 2;
       });
-  // declare objects we will reference first
+  // declare objects we will later reference a few times
   var namedObjects = [];
   for (var id in nodeOccurs) {
     if (nodeOccurs[id] > 1)
@@ -1144,11 +1189,12 @@ function smallgraphsExportSketchAsQuery() {
   for (var i in ws) {
     var walk = [];
     walk.push(stepObject(ws[i][0].source));
-    for (var j in ws[i]) {
-      var e = ws[i][j];
-      walk.push(stepLink(e));
-      walk.push(stepObject(e.target));
-    }
+    if (ws[i][0].target)
+      for (var j in ws[i]) {
+        var e = ws[i][j];
+        walk.push(stepLink(e));
+        walk.push(stepObject(e.target));
+      }
     walks.push({walk:walk});
   }
   // TODO what about the remaining, unconnected, island nodes??
@@ -1158,11 +1204,16 @@ function smallgraphsExportSketchAsQuery() {
     .concat(subgraphs)
     .concat(aggregations)
     ;
+  smallgraphsCurrentResultMapping = function(data, resultSVG) {
+    resultMappings.forEach(function(mapping) {
+        mapping(data, resultSVG);
+      });
+  };
   console.log(serialize(smallgraphsCurrentQuery));
   return smallgraphsCurrentQuery;
 }
 
-var resultScale = 0.4;
+var resultScale = 0.7;
 function smallgraphsShowResults(data) {
   $(".result", results).remove();
   // dynamically determine the bounding box of sketch and use that as the size for each
@@ -1175,14 +1226,14 @@ function smallgraphsShowResults(data) {
       minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
       minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
     });
-  sketchWidth  = maxX - minX + 2*NodeWidth;
+  sketchWidth  = maxX - minX + 2*NodeWidth ;
   sketchHeight = maxY - minY + 2*NodeHeight;
-  var translateX = - minX + NodeWidth;
-  var translateY = - minY + NodeHeight;
-  var resultWidth  = resultScale * sketchWidth;
-  var resultHeight = resultScale * sketchHeight;
+  var translateX = - minX + NodeWidth  + sketchWidth  * ResultPaddingH;
+  var translateY = - minY + NodeHeight + sketchHeight * ResultPaddingV;
+  var resultWidth  = resultScale * sketchWidth  * (1+2*ResultPaddingH);
+  var resultHeight = resultScale * sketchHeight * (1+2*ResultPaddingV);
   // build a prototype for individual result
-  // TODO adjust edge coords, or add an arrow-ending?
+  // TODO adjust edge coords, or add an arrow-ending? updateEdgeCoordinates(e, x2, y2);
   var resultPrototype = $(sketch)
     .clone()
     .removeAttr("id")
@@ -1197,13 +1248,16 @@ function smallgraphsShowResults(data) {
     .remove()
     ;
   // now, show each of them
-  for (var i=0; i<256; i++) {
+  for (var i=0; i<data.length; i++) {
+    var anInstance = data[i];
     var aResultSVG = document.createElementNS(SVGNameSpace, "svg");
     resultPrototype
       .clone()
       .appendTo(aResultSVG)
       ;
-    // TODO fill data
+    // fill data
+    smallgraphsCurrentResultMapping(anInstance, resultPrototype);
+    // TODO do more
     $("<div>")
       .attr({
           class: "result",
