@@ -1081,7 +1081,6 @@ function sketchpadDblClick() {
 
 var sketchpadCurrentKeyActions = [];
 function sketchpadKeyDown() {
-  sketchpadFirstMouseEvent = event;
   sketchpadKeyActions.forEach(function(handler) {
     if (handler.forKeys && handler.forKeys.indexOf(event.keyCode) != -1) {
       if (handler.keydown) {
@@ -1098,6 +1097,9 @@ function sketchpadKeyDown() {
       }
     }
   });
+  // don't let the browser behave strangely by preventing the default on non-input elements
+  if (!event.target.tagName.match(/input/i))
+    event.preventDefault();
 }
 function sketchpadKeyUp() {
   sketchpadCurrentKeyActions.forEach(function(a) {
