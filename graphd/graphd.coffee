@@ -239,7 +239,9 @@ compileSmallGraphQueryToSQL = (query) ->
                 if aggregatingFields[f]?
                     aggregate = aggregatingFields[f]
                     hasAggregation = true
-                    "#{aggregate.fn}(#{aggregate.field}) AS #{f}"
+                    "#{aggregate.fn.toUpperCase()}(#{
+                        if aggregate.fn == "count" then "DISTINCT "
+                        else ""}#{aggregate.field}) AS #{f}"
                 else
                     groupByFields.push f
                     f
@@ -254,7 +256,7 @@ compileSmallGraphQueryToSQL = (query) ->
             else "WHERE #{junctionConditions.map(sqlCond).join "\n  AND "}"
         }
         #{
-            unless hasAggregation then ""
+            unless hasAggregation and groupByFields.length > 0 then ""
             else "GROUP BY #{(uniq groupByFields).join ",\n         "}"
         }
         """

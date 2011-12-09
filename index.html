@@ -44,6 +44,15 @@
       #tools > *.active {
         display: block;
       }
+      #query-run,
+      #result-refine {
+        border-width: 2px;
+      }
+      #query-run span,
+      #result-refine span {
+        font-weight: bolder;
+        font-size: 1.1em;
+      }
 
       #dialogs {
         display: none;
@@ -131,6 +140,17 @@
       .attribute.node text {
         font-size: 0.7em;
       }
+      .aggregate.node.selected rect,
+      .aggregate.node rect {
+        stroke-dasharray: 10,5;
+        stroke-width: 5px;
+        stroke: #333 !important;
+        stroke-opacity: 0.5 !important;
+      }
+      .aggregate.node text {
+        font-size: 1.25em;
+        font-style: italic;
+      }
 
       #arrowhead {
         fill: #06c;
@@ -208,9 +228,12 @@
           <input type="radio" id="query-mode-layout" name="query-mode" value="layout"                  ><label for="query-mode-layout">Layout</label>
           <!--<input type="radio" id="query-mode-pan"    name="query-mode" value="pan"                     ><label for="query-mode-pan"   >Pan   </label>-->
         </span>
+        <button id="query-aggregate">Aggregate</button>
+        <button id="query-order">Order</button>
         <button id="query-run">Search!</button>
       </div>
       <div id="result-tools">
+        <button id="result-reorder">Reorder</button>
         <button id="result-refine">Retry</button>
       </div>
     </div>
@@ -249,10 +272,10 @@
 
     <div id="dialogs">
       <div id="progress-dialog" class="dialog">
-        <div class="description"></div>
+        <span class="description"></span>
       </div>
       <div id="error-dialog" class="dialog">
-        <div class="description"></div>
+        <span class="description"></span>
       </div>
     </div>
 
@@ -725,11 +748,6 @@ var sketchpadAction_DrawEdgeFromANode = {
   },
 };
 
-var sketchpadAction_AddAggregation = {
-  name: "add aggregation",
-  // TODO
-};
-
 var sketchpadAction_AddConstraint = {
   name: "add constraints",
   // TODO
@@ -845,6 +863,37 @@ var sketchpadAction_RemoveSelection = {
   },
 };
 
+function sketchpadToggleAggregation() {
+  sketchpadCurrentSelection.forEach(function(n) {
+      if (!$(n).hasClass("node"))
+        return;
+      $(n).toggleClass("aggregate");
+      // TODO toggleClass of linked attributes
+    });
+}
+$("#query-aggregate")
+  .button()
+  .click(sketchpadToggleAggregation)
+  ;
+var sketchpadAction_ToggleAggregation = {
+  name: "toggle aggregation",
+  keypress: function() {
+    sketchpadToggleAggregation();
+  }
+};
+var sketchpadAction_SetupAggregation = {
+  name: "setup aggregation",
+  dblclick: function() {
+    console.log("TODO setup aggregations...");
+    // TODO show dialog for choosing how to aggregate each linked attribute
+  }
+};
+
+$("#query-order")
+  .button()
+  // TODO .click(...)
+  ;
+
 
 var sketchpadAction_SwitchMode = {
   name: "cycle mode",
@@ -881,10 +930,15 @@ var sketchpadPervasiveMode = [
     { handler: sketchpadAction_SelectArea       },
     { handler: sketchpadAction_RemoveSelection  , forKeys: [ /*DOM_VK_BACK_SPACE*/8, /*DOM_VK_DELETE*/46, ] },
     { handler: sketchpadAction_SwitchMode       , forKeys: [ /*DOM_VK_ALT18,*/ /*DOM_VK_M*/77, ] },
-    { handler: sketchpadAction_AddAggregation   },
+    { handler: sketchpadAction_ToggleAggregation, forKeys: [ /*DOM_VK_A*/65, ] },
+    { handler: sketchpadAction_SetupAggregation },
     { handler: sketchpadAction_AddConstraint    },
   ];
 
+// TODO distinguish actions into two groups:
+//  1. single body actions (click,dblclick,keypress) vs.
+//  2. stateful ones (mousedown->move->up, keydown->up)
+// TODO make it easier to map single actions to click or dblclick from here
 sketchpadMode.sketch = sketchpadPervasiveMode.concat([
     { handler: sketchpadAction_AddNode          ,                       },
     { handler: sketchpadAction_DrawEdgeFromANode,                       },
@@ -1007,8 +1061,22 @@ function sketchpadMouseUp() {
       }
     });
   }
-  // TODO double clicks?
   sketchpadFirstMouseEvent = null;
+}
+
+function sketchpadDblClick() {
+  sketchpadMouseActions.forEach(function(handler) {
+      if (handler.dblclick) {
+      if (!sketchpadActionDefSatisfyModifierKey(handler)) return;
+        try {
+          var a = new SketchpadAction(handler);
+          console.debug(event.type, event, a, a.name);
+          a.dblclick();
+        } catch (err) {
+          console.error(err, err+"");
+        }
+      }
+    });
 }
 
 var sketchpadCurrentKeyActions = [];
@@ -1061,6 +1129,7 @@ function sketchpadKeyUp() {
 }
 $(sketchpad)
   .bind("mousedown", sketchpadMouseDown)
+  .bind("dblclick",  sketchpadDblClick)
   ;
 $(window)
   .bind("mousemove", sketchpadMouseMove)
@@ -1084,15 +1153,18 @@ function smallgraphsShowDialog(selector, options, msg) {
   return dialog;
 }
 
-var smallgraphsErrorDialog;
 function smallgraphsShowError(msg) {
-  smallgraphsErrorDialog = smallgraphsShowDialog("#error-dialog", {
+  smallgraphsShowDialog("#error-dialog", {
         title: "Error",
         buttons: [ { text: "OK", click: function() {
-              smallgraphsErrorDialog.dialog("close");
+              $(this).dialog("close");
             }} ],
       }, msg);
 }
+
+var smallgraphsCurrentOffset;
+var smallgraphsCurrentQuery;
+var smallgraphsCurrentResultMapping;
 
 function smallgraphsRunQuery() {
   // XXX I know this is ugly, but it's required to prevent sketching elements from coming in
@@ -1102,7 +1174,9 @@ function smallgraphsRunQuery() {
   }
 
   // derive SmallGraph query from the sketch
-  var query = smallgraphsExportSketchAsQuery();
+  var derived = smallgraphsCompileSketchToQuery();
+  var query = smallgraphsCurrentQuery = derived[0];
+  smallgraphsCurrentResultMapping = derived[1];
 
   // check if we can really run this query
   if (query.length == 0) {
@@ -1132,7 +1206,7 @@ function smallgraphsSendQuery(query, offset, msg) {
               if (ajaxHandle)
                 ajaxHandle.abort();
               else
-                progress.dialog("close");
+                $(this).dialog("close");
             }} ],
       },
       msg
@@ -1178,16 +1252,11 @@ function smallgraphsSendQuery(query, offset, msg) {
       });
 }
 
-var smallgraphsCurrentQuery;
-var smallgraphsCurrentOffset;
-var smallgraphsCurrentResultMapping;
-function smallgraphsExportSketchAsQuery() {
+function smallgraphsCompileSketchToQuery() {
   function outAttributeRelated() {
     return !$(this).hasClass("attribute");
   }
   var edges = $(".edge", sketch).filter(outAttributeRelated).toArray();
-  var subgraphs = []; // TODO
-  var aggregations = []; // TODO
   //// try to use all edges for stretching walks on both ends
   var ws = [];
   var w = edges.splice(0,1);
@@ -1255,9 +1324,7 @@ function smallgraphsExportSketchAsQuery() {
         var resultObj = $("#"+obj.id, resultSVG)[0];
         resultObj.data = step;
         $("text", resultObj).text(step.label || step.id);
-        for (var a in step.attrs) {
-           step.attrs[a]
-        }
+        // TODO bind data to the DOM for later use
       });
   }
   var i = 0;
@@ -1283,23 +1350,42 @@ function smallgraphsExportSketchAsQuery() {
     return { linkType: e.linkType };
     // TODO constraints
   }
+  // scan nodes being aggregated
+  var aggregationMap = {};
+  $(".aggregate.node", sketch).each(function(i,n) {
+      aggregationMap[n.id] = [];
+      nodeOccurs[n.id]++;
+    });
   // enumerate attributes we're interested in
   var attributes = [];
   $(".attribute.edge", sketch).each(function(i,e){
-        attributes.push({look:[e.source.id, [e.linkType]]});
+        if (aggregationMap[e.source.id]) // either aggregated
+          aggregationMap[e.source.id].push([e.linkType, e.target.aggregateFunction]);
+        else // or individual value
+          attributes.push({look:[e.source.id, [e.linkType]]});
         resultMappings.push(function(data, resultSVG) {
-            var v = data.names[e.source.id].attrs[e.linkType];
-            $("#"+e.target.id+" text", resultSVG).text(v);
+            var attr = data.names[e.source.id].attrs;
+            if (attr) {
+              var v = attr[e.linkType];
+              $("#"+e.target.id+" text", resultSVG).text(v);
+              // TODO bind data to the DOM for later use
+            }
           });
-        nodeOccurs[e.source.id] += 2;
+        nodeOccurs[e.source.id]++;
       });
+  // codegen aggregations
+  var aggregations = [];
+  for (var nId in aggregationMap) {
+    var attrsToAggregate = aggregationMap[nId];
+    aggregations.push({aggregate:[nId, "count"/*TODO attrsToAggregate*/]});
+  }
   // declare objects we will later reference a few times
   var namedObjects = [];
   for (var id in nodeOccurs) {
     if (nodeOccurs[id] > 1)
       namedObjects.push({let:[id, stepObject($("#"+id)[0], true)]});
   }
-  // build walks
+  // codegen walks
   var walks = [];
   for (var i in ws) {
     var walk = [];
@@ -1312,19 +1398,18 @@ function smallgraphsExportSketchAsQuery() {
       }
     walks.push({walk:walk});
   }
-  // TODO what about the remaining, unconnected, island nodes??
-  smallgraphsCurrentQuery = namedObjects
+  // complete codegen
+  var query = namedObjects
     .concat(walks)
     .concat(attributes)
-    .concat(subgraphs)
     .concat(aggregations)
     ;
-  smallgraphsCurrentResultMapping = function(data, resultSVG) {
+  var resultMapping = function(data, resultSVG) {
     resultMappings.forEach(function(mapping) {
         mapping(data, resultSVG);
       });
   };
-  return smallgraphsCurrentQuery;
+  return [query, resultMapping];
 }
 
 var results = $("#results");
@@ -1338,66 +1423,69 @@ $("#result-more")
         );
     })
   ;
+var smallgraphsCurrentResultPrototype;
 function smallgraphsShowResults(data, offset) {
-  // remove if we're starting fresh
-  if (offset == 0)
+  if (offset == 0) {
+    // remove if we're starting fresh
     $(".result", results).remove();
-  // otherwise, append to previous results
-  // dynamically determine the bounding box of sketch and use that as the size for each
-  var sketchWidth  = sketchpad.offsetWidth;
-  var sketchHeight = sketchpad.offsetHeight;
-  var firstNode = $(".node", sketch)[0];
-  var minX, maxX; minX = maxX = firstNode.x;
-  var minY, maxY; minY = maxY = firstNode.y;
-  $(".node", sketch).each(function(i,n){
-      minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
-      minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
-    });
-  sketchWidth  = maxX - minX + 2*NodeWidth ;
-  sketchHeight = maxY - minY + 2*NodeHeight;
-  var translateX = - minX + NodeWidth  + sketchWidth  * ResultPaddingH;
-  var translateY = - minY + NodeHeight + sketchHeight * ResultPaddingV;
-  var resultWidth  = ResultScale * sketchWidth  * (1+2*ResultPaddingH);
-  var resultHeight = ResultScale * sketchHeight * (1+2*ResultPaddingV);
-  // build a prototype for individual result
-  // TODO adjust edge coords, or add an arrow-ending? updateEdgeCoordinates(e, x2, y2);
-  var resultPrototype = $(sketch)
-    .clone()
-    .removeAttr("id")
-    .attr({
-        transform: "scale("+ ResultScale +"), translate("+ translateX +","+ translateY +")",
-      })
-    ;
-  $(".edge", resultPrototype)
-    .removeClass("attribute invalid")
-    ;
-  $(".edge text", resultPrototype)
-    .remove()
-    ;
+    if (smallgraphsCurrentResultPrototype) {
+      smallgraphsCurrentResultPrototype.remove();
+      smallgraphsCurrentResultPrototype = null;
+    }
+    // dynamically determine the bounding box of sketch and use that as the size for each
+    var sketchWidth  = sketchpad.offsetWidth;
+    var sketchHeight = sketchpad.offsetHeight;
+    var firstNode = $(".node", sketch)[0];
+    var minX, maxX; minX = maxX = firstNode.x;
+    var minY, maxY; minY = maxY = firstNode.y;
+    $(".node", sketch).each(function(i,n){
+        minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+        minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+      });
+    sketchWidth  = maxX - minX + 2*NodeWidth ;
+    sketchHeight = maxY - minY + 2*NodeHeight;
+    var translateX = - minX + NodeWidth  + sketchWidth  * ResultPaddingH;
+    var translateY = - minY + NodeHeight + sketchHeight * ResultPaddingV;
+    var resultWidth  = ResultScale * sketchWidth  * (1+2*ResultPaddingH);
+    var resultHeight = ResultScale * sketchHeight * (1+2*ResultPaddingV);
+    // build a prototype for individual result
+    var resultPrototype = $("<div>")
+        .attr({
+            class: "result",
+          })
+        .css({
+            width : resultWidth +"px",
+            height: resultHeight+"px",
+          })
+        .append(
+            $(document.createElementNS(SVGNameSpace, "svg"))
+              .append(
+                  $(sketch).clone()
+                    .removeAttr("id")
+                    .attr({
+                        transform: "scale("+ ResultScale +"), translate("+ translateX +","+ translateY +")",
+                      })
+                )
+          )
+        ;
+    $(".node, .edge", resultPrototype)
+      .removeClass("selected attribute invalid")
+      ;
+    $(".edge text", resultPrototype)
+      .remove()
+      ;
+    // TODO adjust edge coords, or add an arrow-ending? updateEdgeCoordinates(e, x2, y2);
+    smallgraphsCurrentResultPrototype = resultPrototype;
+  }
   // now, show each of them
   for (var i in data) {
     var anInstance = data[i];
-    var aResultSVG = document.createElementNS(SVGNameSpace, "svg");
-    resultPrototype
-      .clone()
-      .appendTo(aResultSVG)
-      ;
+    var aResult = smallgraphsCurrentResultPrototype.clone();
     // fill data
-    smallgraphsCurrentResultMapping(anInstance, aResultSVG);
+    smallgraphsCurrentResultMapping(anInstance, aResult);
     // TODO do more visual encoding
-    $("<div>")
-      .attr({
-          class: "result",
-        })
-      .css({
-          width : resultWidth +"px",
-          height: resultHeight+"px",
-        })
-      .append(aResultSVG)
-      .appendTo(results)
-      ;
+    aResult.appendTo(results);
   }
-  resultPrototype.remove();
   smallgraphsCurrentOffset = offset;
   // if data was full page, then add a button for fetching more
   if (data.length == ResultPageSize) {
@@ -1420,6 +1508,13 @@ $("#result-refine")
   .button()
   .click(function(){ $("#query-header").click(); })
   ;
+
+
+$("#result-reorder")
+  .button()
+  // TODO .click(...)
+  ;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // overall UI layout
