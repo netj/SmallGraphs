@@ -268,13 +268,12 @@ sendHeaders = (res, hdrs) ->
             "Access-Control-Allow-Origin": "*"
         }, hdrs
 
-processQuery = (query, res) ->
+processQuery = (query, limit, offset, res) ->
     console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
     queryNorm = normalizeSmallGraphQuery query
     [sql, rowTransformer] = compileSmallGraphQueryToSQL queryNorm
+    sql += " LIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
     console.log ">>> Compiled SQL:\n#{sql}\n<<<"
-
-    sql += " LIMIT 100 OFFSET 2" # TODO parameterize limit and offset
 
     try
         client = mysql.createClient
@@ -302,6 +301,8 @@ processQuery = (query, res) ->
 
 http.createServer (req,res) ->
         console.log ">> handling #{req.method} request from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
+        limit  = req.headers["smallgraphs-result-limit"] ? 100
+        offset = req.headers["smallgraphs-result-offset"] ? 0
         switch req.method
             when 'POST'
                 rawQuery = ""
@@ -309,17 +310,17 @@ http.createServer (req,res) ->
                     rawQuery += chunk
                 req.on 'end', ->
                     query = JSON.parse rawQuery
-                    processQuery query, res
+                    processQuery query, limit, offset, res
             when 'OPTIONS'
                 sendHeaders res,
                     "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
-                    "Access-Control-Allow-Headers": "Content-Type"
+                    "Access-Control-Allow-Headers": req.headers["access-control-request-headers"]
                 res.end()
             else
                 {q} = (url.parse req.url, true).query
                 q ?= ""
                 query = smallgraphParser.parse q
-                processQuery query, res
+                processQuery query, limit, offset, res
 
     .listen graphdPort
 

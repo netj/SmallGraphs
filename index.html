@@ -164,7 +164,19 @@
       #query-sketchpad text { cursor: default; }
 
 
-      #result {
+      #results {
+        display: inline;
+      }
+      #result-info {
+        color: #999;
+        margin-top: 40px;
+      }
+      #result-more {
+        display: none;
+      }
+      #result-more.active {
+        display: inline;
+        margin: 0px 10px;
       }
 
       .result {
@@ -204,7 +216,7 @@
     </div>
 
     <div id="frame">
-      <h3 id="query-header"><a href="#">Sketch Query</a></h3>
+      <h3 id="query-header"><a href="#query">Sketch Query</a></h3>
       <div id="query">
         <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
           <defs>
@@ -227,6 +239,11 @@
 
       <h3 id="result-header"><a href="#result">See Results</a></h3>
       <div id="result">
+        <div id="results"></div>
+        <div id="result-info">
+          <span id="result-stats"></span>
+          <button id="result-more">Get more...</button>
+        </div>
       </div>
     </div>
 
@@ -253,6 +270,8 @@ var EdgeLabelTop  = 10;//px
 var EntryWidth  = 100/2;//px
 var EntryHeight = 25/2;//px
 
+var ResultPageSize = 100;//results
+var ResultScale    = 0.7;//ratio
 var ResultPaddingH = 0.2;//ratio
 var ResultPaddingV = 0.2;//ratio
 
@@ -1055,8 +1074,6 @@ $(window)
 ////////////////////////////////////////////////////////////////////////////////
 // query execution & result presentation
 ////////////////////////////////////////////////////////////////////////////////
-var results = $("#result");
-
 function smallgraphsShowDialog(selector, options, msg) {
   var dialog = $(selector).dialog($.extend({
         modal: true,
@@ -1084,6 +1101,29 @@ function smallgraphsRunQuery() {
     queryTypeEntryHandler = null;
   }
 
+  // derive SmallGraph query from the sketch
+  var query = smallgraphsExportSketchAsQuery();
+
+  // check if we can really run this query
+  if (query.length == 0) {
+    smallgraphsShowError("Empty query: Please sketch something to begin your search.");
+    return;
+  }
+
+  smallgraphsSendQuery(query, 0);
+}
+
+function smallgraphsSendQuery(query, offset, msg) {
+  var queryURL = graphdURL + "/query";
+
+  var sgq = "<pre>"+ smallgraphSerialize(query) +"</pre>";
+  if (msg == null) {
+    if (offset == 0)
+      msg = "Running at "+ queryURL +":<br>" + sgq;
+    else
+      msg = "Getting "+ ResultPageSize +" more results from "+ queryURL +":<br>" + sgq;
+  }
+
   // indicate we're in progress
   var ajaxHandle;
   var progress = smallgraphsShowDialog("#progress-dialog", {
@@ -1095,36 +1135,22 @@ function smallgraphsRunQuery() {
                 progress.dialog("close");
             }} ],
       },
-      "Preparing query..."
+      msg
     );
 
-  // derive SmallGraph query from the sketch
-  var query = smallgraphsExportSketchAsQuery();
-
-  // check if we can really run this query
-  if (query.length == 0) {
-    progress.dialog("close");
-    smallgraphsShowError("Empty query: Please sketch something to begin your search.");
-    return;
-  }
-
-  // XXX testing aggregation
-  query[0].walk[2].alias = "test";
-  query.push({aggregate:["test","count"]});
+  if (offset == null)
+    offset = 0;
 
   // send it to server and get response
-  var queryURL = graphdURL + "/query";
-  console.debug("sending query to " + queryURL, "\n"+ smallgraphSerialize(query), query, "\n"+ JSON.stringify(query));
-
-  progress
-    .find(".description").html(
-        "Running at "+ queryURL +":<br>" +
-        "<pre>"+ smallgraphSerialize(query) +"</pre>"
-      );
+  console.debug("sending query to "+ queryURL, "limiting range to "+ offset +"-"+ (offset+ResultPageSize), "\n"+ smallgraphSerialize(query), query, "\n"+ JSON.stringify(query));
   ajaxHandle = $.ajax({
         type: 'POST',
         url: queryURL,
         contentType: "application/json",
+        headers: {
+            "SmallGraphs-Result-Limit": ResultPageSize,
+            "SmallGraphs-Result-Offset": offset,
+          },
         data: JSON.stringify(query),
         processData: false,
         dataType: "json",
@@ -1132,7 +1158,7 @@ function smallgraphsRunQuery() {
             ajaxHandle = null;
             console.debug("got result", "\n"+ JSON.stringify(result) +"\n", result);
             // to show each subgraph instance as small multiples
-            smallgraphsShowResults(result);
+            smallgraphsShowResults(result, offset);
             // remove progress indicator
             progress.dialog("close");
           },
@@ -1153,6 +1179,7 @@ function smallgraphsRunQuery() {
 }
 
 var smallgraphsCurrentQuery;
+var smallgraphsCurrentOffset;
 var smallgraphsCurrentResultMapping;
 function smallgraphsExportSketchAsQuery() {
   function outAttributeRelated() {
@@ -1300,9 +1327,22 @@ function smallgraphsExportSketchAsQuery() {
   return smallgraphsCurrentQuery;
 }
 
-var resultScale = 0.7;
-function smallgraphsShowResults(data) {
-  $(".result", results).remove();
+var results = $("#results");
+$("#result-more")
+  .text("Get "+ ResultPageSize +" more...")
+  .button()
+  .click(function() {
+      smallgraphsSendQuery(
+          smallgraphsCurrentQuery,
+          smallgraphsCurrentOffset + ResultPageSize
+        );
+    })
+  ;
+function smallgraphsShowResults(data, offset) {
+  // remove if we're starting fresh
+  if (offset == 0)
+    $(".result", results).remove();
+  // otherwise, append to previous results
   // dynamically determine the bounding box of sketch and use that as the size for each
   var sketchWidth  = sketchpad.offsetWidth;
   var sketchHeight = sketchpad.offsetHeight;
@@ -1317,15 +1357,15 @@ function smallgraphsShowResults(data) {
   sketchHeight = maxY - minY + 2*NodeHeight;
   var translateX = - minX + NodeWidth  + sketchWidth  * ResultPaddingH;
   var translateY = - minY + NodeHeight + sketchHeight * ResultPaddingV;
-  var resultWidth  = resultScale * sketchWidth  * (1+2*ResultPaddingH);
-  var resultHeight = resultScale * sketchHeight * (1+2*ResultPaddingV);
+  var resultWidth  = ResultScale * sketchWidth  * (1+2*ResultPaddingH);
+  var resultHeight = ResultScale * sketchHeight * (1+2*ResultPaddingV);
   // build a prototype for individual result
   // TODO adjust edge coords, or add an arrow-ending? updateEdgeCoordinates(e, x2, y2);
   var resultPrototype = $(sketch)
     .clone()
     .removeAttr("id")
     .attr({
-        transform: "scale("+ resultScale +"), translate("+ translateX +","+ translateY +")",
+        transform: "scale("+ ResultScale +"), translate("+ translateX +","+ translateY +")",
       })
     ;
   $(".edge", resultPrototype)
@@ -1335,7 +1375,7 @@ function smallgraphsShowResults(data) {
     .remove()
     ;
   // now, show each of them
-  for (var i=0; i<data.length; i++) {
+  for (var i in data) {
     var anInstance = data[i];
     var aResultSVG = document.createElementNS(SVGNameSpace, "svg");
     resultPrototype
@@ -1343,8 +1383,8 @@ function smallgraphsShowResults(data) {
       .appendTo(aResultSVG)
       ;
     // fill data
-    smallgraphsCurrentResultMapping(anInstance, resultPrototype);
-    // TODO do more
+    smallgraphsCurrentResultMapping(anInstance, aResultSVG);
+    // TODO do more visual encoding
     $("<div>")
       .attr({
           class: "result",
@@ -1357,7 +1397,19 @@ function smallgraphsShowResults(data) {
       .appendTo(results)
       ;
   }
-  $("#result-header").click();
+  resultPrototype.remove();
+  smallgraphsCurrentOffset = offset;
+  // if data was full page, then add a button for fetching more
+  if (data.length == ResultPageSize) {
+    $("#result-stats").text("Showing first "+ (offset+data.length) +" results");
+    $("#result-more").addClass("active");
+  } else {
+    $("#result-stats").text("Showing all "+ (offset+data.length) +" results");
+    $("#result-more").removeClass("active");
+  }
+  // click to open the result accordion only when starting fresh
+  if (offset == 0)
+    $("#result-header").click();
 }
 
 $("#query-run")
