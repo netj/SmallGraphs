@@ -1100,6 +1100,14 @@ function smallgraphsRunQuery() {
 
   // derive SmallGraph query from the sketch
   var query = smallgraphsExportSketchAsQuery();
+
+  // check if we can really run this query
+  if (query.length == 0) {
+    progress.dialog("close");
+    smallgraphsShowError("Empty query: Please sketch something to begin your search.");
+    return;
+  }
+
   // send it to server and get response
   var queryURL = graphdURL + "/query";
   console.debug("sending query to " + queryURL, "\n"+ smallgraphSerialize(query), query, "\n"+ JSON.stringify(query));
