@@ -45,6 +45,24 @@
         display: block;
       }
 
+      #dialogs {
+        display: none;
+      }
+      .dialog {
+        background-color: #fff;
+        background-repeat: no-repeat !important;
+      }
+      #progress-dialog {
+        background-image: url(resource/spinner.gif);
+        background-position: center 20px;
+        padding-top: 70px;
+      }
+      #error-dialog {
+        background-image: url(resource/Crystal_error.png);
+        background-position: center 10px;
+        padding-top: 80px;
+      }
+
       .ui-accordion .ui-accordion-header {
         font-size: 12px;
       }
@@ -143,6 +161,7 @@
       #query-sketchpad .node.selected       rect,
       #query-sketchpad .edge.selected       line { fill: #3c3; stroke: #3c3; }
 
+      #query-sketchpad text { cursor: default; }
 
 
       #result {
@@ -208,6 +227,15 @@
 
       <h3 id="result-header"><a href="#result">See Results</a></h3>
       <div id="result">
+      </div>
+    </div>
+
+    <div id="dialogs">
+      <div id="progress-dialog" class="dialog">
+        <div class="description"></div>
+      </div>
+      <div id="error-dialog" class="dialog">
+        <div class="description"></div>
       </div>
     </div>
 
@@ -909,7 +937,7 @@ function sketchpadMouseDown() {
           var a = new SketchpadAction(handler);
           var r = a.mousedown();
           if (r != null) {
-            console.log(event.type, event, a, a.name);
+            console.debug(event.type, event, a, a.name);
             if (r) sketchpadCurrentMouseActions.push(a);
           }
         } catch (err) {
@@ -922,7 +950,7 @@ function sketchpadMouseMove() {
   sketchpadCurrentMouseActions.forEach(function(a) {
     try {
       if (a.mousemove) {
-        console.log(event.type, event, a, a.name);
+        console.debug(event.type, event, a, a.name);
         a.mousemove();
       }
     } catch (err) {
@@ -936,7 +964,7 @@ function sketchpadMouseUp() {
   sketchpadCurrentMouseActions.forEach(function(a) {
     try {
       if (a.mouseup) {
-        console.log(event.type, event, a, a.name);
+        console.debug(event.type, event, a, a.name);
         a.mouseup();
       }
     } catch (err) {
@@ -952,7 +980,7 @@ function sketchpadMouseUp() {
         if (!sketchpadActionDefSatisfyModifierKey(handler)) return;
         try {
           var a = new SketchpadAction(handler);
-          console.log("click", event, a, a.name);
+          console.debug("click", event, a, a.name);
           a.click();
         } catch (err) {
           console.error(err, err+"");
@@ -974,7 +1002,7 @@ function sketchpadKeyDown() {
           var a = new SketchpadAction(handler);
           var r = a.keydown();
           if (r != null) {
-            console.log(event.type, event, a, a.name);
+            console.debug(event.type, event, a, a.name);
             if (r) sketchpadCurrentKeyActions.push(a);
           }
         } catch (err) {
@@ -988,7 +1016,7 @@ function sketchpadKeyUp() {
   sketchpadCurrentKeyActions.forEach(function(a) {
     try {
       if (a.keyup) {
-        console.log(event.type, event, a, a.name);
+        console.debug(event.type, event, a, a.name);
         a.keyup();
       }
     } catch (err) {
@@ -1002,7 +1030,7 @@ function sketchpadKeyUp() {
       if (handler.keypress && handler.forKeys && handler.forKeys.indexOf(event.keyCode) != -1) {
         try {
           var a = new SketchpadAction(handler);
-          console.log("keypress", event, a, a.name);
+          console.debug("keypress", event, a, a.name);
           a.keypress();
         } catch (err) {
           console.error(err, err+"");
@@ -1036,15 +1064,34 @@ function smallgraphsRunQuery() {
     queryTypeEntryHandler = null;
   }
 
-  // TODO indicate something's in progress?
+  // indicate we're in progress
+  var ajaxHandle;
+  var progress = $("#progress-dialog").dialog({
+        title: "Running Query",
+        modal: true,
+        width:  document.body.offsetWidth  * (1-.618),
+        height: document.body.offsetHeight * (1-.618),
+        buttons: [ { text: "Cancel", click: function() {
+              ajaxHandle.abort();
+            }} ],
+      });
+  progress
+    .find(".description").text(
+        "Preparing query..."
+      );
 
   // derive SmallGraph query from the sketch
   var query = smallgraphsExportSketchAsQuery();
   // send it to server and get response
   var queryURL = graphdURL + "/query";
-  console.log("sending query", queryURL, query);
+  console.debug("sending query to " + queryURL, "\n"+ serialize(query), query, "\n"+ JSON.stringify(query));
 
-  $.ajax({
+  progress
+    .find(".description").html(
+        "Running at "+ queryURL +":<br>" +
+        "<pre>"+ serialize(query) +"</pre>"
+      );
+  ajaxHandle = $.ajax({
         type: 'POST',
         url: queryURL,
         contentType: "application/json",
@@ -1052,14 +1099,31 @@ function smallgraphsRunQuery() {
         processData: false,
         dataType: "json",
         success: function(result) {
+            console.debug("got result", "\n"+ JSON.stringify(result) +"\n", result);
             // to show each subgraph instance as small multiples
             smallgraphsShowResults(result);
-            // TODO remove progress indicator
+            // remove progress indicator
+            progress.dialog("close");
           },
         error: function(jqXHR, textStatus, err) {
-            // TODO remove progress indicator
-            // TODO show error
             console.error(textStatus, err);
+            // remove progress indicator
+            progress.dialog("close");
+            if (textStatus == "abort")
+              return;
+            // show error in a dialog
+            var error = $("#error-dialog").dialog({
+                  title: "Error",
+                  modal: true,
+                  width:  document.body.offsetWidth  * (1-.618),
+                  height: document.body.offsetHeight * (1-.618),
+                  buttons: [ { text: "OK", click: function() { error.dialog("close"); } } ],
+                });
+            error.find(".description").html(
+                  "Error occurred while running query at '"+ queryURL +"':<br>" +
+                  "<pre>"+ textStatus + "\t" + err +"</pre>"
+                );
+              ;
           },
       });
 }
@@ -1209,7 +1273,6 @@ function smallgraphsExportSketchAsQuery() {
         mapping(data, resultSVG);
       });
   };
-  console.log(serialize(smallgraphsCurrentQuery));
   return smallgraphsCurrentQuery;
 }
 
