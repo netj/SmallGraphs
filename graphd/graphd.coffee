@@ -62,6 +62,7 @@ compileSmallGraphQueryToSQL = (query) ->
             env[name].aggregates ?= {}
             aggregate = env[name].aggregates
             aggregate.fn = aggfn
+            # TODO aggregate with attribute
     # now, do the real compilation for walks
     transforms = []
     transformFields = []
@@ -92,19 +93,28 @@ compileSmallGraphQueryToSQL = (query) ->
         s.compiledAttributes ?= {}
         s.compiledAttributes[attrName] = attrFieldName
         attrFieldName
+    aggregatingFields = {}
     addStepOutput = (s) ->
+        tables.push [s.layout.id.table, s.sqlTableName]
         if s.name?
             addFieldTransform null, (r) ->
                 r.walks[s.walkNum][s.stepNum] = s.name
+            aggregate = env[s.name].aggregates
             unless env[s.name].outputDone
-                addFieldTransform s.sqlIdName, (v, r) ->
-                    r.names[s.name] =
-                        id: v
-                        attrs: {}
-                aggregate = env[s.name].aggregates
+                fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
                 if aggregate?
-                    # TODO aggregate
-                else
+                    aggregatedFieldName = sqlName s.tag, s.type, aggregate.fn
+                    aggregate.field = s.sqlIdName
+                    aggregatingFields[aggregatedFieldName] = aggregate
+                    addFieldTransform aggregatedFieldName, (v, r) ->
+                        r.names[s.name] =
+                            label: v
+                    # TODO what about aggregation of attributes?
+                else # look for attributes only when not aggregating
+                    addFieldTransform s.sqlIdName, (v, r) ->
+                        r.names[s.name] =
+                            id: v
+                            attrs: {}
                     lookFor = env[s.name].lookFors
                     if lookFor?
                         for attrName in lookFor.attrs
@@ -113,11 +123,13 @@ compileSmallGraphQueryToSQL = (query) ->
                                 addFieldTransform attrFieldName, (v, r) ->
                                     r.names[s.name].attrs[attrName] = v
                 env[s.name].outputDone = true
-            labelFieldName = compileAttribute s, s.layout.label
-            if labelFieldName?
-                addFieldTransform labelFieldName, (v, r) ->
-                    r.names[s.name].label = v
+            unless aggregate?
+                labelFieldName = compileAttribute s, s.layout.label
+                if labelFieldName?
+                    addFieldTransform labelFieldName, (v, r) ->
+                        r.names[s.name].label = v
         else
+            fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
             addFieldTransform s.sqlIdName, (v, r) ->
                 r.walks[s.walkNum][s.stepNum] =
                     id: v
@@ -166,8 +178,6 @@ compileSmallGraphQueryToSQL = (query) ->
             linkStep = (s, j) ->
                 oneStep j, "linkRef",   "linkType",   (ty) -> s.layout.links[ty]
             s = objectStep j++
-            tables.push [s.layout.id.table, s.sqlTableName]
-            fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
             addStepOutput s
             while j < walk.length
                 l = linkStep s, j++
@@ -187,8 +197,6 @@ compileSmallGraphQueryToSQL = (query) ->
                     conditions.push [s.sqlId, '=', [l.sqlTableName, l.layout.joinOn]]
                     conditions.push [[l.sqlTableName, l.layout.field], '=', t.sqlId]
                 # add target object's fields and table
-                tables.push [t.layout.id.table, t.sqlTableName]
-                fields.push [t.sqlTableName, t.layout.id.field, t.sqlIdName]
                 addStepOutput t
                 s = t
             walkSQLs.push """
@@ -205,7 +213,7 @@ compileSmallGraphQueryToSQL = (query) ->
     junctionConditions = []
     for name,env1 of env
         steps = env1.references
-        if steps.length > 1
+        if steps and steps.length > 1
             i = 0
             lastStep = steps[i++]
             while i < steps.length
@@ -221,12 +229,20 @@ compileSmallGraphQueryToSQL = (query) ->
         transforms.forEach (tr) -> tr(r)
         r
     # finally, return SQL and transformer back
+    hasAggregation = false
+    groupByFields = []
     [
         """
         SELECT #{
             fields = ([f,_]) ->
-                # TODO apply aggregation function to some fields
-                f
+                # apply aggregation function to some fields
+                if aggregatingFields[f]?
+                    aggregate = aggregatingFields[f]
+                    hasAggregation = true
+                    "#{aggregate.fn}(#{aggregate.field}) AS #{f}"
+                else
+                    groupByFields.push f
+                    f
             (uniq transformFields.map(fields)).join ",\n       "
         } FROM
         #{
@@ -238,7 +254,8 @@ compileSmallGraphQueryToSQL = (query) ->
             else "WHERE #{junctionConditions.map(sqlCond).join "\n  AND "}"
         }
         #{
-            # TODO aggregation GROUP BY
+            unless hasAggregation then ""
+            else "GROUP BY #{(uniq groupByFields).join ",\n         "}"
         }
         """
         rowTransformer

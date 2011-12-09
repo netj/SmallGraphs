@@ -59,8 +59,8 @@
       }
       #error-dialog {
         background-image: url(resource/Crystal_error.png);
-        background-position: center 10px;
-        padding-top: 80px;
+        background-position: center 20px;
+        padding-top: 100px;
       }
 
       .ui-accordion .ui-accordion-header {
@@ -1107,6 +1107,10 @@ function smallgraphsRunQuery() {
     smallgraphsShowError("Empty query: Please sketch something to begin your search.");
     return;
   }
+
+  // XXX testing aggregation
+  query[0].walk[2].alias = "test";
+  query.push({aggregate:["test","count"]});
 
   // send it to server and get response
   var queryURL = graphdURL + "/query";
