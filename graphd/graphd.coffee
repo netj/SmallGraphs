@@ -234,10 +234,8 @@ compileSmallGraphQueryToSQL = (query) ->
             ("(#{w.replace /\n/g, "$& "}) AS walk_#{walkNum++}" for w in walkSQLs).join ",\n"
         }
         #{
-            if walkSQLs.length > 1
-                "WHERE #{junctionConditions.map(sqlCond).join "\n  AND "}"
-            else
-                ""
+            if junctionConditions.length == 0 then ""
+            else "WHERE #{junctionConditions.map(sqlCond).join "\n  AND "}"
         }
         #{
             # TODO aggregation GROUP BY
@@ -245,6 +243,13 @@ compileSmallGraphQueryToSQL = (query) ->
         """
         rowTransformer
     ]
+
+sendHeaders = (res, hdrs) ->
+    res.writeHead 200,
+        mergeObject {
+            "Content-Type": "text/plain" # "application/json"
+            "Access-Control-Allow-Origin": "*"
+        }, hdrs
 
 processQuery = (query, res) ->
     console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
@@ -269,9 +274,7 @@ processQuery = (query, res) ->
                 res.end (JSON.stringify err)
             else
                 console.log "MySQL returned #results:", results.length
-                res.writeHead 200,
-                    "Content-Type": "text/plain" # "application/json"
-                    "Access-Control-Allow-Origin": "*"
+                sendHeaders res
                 res.end (JSON.stringify results.map rowTransformer)
             client.end()
     catch err
@@ -281,7 +284,7 @@ processQuery = (query, res) ->
         res.end (JSON.stringify err)
 
 http.createServer (req,res) ->
-        console.log ">> handling request from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
+        console.log ">> handling #{req.method} request from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
         switch req.method
             when 'POST'
                 rawQuery = ""
@@ -290,6 +293,11 @@ http.createServer (req,res) ->
                 req.on 'end', ->
                     query = JSON.parse rawQuery
                     processQuery query, res
+            when 'OPTIONS'
+                sendHeaders res,
+                    "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
+                    "Access-Control-Allow-Headers": "Content-Type"
+                res.end()
             else
                 {q} = (url.parse req.url, true).query
                 q ?= ""
