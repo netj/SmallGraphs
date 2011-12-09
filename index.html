@@ -1057,6 +1057,26 @@ $(window)
 ////////////////////////////////////////////////////////////////////////////////
 var results = $("#result");
 
+function smallgraphsShowDialog(selector, options, msg) {
+  var dialog = $(selector).dialog($.extend({
+        modal: true,
+        width:  document.body.offsetWidth  * (1-.618),
+        height: document.body.offsetHeight * (1-.618),
+      }, options));
+  dialog.find(".description").html(msg);
+  return dialog;
+}
+
+var smallgraphsErrorDialog;
+function smallgraphsShowError(msg) {
+  smallgraphsErrorDialog = smallgraphsShowDialog("#error-dialog", {
+        title: "Error",
+        buttons: [ { text: "OK", click: function() {
+              smallgraphsErrorDialog.dialog("close");
+            }} ],
+      }, msg);
+}
+
 function smallgraphsRunQuery() {
   // XXX I know this is ugly, but it's required to prevent sketching elements from coming in
   if (queryTypeEntryHandler) {
@@ -1066,30 +1086,28 @@ function smallgraphsRunQuery() {
 
   // indicate we're in progress
   var ajaxHandle;
-  var progress = $("#progress-dialog").dialog({
+  var progress = smallgraphsShowDialog("#progress-dialog", {
         title: "Running Query",
-        modal: true,
-        width:  document.body.offsetWidth  * (1-.618),
-        height: document.body.offsetHeight * (1-.618),
         buttons: [ { text: "Cancel", click: function() {
-              ajaxHandle.abort();
+              if (ajaxHandle)
+                ajaxHandle.abort();
+              else
+                progress.dialog("close");
             }} ],
-      });
-  progress
-    .find(".description").text(
-        "Preparing query..."
-      );
+      },
+      "Preparing query..."
+    );
 
   // derive SmallGraph query from the sketch
   var query = smallgraphsExportSketchAsQuery();
   // send it to server and get response
   var queryURL = graphdURL + "/query";
-  console.debug("sending query to " + queryURL, "\n"+ serialize(query), query, "\n"+ JSON.stringify(query));
+  console.debug("sending query to " + queryURL, "\n"+ smallgraphSerialize(query), query, "\n"+ JSON.stringify(query));
 
   progress
     .find(".description").html(
         "Running at "+ queryURL +":<br>" +
-        "<pre>"+ serialize(query) +"</pre>"
+        "<pre>"+ smallgraphSerialize(query) +"</pre>"
       );
   ajaxHandle = $.ajax({
         type: 'POST',
@@ -1099,6 +1117,7 @@ function smallgraphsRunQuery() {
         processData: false,
         dataType: "json",
         success: function(result) {
+            ajaxHandle = null;
             console.debug("got result", "\n"+ JSON.stringify(result) +"\n", result);
             // to show each subgraph instance as small multiples
             smallgraphsShowResults(result);
@@ -1106,24 +1125,17 @@ function smallgraphsRunQuery() {
             progress.dialog("close");
           },
         error: function(jqXHR, textStatus, err) {
+            ajaxHandle = null;
             console.error(textStatus, err);
             // remove progress indicator
             progress.dialog("close");
             if (textStatus == "abort")
               return;
             // show error in a dialog
-            var error = $("#error-dialog").dialog({
-                  title: "Error",
-                  modal: true,
-                  width:  document.body.offsetWidth  * (1-.618),
-                  height: document.body.offsetHeight * (1-.618),
-                  buttons: [ { text: "OK", click: function() { error.dialog("close"); } } ],
-                });
-            error.find(".description").html(
-                  "Error occurred while running query at '"+ queryURL +"':<br>" +
-                  "<pre>"+ textStatus + "\t" + err +"</pre>"
+            smallgraphsShowError(
+                    "Error occurred while running query at '"+ queryURL +"':<br>" +
+                    "<pre>"+ textStatus + "\t" + err +"</pre>"
                 );
-              ;
           },
       });
 }

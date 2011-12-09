@@ -44,3 +44,5 @@ serialize = (smallgraph) ->
 
 if typeof require != 'undefined' && typeof exports != 'undefined'
     exports.serialize = serialize
+else if typeof window != 'undefined'
+    window.smallgraphSerialize = serialize
