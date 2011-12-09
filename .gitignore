@@ -3,4 +3,6 @@
 *~
 
 /jquery-ui/development-bundle
+/graphd/node_modules
 *.js
+*.vim
