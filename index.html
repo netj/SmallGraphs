@@ -1234,7 +1234,14 @@ function smallgraphsSendQuery(query, offset, msg) {
             ajaxHandle = null;
             console.debug("got result", "\n"+ JSON.stringify(result) +"\n", result);
             // to show each subgraph instance as small multiples
-            smallgraphsShowResults(result, offset);
+            try {
+              smallgraphsShowResults(result, offset);
+            } catch (err) {
+              smallgraphsShowError(
+                  "Error occurred while running query at '"+ queryURL +"':<br>" +
+                  "<pre>"+ err +"</pre>"
+                );
+            }
             // remove progress indicator
             progress.dialog("close");
           },
