@@ -27,6 +27,7 @@ mergeObject = ->
 
 
 normalizeSmallGraphQuery = (query) ->
+    # TODO type check, prevent invalid queries from being run
     query # TODO someday
 
 compileSmallGraphQueryToSQL = (query) ->
@@ -283,13 +284,13 @@ sendHeaders = (res, hdrs) ->
         }, hdrs
 
 processQuery = (query, limit, offset, res) ->
-    console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
-    queryNorm = normalizeSmallGraphQuery query
-    [sql, rowTransformer] = compileSmallGraphQueryToSQL queryNorm
-    sql += " LIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
-    console.log ">>> Compiled SQL:\n#{sql}\n<<<"
-
     try
+        console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
+        queryNorm = normalizeSmallGraphQuery query
+        [sql, rowTransformer] = compileSmallGraphQueryToSQL queryNorm
+        sql += " LIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
+        console.log ">>> Compiled SQL:\n#{sql}\n<<<"
+
         client = mysql.createClient
             user:       mysqlGraph.user
             password:   mysqlGraph.password
