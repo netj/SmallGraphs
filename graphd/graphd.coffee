@@ -284,7 +284,6 @@ sendHeaders = (res, hdrs) ->
         }, hdrs
 
 processQuery = (query, limit, offset, res) ->
-    try
         console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
         queryNorm = normalizeSmallGraphQuery query
         [sql, rowTransformer] = compileSmallGraphQueryToSQL queryNorm
@@ -308,18 +307,14 @@ processQuery = (query, limit, offset, res) ->
                 sendHeaders res
                 res.end (JSON.stringify results.map rowTransformer)
             client.end()
-    catch err
-        console.error "Error while processQuery:", JSON.stringify err
-        res.writeHead 500,
-            "Content-Type": "text/plain" # "application/json"
-        res.end (JSON.stringify err)
 
 http.createServer (req,res) ->
-        console.log ">> handling #{req.method} request from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
-        limit  = req.headers["smallgraphs-result-limit"] ? 100
-        offset = req.headers["smallgraphs-result-offset"] ? 0
-        switch req.method
+        try
+          console.log ">> handling #{req.method} request from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
+          switch req.method
             when 'POST'
+                limit  = req.headers["smallgraphs-result-limit"] ? 100
+                offset = req.headers["smallgraphs-result-offset"] ? 0
                 rawQuery = ""
                 req.on 'data', (chunk) ->
                     rawQuery += chunk
@@ -332,10 +327,18 @@ http.createServer (req,res) ->
                     "Access-Control-Allow-Headers": req.headers["access-control-request-headers"]
                 res.end()
             else
-                {q} = (url.parse req.url, true).query
+                queryString = (url.parse req.url, true).query
+                {q,limit,offset} = queryString
                 q ?= ""
+                limit  ?= 100
+                offset ?= 0
                 query = smallgraphParser.parse q
                 processQuery query, limit, offset, res
+        catch err
+            console.error "Error while processQuery:", JSON.stringify err
+            res.writeHead 500,
+                "Content-Type": "text/plain" # "application/json"
+            res.end (JSON.stringify err)
 
     .listen graphdPort
 
