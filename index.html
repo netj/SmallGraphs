@@ -1379,7 +1379,7 @@ function smallgraphsCompileSketchToQuery() {
   var aggregations = [];
   for (var nId in aggregationMap) {
     var attrsToAggregate = aggregationMap[nId];
-    aggregations.push({aggregate:[nId, "count"/*TODO attrsToAggregate*/]});
+    aggregations.push({aggregate:[nId, attrsToAggregate]});
   }
   // declare objects we will later reference a few times
   var namedObjects = [];

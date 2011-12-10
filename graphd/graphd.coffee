@@ -27,7 +27,7 @@ mergeObject = ->
 
 
 normalizeSmallGraphQuery = (query) ->
-    query # TODO
+    query # TODO someday
 
 compileSmallGraphQueryToSQL = (query) ->
     objects = mysqlGraph.layout.objects
@@ -57,12 +57,11 @@ compileSmallGraphQueryToSQL = (query) ->
             lookFor = env[name].lookFors
             lookFor.attrs = (lookFor.attrs ? []).concat attrs
         if decl.aggregate?
-            [name, aggfn] = decl.aggregate
+            [name, attrAggs] = decl.aggregate
             env[name] ?= {}
             env[name].aggregates ?= {}
             aggregate = env[name].aggregates
-            aggregate.fn = aggfn
-            # TODO aggregate with attribute
+            aggregate.attrs = attrAggs
     # now, do the real compilation for walks
     transforms = []
     transformFields = []
@@ -103,13 +102,27 @@ compileSmallGraphQueryToSQL = (query) ->
             unless env[s.name].outputDone
                 fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
                 if aggregate?
-                    aggregatedFieldName = sqlName s.tag, s.type, aggregate.fn
-                    aggregate.field = s.sqlIdName
-                    aggregatingFields[aggregatedFieldName] = aggregate
+                    # aggregate id's as count
+                    aggfn = "count"
+                    aggregatedFieldName = sqlName s.tag, s.type, s.layout.id.field, aggfn
+                    aggregatingFields[aggregatedFieldName] =
+                        fn: aggfn
+                        field: s.sqlIdName
                     addFieldTransform aggregatedFieldName, (v, r) ->
                         r.names[s.name] =
                             label: v
-                    # TODO what about aggregation of attributes?
+                            attrs: {}
+                    # aggregate each attribute
+                    for [attrName, aggfn] in aggregate.attrs
+                        aggfn ?= "count"
+                        attrFieldName = compileAttribute s, attrName
+                        if attrFieldName?
+                            aggregatedAttrFieldName = sqlName s.tag, s.type, attrName, aggfn
+                            aggregatingFields[aggregatedAttrFieldName] =
+                                fn: aggfn
+                                field: attrFieldName
+                            addFieldTransform aggregatedAttrFieldName, (v, r) ->
+                                r.names[s.name].attrs[attrName] = v
                 else # look for attributes only when not aggregating
                     addFieldTransform s.sqlIdName, (v, r) ->
                         r.names[s.name] =
