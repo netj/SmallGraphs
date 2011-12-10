@@ -283,7 +283,7 @@ sendHeaders = (res, hdrs) ->
             "Access-Control-Allow-Origin": "*"
         }, hdrs
 
-processQuery = (query, limit, offset, res) ->
+processQuery = (query, limit, offset, req, res) ->
         console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
         queryNorm = normalizeSmallGraphQuery query
         [sql, rowTransformer] = compileSmallGraphQueryToSQL queryNorm
@@ -307,6 +307,14 @@ processQuery = (query, limit, offset, res) ->
                 sendHeaders res
                 res.end (JSON.stringify results.map rowTransformer)
             client.end()
+        abortClient = (err) ->
+            console.log "aborting request " + (err ? "")
+            client.end()
+            client.destroy()
+        req.on "close", abortClient
+        req.on "error", abortClient
+        res.on "error", abortClient
+        client.on "error", abortClient
 
 http.createServer (req,res) ->
         try
@@ -320,7 +328,7 @@ http.createServer (req,res) ->
                     rawQuery += chunk
                 req.on 'end', ->
                     query = JSON.parse rawQuery
-                    processQuery query, limit, offset, res
+                    processQuery query, limit, offset, req, res
             when 'OPTIONS'
                 sendHeaders res,
                     "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
@@ -333,7 +341,7 @@ http.createServer (req,res) ->
                 limit  ?= 100
                 offset ?= 0
                 query = smallgraphParser.parse q
-                processQuery query, limit, offset, res
+                processQuery query, limit, offset, req, res
         catch err
             console.error "Error while processQuery:", JSON.stringify err
             res.writeHead 500,
