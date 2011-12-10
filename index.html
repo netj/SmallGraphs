@@ -209,9 +209,13 @@
         fill: #ccc;
         stroke-width: 1px;
       }
+      #result-arrowhead,
       .result .edge line {
-        stroke-width: 1px;
-        stroke: #000;
+        stroke: #ccc;
+        stroke-width: 2px;
+      }
+      .result .edge line {
+        marker-end: url(#result-arrowhead);
       }
     </style>
   </head>
@@ -1469,6 +1473,9 @@ function smallgraphsShowResults(data, offset) {
         .append(
             $(document.createElementNS(SVGNameSpace, "svg"))
               .append(
+                  $(sketch).parent().find("defs").clone()
+                )
+              .append(
                   $(sketch).clone()
                     .removeAttr("id")
                     .attr({
@@ -1477,6 +1484,12 @@ function smallgraphsShowResults(data, offset) {
                 )
           )
         ;
+    $("marker", resultPrototype).attr({
+        id: "result-arrowhead",
+        markerWidth:  2*4/ResultScale,
+        markerHeight: 2*3/ResultScale,
+      })
+      ;
     $(".node, .edge", resultPrototype)
       .removeClass("selected attribute invalid")
       ;
