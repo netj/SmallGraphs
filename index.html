@@ -142,10 +142,10 @@
       }
       .aggregate.node.selected rect,
       .aggregate.node rect {
-        stroke-dasharray: 10,5;
-        stroke-width: 5px;
-        stroke: #333 !important;
-        stroke-opacity: 0.5 !important;
+        stroke-dasharray: 12,8;
+        stroke-width: 4px !important;
+        stroke: #666 !important;
+        stroke-opacity: 0.75 !important;
       }
       .aggregate.node text {
         font-size: 1.25em;
@@ -167,6 +167,13 @@
       }
       .attribute.edge line {
         stroke-width: 5px;
+      }
+
+      .invalid.node rect {
+        opacity: 0.4;
+        stroke: #c33;
+        stroke-width: 2px;
+        stroke-dasharray: 10,5;
       }
       .invalid.edge line {
         opacity: 0.4;
@@ -528,6 +535,11 @@ var sketchpadAction_AddNode = {
             if (type) {
               node.objectType = type;
               $("text", node).text(type);
+              // show whether edge is invalid or not
+              if (NodeTypes.indexOf(type) == -1)
+                $(node).addClass("invalid");
+              else
+                $(node).removeClass("invalid");
               console.log("added node", type, node);
             } else {
               // cancel node creation
