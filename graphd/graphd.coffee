@@ -95,12 +95,12 @@ compileSmallGraphQueryToSQL = (query) ->
     aggregatingFields = {}
     addStepOutput = (s) ->
         tables.push [s.layout.id.table, s.sqlTableName]
+        fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
         if s.name?
             addFieldTransform null, (r) ->
                 r.walks[s.walkNum][s.stepNum] = s.name
             aggregate = env[s.name].aggregates
             unless env[s.name].outputDone
-                fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
                 if aggregate?
                     # aggregate id's as count
                     aggfn = "count"
@@ -142,7 +142,6 @@ compileSmallGraphQueryToSQL = (query) ->
                     addFieldTransform labelFieldName, (v, r) ->
                         r.names[s.name].label = v
         else
-            fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
             addFieldTransform s.sqlIdName, (v, r) ->
                 r.walks[s.walkNum][s.stepNum] =
                     id: v
