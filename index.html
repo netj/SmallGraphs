@@ -218,11 +218,19 @@
       }
       #result-arrowhead,
       .result .edge line {
+        fill: #ccc;
         stroke: #ccc;
         stroke-width: 2px;
       }
       .result .edge line {
         marker-end: url(#result-arrowhead);
+      }
+
+      .result .aggregate.node rect.overlay,
+      .result .node rect.overlay {
+        opacity: 0.5;
+        stroke: none;
+        stroke-width: 0px;
       }
     </style>
   </head>
@@ -304,10 +312,22 @@ var EdgeLabelTop  = 10;//px
 var EntryWidth  = 100/2;//px
 var EntryHeight = 25/2;//px
 
-var ResultPageSize = 100;//results
+var ResultPageSize = 250;//results
 var ResultScale    = 0.7;//ratio
 var ResultPaddingH = 0.2;//ratio
 var ResultPaddingV = 0.2;//ratio
+var ResultUpdateTransitionDuration = 1000;//ms
+
+// quantitative types
+var QuantitativeTypes = [
+  "xsd:decimal",
+  "xsd:integer",
+  "xsd:float",
+  "xsd:double",
+];
+// TODO more types: ordinal, nominal, temporal, geospatial, ...
+
+var Identity = function(x) { return x; };
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
@@ -746,6 +766,8 @@ var sketchpadAction_DrawEdgeFromANode = {
                   0
                 );
               $(attrNode).addClass("attribute");
+              attrNode.subjectId = e.source.id;
+              attrNode.attributeName = type;
               attrNode.attributeType = attrSchema[type];
               $("text", attrNode).text(attributeNodeLabelForType(attrSchema[type]));
               attrNode.isAttributeNode = true;
@@ -1114,7 +1136,8 @@ function sketchpadKeyDown() {
     }
   });
   // don't let the browser behave strangely by preventing the default on non-input elements
-  if (!event.target.tagName.match(/input/i))
+  // except Command-key/Windows-key related key combinations
+  if (!event.target.tagName.match(/input/i) && !event.metaKey)
     event.preventDefault();
 }
 function sketchpadKeyUp() {
@@ -1233,6 +1256,9 @@ function smallgraphsSendQuery(query, offset, msg) {
   if (offset == null)
     offset = 0;
 
+  if (typeof debugResultURL == "string")
+    queryURL = debugResultURL;
+
   // send it to server and get response
   console.debug("sending query to "+ queryURL, "limiting range to "+ offset +"-"+ (offset+ResultPageSize), "\n"+ smallgraphSerialize(query), query, "\n"+ JSON.stringify(query));
   ajaxHandle = $.ajax({
@@ -1253,6 +1279,7 @@ function smallgraphsSendQuery(query, offset, msg) {
             try {
               smallgraphsShowResults(result, offset);
             } catch (err) {
+              console.error(err);
               smallgraphsShowError(
                   "Error occurred while running query at '"+ queryURL +"':<br>" +
                   "<pre>"+ err +"</pre>"
@@ -1347,9 +1374,11 @@ function smallgraphsCompileSketchToQuery() {
         if (typeof step == "string")
           step = data.names[step];
         var resultObj = $("#"+obj.id, resultSVG)[0];
-        resultObj.data = step;
         $("text", resultObj).text(step.label || step.id);
-        // TODO bind data to the DOM for later use
+        // bind data to the DOM for later use
+        // TODO use dataset API http://www.w3.org/TR/html5/elements.html#custom-data-attribute
+        resultObj.data = step;
+        resultObj.value = step.label;
       });
   }
   var i = 0;
@@ -1392,8 +1421,12 @@ function smallgraphsCompileSketchToQuery() {
             var attr = data.names[e.source.id].attrs;
             if (attr) {
               var v = attr[e.linkType];
-              $("#"+e.target.id+" text", resultSVG).text(v);
-              // TODO bind data to the DOM for later use
+              var resultObj = $("#"+e.target.id, resultSVG)[0];
+              $("text", resultObj).text(v);
+              // bind data to the DOM for later use
+              // TODO use dataset API http://www.w3.org/TR/html5/elements.html#custom-data-attribute
+              resultObj.data = v;
+              resultObj.value = v;
             }
           });
         nodeOccurs[e.source.id]++;
@@ -1449,6 +1482,7 @@ $("#result-more")
     })
   ;
 var smallgraphsCurrentResultPrototype;
+var smallgraphsCurrentResultOverview;
 function smallgraphsShowResults(data, offset) {
   if (offset == 0) {
     // remove if we're starting fresh
@@ -1496,10 +1530,11 @@ function smallgraphsShowResults(data, offset) {
                 )
           )
         ;
-    $("marker", resultPrototype).attr({
+    var marker = $("marker", resultPrototype);
+    marker.attr({
         id: "result-arrowhead",
-        markerWidth:  2*4/ResultScale,
-        markerHeight: 2*3/ResultScale,
+        markerWidth:  marker.attr("markerWidth" )/ResultScale,
+        markerHeight: marker.attr("markerHeight")/ResultScale,
       })
       ;
     $(".node, .edge", resultPrototype)
@@ -1510,17 +1545,111 @@ function smallgraphsShowResults(data, offset) {
       ;
     // TODO adjust edge coords, or add an arrow-ending? updateEdgeCoordinates(e, x2, y2);
     smallgraphsCurrentResultPrototype = resultPrototype;
+    // from the query, derive a function for summarizing data for visual encodings
+    var dataOverview = {};
+    function addDataOverviewFor(id, map) {
+      dataOverview[id] = {
+        map: map,
+        min: null,
+        max: null,
+        sum: null,
+        count: 0,
+      };
+    }
+    smallgraphsCurrentQuery.forEach(function(decl) {
+        if (decl.aggregate) {
+          var agg = decl.aggregate;
+          var id = agg[0];
+          addDataOverviewFor(id,
+            function(d) { return d.names[id].label; });
+          agg[1].forEach(function(attrAgg) {
+              var attrName = attrAgg[0];
+              var aggfn = attrAgg[1];
+              var attrNode = findAttributeNode(id, attrName);
+              addDataOverviewFor(attrNode.id,
+                function(d) { return d.names[id].attrs[attrName]; });
+            });
+        } else if (decl.look) {
+          var look = decl.look;
+          var id = look[0];
+          look[1].forEach(function(attrName) {
+              $(".attribute.node", sketch)
+                .filter(function() { return this.sourceId == id; })
+                .each(function(attrNode) {
+                    if (QuantitativeTypes.indexOf(attrNode.attributeType) != -1)
+                      addDataOverviewFor(attrNode.id,
+                        function(d) { return d.names[id].attrs[attrName]; });
+                  })
+                ;
+            });
+        }
+      });
+    smallgraphsCurrentResultOverview = dataOverview;
   }
-  // now, show each of them
+  // analyze new data for finding data range for visual encodings
+  for (var id in smallgraphsCurrentResultOverview) {
+    var overview = smallgraphsCurrentResultOverview[id];
+    data.forEach(function(d) {
+        var v = overview.map(d);
+        if (overview.count == 0) {
+          overview.sum = v;
+          overview.min = v;
+          overview.max = v;
+        } else {
+          overview.sum += v;
+          if (v < overview.min) overview.min = v;
+          if (v > overview.max) overview.max = v;
+        }
+        overview.count++;
+      });
+  }
+  // now, show each of them with the resultPrototype
   for (var i in data) {
-    var anInstance = data[i];
     var aResult = smallgraphsCurrentResultPrototype.clone();
-    // fill data
-    smallgraphsCurrentResultMapping(anInstance, aResult);
-    // TODO do more visual encoding
+    smallgraphsCurrentResultMapping(data[i], aResult);
     aResult.appendTo(results);
   }
   smallgraphsCurrentOffset = offset;
+  // do more visual encoding
+  for (var id in smallgraphsCurrentResultOverview) {
+    var fillColor = "#f00"; // TODO pick different colors for each node
+    var overview = smallgraphsCurrentResultOverview[id];
+    var elements = $("#"+id, results);
+    if (elements.hasClass("node")) {
+      var rect = $("rect", elements);
+      var x = rect.attr("x");
+      var y = rect.attr("y");
+      var h = rect.attr("height");
+      var w = rect.attr("width");
+      var wScale = d3.scale.linear()
+        .domain([overview.min, overview.max])
+        .range([0, w])
+        ;
+      // XXX D3, as of 2.7.0, has a problem setting parentNode to div.result
+      // so I had to use multiple group selection, which will have a little overhead :(
+      function getValue(n) { return [n.value]; };
+      var column = elements.toArray().map(getValue);
+      var d3sel = d3.select(results[0])
+        .selectAll("#"+id).data(column)
+        .selectAll(".overlay").data(Identity);
+      d3sel
+        .enter()
+          .append("svg:rect")
+          .attr("class", "overlay")
+          .style("fill", fillColor)
+          .attr("x", x)
+          .attr("y", y)
+          .attr("height", h)
+          .attr("width", 0)
+        .transition().duration(ResultUpdateTransitionDuration)
+          .attr("width", wScale)
+          ;
+      d3sel
+        .transition().duration(ResultUpdateTransitionDuration)
+          .attr("width", wScale)
+          ;
+    } // TODO also do edges
+  }
   // if data was full page, then add a button for fetching more
   if (data.length == ResultPageSize) {
     $("#result-stats").text("Showing first "+ (offset+data.length) +" results");
