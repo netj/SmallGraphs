@@ -287,7 +287,7 @@ processQuery = (query, limit, offset, req, res) ->
         console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
         queryNorm = normalizeSmallGraphQuery query
         [sql, rowTransformer] = compileSmallGraphQueryToSQL queryNorm
-        sql += " LIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
+        sql += "\nLIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
         console.log ">>> Compiled SQL:\n#{sql}\n<<<"
 
         client = mysql.createClient
