@@ -32,8 +32,8 @@ declaration
         {$$ = {let:[$NAME, $object]};}
     | LOOK VARREF FOR attributes
         {name=$VARREF.substring(1); $$ = {look:[name, $attributes]};}
-    | AGGREGATE VARREF AS aggregation
-        {name=$VARREF.substring(1); $$ = {aggregate:[name, $aggregation]};}
+    | AGGREGATE VARREF optional_attributeAggregations
+        {name=$VARREF.substring(1); $$ = {aggregate:[name, $optional_attributeAggregations]};}
     ;
 
 walk
@@ -74,12 +74,28 @@ optional_constraint
     ;
 
 attributes
-    : NAME ',' attributes
-        {$$ = [$NAME].concat($attributes);}
-    | NAME
-        {$$ = [$NAME];}
+    : ATTRNAME
+        {$$ = [$ATTRNAME.substring(1)];}
+    | ATTRNAME ',' attributes
+        {$$ = [$ATTRNAME.substring(1)].concat($attributes);}
     ;
 
+optional_attributeAggregations
+    :
+        {$$ = [];}
+    | WITH attributeAggregations
+        {$$ = $attributeAggregations;}
+    ;
+attributeAggregations
+    : attributeAggregation
+        {$$ = [$attributeAggregation];}
+    | attributeAggregation ',' attributeAggregations
+        {$$ = [$attributeAggregation].concat($attributeAggregations);}
+    ;
+attributeAggregation
+    : ATTRNAME AS aggregation
+        {$$ = [$ATTRNAME.substring(1), $aggregation];}
+    ;
 aggregation
     : COUNT | SUM | MIN | MAX
     ;

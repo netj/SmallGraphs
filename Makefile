@@ -13,7 +13,7 @@ GRAPHD_DEPS := \
 .PHONY: all check-builddeps graphd
 # build everything
 all: check-builddeps
-	jison smallgraph/syntax.jison{,lex}
+	cd smallgraph && jison syntax.jison{,lex}
 	coffee -c .
 
 # check builddeps

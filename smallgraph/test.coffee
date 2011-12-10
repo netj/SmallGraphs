@@ -15,9 +15,9 @@ queries = [
     walk FanPage(pages) -Has-> Post(posts) -HasText-> Text(texts) -HasURL-> URL;
     walk User(user) -Wrote-> $posts;
     
-    aggregate $pages as count;
-    aggregate $posts as count;
-    aggregate $texts as count;
+    aggregate $pages;
+    aggregate $posts;
+    aggregate $texts;
 
 """
     """
@@ -30,7 +30,7 @@ queries = [
     walk Directory -Contains-> $files.calling;
     walk Directory -Contains-> $files.called;
     
-    aggregate $files as count;
+    aggregate $files;
 
 """
     """
@@ -38,6 +38,11 @@ queries = [
     walk user -friend-of-> user -wrote-> post -contains-> url;
     walk user -fan-of-> fanpage;
     walk user -fan-of-> fanpage;
+"""
+    """
+    walk user(n1) -foaf:friend-of-> user;
+    look $n1 for @foaf:name , @foaf:address;
+    aggregate $n1 with  @foaf:age as sum  , @irs:income as sum;
 """
 ]
 

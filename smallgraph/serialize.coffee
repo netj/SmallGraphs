@@ -27,10 +27,13 @@ serialize = (smallgraph) ->
                 s += serializeStep step
         else if decl.look
             d = decl.look
-            s += "look $#{d[0]} for #{d[1].join ", "}"
+            s += "look $#{d[0]} for #{d[1].map((a)->"@"+a).join ", "}"
         else if decl.aggregate
             d = decl.aggregate
-            s += "aggregate $#{d[0]} as #{d[1]}"
+            s += "aggregate $#{d[0]}"
+            if d[1] and d[1].length > 0
+                s += " with "
+                s += ("@#{attr} as #{aggfn}" for [attr, aggfn] in d[1]).join ", "
         else if decl.subgraph
             d = decl.subgraph
             s += "subgraph #{d[0]} = {\n  "
