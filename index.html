@@ -142,10 +142,10 @@
       }
       .aggregate.node.selected rect,
       .aggregate.node rect {
+        stroke: #666;
+        stroke-width: 4px;
+        stroke-opacity: 0.75;
         stroke-dasharray: 12,8;
-        stroke-width: 4px !important;
-        stroke: #666 !important;
-        stroke-opacity: 0.75 !important;
       }
       .aggregate.node text {
         font-size: 1.25em;
@@ -226,11 +226,11 @@
         marker-end: url(#result-arrowhead);
       }
 
-      .result .aggregate.node rect.overlay,
       .result .node rect.overlay {
-        opacity: 0.5;
+        opacity: 0.75;
         stroke: none;
         stroke-width: 0px;
+        stroke-dasharray: none;
       }
     </style>
   </head>
@@ -317,6 +317,16 @@ var ResultScale    = 0.7;//ratio
 var ResultPaddingH = 0.2;//ratio
 var ResultPaddingV = 0.2;//ratio
 var ResultUpdateTransitionDuration = 1000;//ms
+
+var ResultFillColors = [
+  "#eb912b",
+  "#7099a5",
+  "#c71f34",
+  "#1d437d",
+  "#e8762b",
+  "#5b6591",
+  "#59879b",
+];
 
 // quantitative types
 var QuantitativeTypes = [
@@ -1272,6 +1282,7 @@ function smallgraphsSendQuery(query, offset, msg) {
         data: JSON.stringify(query),
         processData: false,
         dataType: "json",
+        timeout: 3600000,//ms
         success: function(result) {
             ajaxHandle = null;
             console.debug("got result", "\n"+ JSON.stringify(result) +"\n", result);
@@ -1547,6 +1558,7 @@ function smallgraphsShowResults(data, offset) {
     smallgraphsCurrentResultPrototype = resultPrototype;
     // from the query, derive a function for summarizing data for visual encodings
     var dataOverview = {};
+    var dataColorIndex = 0;
     function addDataOverviewFor(id, map) {
       dataOverview[id] = {
         map: map,
@@ -1554,7 +1566,9 @@ function smallgraphsShowResults(data, offset) {
         max: null,
         sum: null,
         count: 0,
+        fillColor: ResultFillColors[dataColorIndex++],
       };
+      dataColorIndex %= ResultFillColors.length;
     }
     smallgraphsCurrentQuery.forEach(function(decl) {
         if (decl.aggregate) {
@@ -1612,8 +1626,8 @@ function smallgraphsShowResults(data, offset) {
   smallgraphsCurrentOffset = offset;
   // do more visual encoding
   for (var id in smallgraphsCurrentResultOverview) {
-    var fillColor = "#f00"; // TODO pick different colors for each node
     var overview = smallgraphsCurrentResultOverview[id];
+    var fillColor = overview.fillColor;
     var elements = $("#"+id, results);
     if (elements.hasClass("node")) {
       var rect = $("rect", elements);
@@ -1639,6 +1653,8 @@ function smallgraphsShowResults(data, offset) {
           .style("fill", fillColor)
           .attr("x", x)
           .attr("y", y)
+          .attr("rx", NodeRounding)
+          .attr("ry", NodeRounding)
           .attr("height", h)
           .attr("width", 0)
         .transition().duration(ResultUpdateTransitionDuration)
