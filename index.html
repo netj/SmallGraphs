@@ -3,7 +3,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
     <title>SmallGraphs</title>
-    <link rel="graphd" href="http://localhost:53411">
+    <link rel="graphd" href="http://localhost:53411/test">
     <script type="text/javascript" src="d3/d3.js"></script>
     <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
@@ -341,7 +341,7 @@ var Identity = function(x) { return x; };
 
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
-var graphdURL = $("link[rel='graphd']").attr("href") || "http://localhost:53411";
+var graphdURL = $("link[rel='graphd']").attr("href") || "http://localhost:53411/test";
 
 // label for atribute nodes
 var LabelForType = {
@@ -362,16 +362,19 @@ var NodeTypes = [];
 
 // retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
 var GraphSchema;
-// TODO use graphd
-$.getJSON("schema.json", function(schema) {
-    GraphSchema = schema;
-    // learn nodes types
-    NodeTypes = [];
-    for (var objName in schema.Objects)
-      NodeTypes.push(objName);
-    // learn labels for types
-    $.extend(LabelForType, schema.TypeLabels);
-  });
+function smallgraphsLoadSchema() {
+  $.getJSON(graphdURL + "/schema", function(schema) {
+      GraphSchema = schema;
+      // learn nodes types
+      NodeTypes = [];
+      for (var objName in schema.Objects)
+        NodeTypes.push(objName);
+      NodeTypes.sort();
+      // learn labels for types
+      $.extend(LabelForType, schema.TypeLabels);
+    });
+}
+smallgraphsLoadSchema();
 
 ////////////////////////////////////////////////////////////////////////////////
 
