@@ -1184,6 +1184,9 @@ function sketchpadDblClick() {
 
 var sketchpadCurrentKeyActions = [];
 function sketchpadKeyDown() {
+  // skip events occurred on input elements
+  if (event.target.tagName.match(/input/i))
+    return;
   sketchpadKeyActions.forEach(function(handler) {
     if (handler.forKeys && handler.forKeys.indexOf(event.keyCode) != -1) {
       if (handler.keydown) {
@@ -1200,9 +1203,9 @@ function sketchpadKeyDown() {
       }
     }
   });
-  // don't let the browser behave strangely by preventing the default on non-input elements
+  // don't let the browser behave strangely by preventing the default
   // except Command-key/Windows-key related key combinations
-  if (!event.target.tagName.match(/input/i) && !event.metaKey)
+  if (!event.metaKey)
     event.preventDefault();
 }
 function sketchpadKeyUp() {
@@ -1217,6 +1220,9 @@ function sketchpadKeyUp() {
     }
   });
   sketchpadCurrentKeyActions = [];
+  // skip events occurred on input elements
+  if (event.target.tagName.match(/input/i))
+    return;
   // process keypresses TODO if were not repeating?
   // if (true) {
     sketchpadKeyActions.forEach(function(handler) {
