@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# generate-graphd-from-mysql-schema -- a script for extracting graph layout from MySQL databases
+# Usage:
+#   mysqldump --no-data ... | generate-graphd-from-mysql-schema >graphd.json
+# Author: Jaeho.Shin@Stanford.EDU
+# Created: 2011-12-11
+set -eu
+
+perl -Mstrict -MJSON -e '
+our %TypeMap = (
+    varchar     => "xsd:string",
+    char        => "xsd:string",
+    text        => "xsd:string",
+    mediumtext  => "xsd:string",
+    longtext    => "xsd:string",
+    enum        => "xsd:string",
+    set         => "xsd:string",
+    int         => "xsd:integer",
+    tinyint     => "xsd:byte",
+    smallint    => "xsd:short",
+    mediumint   => "xsd:integer",
+    bigint      => "xsd:integer",
+    float       => "xsd:float",
+    real        => "xsd:double",
+    double      => "xsd:double",
+    datetime    => "xsd:dateTime",
+);
+my $objects = {};
+
+my $tableName;
+my $idField;
+my $attrs;
+my $links;
+while (defined (my $line = <>)) {
+    if ($line =~ /CREATE TABLE `(.*)` \(/) {
+        $tableName = $1;
+        $idField = undef;
+        $attrs = {};
+        $links = {};
+    } elsif ($line =~ /PRIMARY KEY \(`([^`]+)`\)/) {
+        # id
+        $idField = $1;
+    } elsif ($line =~ /CONSTRAINT.* FOREIGN KEY \(`([^`]+)`\) REFERENCES `([^`]+)` *\(`([^`]+)`\)/) {
+        # link
+        $links->{"to-$2"} = { to => $2, table => $2, field => $1, joinOn => $3, };
+    } elsif ($line =~ /`([^`]+)` (\w+)/) {
+        # field
+        $attrs->{$1} = { field => $1, type => $TypeMap{lc $2}, };
+    } elsif ($line =~ /^\)/) {
+        # end of a table
+        if (defined $idField) {
+            $objects->{$tableName} = {
+                id => { table => $tableName, field => $idField, },
+                attrs => $attrs,
+                links => $links,
+            };
+        }
+        $idField = undef;
+    }
+}
+
+print encode_json { mysql => { layout => { objects => $objects } } };
+print "\n";
+'
