@@ -3,13 +3,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
     <title>SmallGraphs</title>
-    <link rel="graphd" href="http://localhost:53411/test">
     <script type="text/javascript" src="smallgraph/syntax.js"></script>
     <script type="text/javascript" src="smallgraph/serialize.js"></script>
     <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="jquery-ui/js/jquery-ui-1.8.16.custom.min.js"></script>
     <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
     <script type="text/javascript" src="jquery-svg/jquery.svgdom.js"></script>
+    <script type="text/javascript" src="jquery-cookie/jquery.cookie.js"></script>
     <script type="text/javascript" src="d3/d3.js"></script>
     <style type="text/css">
       @import url("jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css");
@@ -20,21 +20,30 @@
       }
 
       #title {
-        height: 30px;
-        padding: 5px;
-        font-size: 14px;
+        height: 34px;
+        padding: 2px;
+        font-size: 10px;
         color: #ccc;
+        margin-right: 380px;
       }
       #title h1 {
         display: inline;
-        font-size: 20px;
+        font-size: 18px;
         color: #000;
+      }
+      #subtitle {
+        padding-left: 5px;
+      }
+      #graph-url {
+        font-size: 11px;
+        color: #000;
+        cursor: pointer;
       }
 
       #tools {
         position: absolute;
         font-size: 14px;
-        top: 12px;
+        top: 14px;
         right: 8px;
         text-align: right;
       }
@@ -60,6 +69,10 @@
       .dialog {
         background-color: #fff;
         background-repeat: no-repeat !important;
+      }
+      .dialog .description {
+        display: block;
+        margin-top: 10px;
       }
       #progress-dialog {
         background-image: url(resource/spinner.gif);
@@ -246,7 +259,8 @@
   <body>
     <div id="title">
       <h1>SmallGraphs</h1>
-      <small>for searching motifs from large graphs</small>
+      <span id="graph-url-display"> of <span id="graph-url" class="ui-state-default">no graph. <span class="ui-state-error">Click here to enter a URL.</span></span></span>
+      <div id="subtitle">for searching motifs from a large graph</div>
     </div>
     <div id="tools">
       <div id="query-tools">
@@ -304,6 +318,11 @@
       <div id="error-dialog" class="dialog">
         <span class="description"></span>
       </div>
+      <div id="graph-url-dialog" class="dialog">
+        <label for="graph-url-input">URL: </label>
+        <input type="url" id="graph-url-input" size="42">
+        <span class="description">Enter a URL to a graph living in a <a href="https://github.com/netj/SmallGraphs/wiki/GraphD"><em>GraphD</em> server</a>.</span>
+      </div>
     </div>
 
     <script type="text/javascript">
@@ -347,9 +366,32 @@ var QuantitativeTypes = [
 
 var Identity = function(x) { return x; };
 
+
+////////////////////////////////////////////////////////////////////////////////
+// some UI vocabularies
+
+function smallgraphsShowDialog(selector, options, msg) {
+  var dialog = $(selector).dialog($.extend({
+        modal: true,
+        width:  document.body.offsetWidth  * (1-.618),
+        height: document.body.offsetHeight * (1-.618),
+      }, options));
+  dialog.find(".description").html(msg);
+  return dialog;
+}
+
+function smallgraphsShowError(msg) {
+  smallgraphsShowDialog("#error-dialog", {
+        title: "Error",
+        buttons: [ { text: "OK", click: function() {
+              $(this).dialog("close");
+            }} ],
+      }, msg);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // graph schema/ontology
-var graphdURL = $("link[rel='graphd']").attr("href") || "http://localhost:53411/test";
 
 // label for atribute nodes
 var LabelForType = {
@@ -368,37 +410,105 @@ var LabelForType = {
 // known types of nodes
 var NodeTypes = [];
 
-// retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
-var GraphSchema;
-function smallgraphsLoadSchema() {
-  $.getJSON(graphdURL + "/schema", function(schema) {
-      GraphSchema = schema;
-      // learn nodes types
-      NodeTypes = [];
-      for (var objName in schema.Objects)
-        NodeTypes.push(objName);
-      NodeTypes.sort();
-      // learn labels for types
-      $.extend(LabelForType, schema.TypeLabels);
-      // augment with an inverted index of links between objects
-      for (var objType in schema.Objects) {
-        var links = schema.Objects[objType].Links;
-        for (var lnType in links) {
-          var targetObjTypes = links[lnType];
-          for (var i in targetObjTypes) {
-            var targetObjType = targetObjTypes[i];
-            var targetObjSchema = schema.Objects[targetObjType];
-            if (targetObjSchema.RevLinks == null)
-              targetObjSchema.RevLinks = {};
-            if (targetObjSchema.RevLinks[lnType] == null)
-              targetObjSchema.RevLinks[lnType] = [];
-            targetObjSchema.RevLinks[lnType].push(objType);
-          }
+// try retreiving graph URL from cookie
+var smallgraphsGraphURL;
+var smallgraphsGraphURLHistory;
+try {
+  smallgraphsGraphURLHistory = JSON.parse($.cookie("smallgraphsGraphURLHistory"));
+  if (smallgraphsGraphURLHistory == null)
+    smallgraphsGraphURLHistory = [];
+} catch (err) {
+  smallgraphsGraphURLHistory = [];
+}
+smallgraphsGraphURL = smallgraphsGraphURLHistory[0];
+
+function smallgraphsShowGraphURLPicker() {
+  function finishGraphURLInput() {
+    smallgraphsGraphURL = $("#graph-url-input").val();
+    smallgraphsLoadSchema();
+  }
+  // show dialog for choosing target graph
+  var urlDialog = smallgraphsShowDialog("#graph-url-dialog", {
+        title: "Choose the Graph to Explore",
+        width:  400,
+        height: 200,
+        resizable: false,
+        buttons: [ { text: "Connect", click: function() {
+              $(this).dialog("close");
+              finishGraphURLInput();
+            }} ],
+        close: function() { $("#graph-url-input").blur(); },
+    });
+  // populate graph url history for autocomplete
+  $("#graph-url-input")
+    .val(smallgraphsGraphURL)
+    .keyup(function() {
+        switch (event.keyCode) {
+          case 14: // enter
+          case 13: // return
+            $(urlDialog).dialog("close");
+            finishGraphURLInput();
+            break;
         }
-      }
+      })
+    .autocomplete({
+      delay: 0,
+      minLength: 0,
+      source: smallgraphsGraphURLHistory,
     });
 }
-smallgraphsLoadSchema();
+$("#graph-url").click(smallgraphsShowGraphURLPicker);
+
+// retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
+var smallgraphsGraphSchema;
+var smallgraphsOriginalTitle = document.title;
+var smallgraphsGraphURLOriginalMessage = $("#graph-url").html();
+function smallgraphsLoadSchema() {
+  console.log("loading graph", smallgraphsGraphURL);
+  document.title = smallgraphsOriginalTitle +" of "+ smallgraphsGraphURL; // TODO use friendlier name/label of graph
+  $("#graph-url").text(smallgraphsGraphURL);
+  $.getJSON(smallgraphsGraphURL + "/schema", function(schema) {
+        if (smallgraphsGraphURLHistory.indexOf(smallgraphsGraphURL) == -1)
+          smallgraphsGraphURLHistory.unshift(smallgraphsGraphURL);
+        $.cookie("smallgraphsGraphURLHistory", JSON.stringify(smallgraphsGraphURLHistory));
+        smallgraphsGraphSchema = schema;
+        // learn nodes types
+        NodeTypes = [];
+        for (var objName in schema.Objects)
+          NodeTypes.push(objName);
+        NodeTypes.sort();
+        // learn labels for types
+        $.extend(LabelForType, schema.TypeLabels);
+        // augment with an inverted index of links between objects
+        for (var objType in schema.Objects) {
+          var links = schema.Objects[objType].Links;
+          for (var lnType in links) {
+            var targetObjTypes = links[lnType];
+            for (var i in targetObjTypes) {
+              var targetObjType = targetObjTypes[i];
+              var targetObjSchema = schema.Objects[targetObjType];
+              if (targetObjSchema.RevLinks == null)
+                targetObjSchema.RevLinks = {};
+              if (targetObjSchema.RevLinks[lnType] == null)
+                targetObjSchema.RevLinks[lnType] = [];
+              targetObjSchema.RevLinks[lnType].push(objType);
+            }
+          }
+        }
+      })
+    .error(function(err) {
+        console.log("Error while loading graph schema", smallgraphsGraphURL, err);
+        smallgraphsShowError("Could not load graph schema from: " + smallgraphsGraphURL);
+        $("#graph-url").html(smallgraphsGraphURLOriginalMessage);
+      })
+    ;
+}
+
+if (smallgraphsGraphURL != null)
+  smallgraphsLoadSchema();
+else
+  smallgraphsShowGraphURLPicker();
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -711,7 +821,7 @@ var sketchpadAction_DrawEdgeFromANode = {
         }, e));
       $(e).addClass("drawing");
       // prepare related schema for this source node
-      this.objectSchema = GraphSchema.Objects[n.objectType] || emptySchema;
+      this.objectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptySchema;
       this.allowedEdgeTypes = (
           // outgoing edges
           keySet(this.objectSchema.Links)
@@ -756,7 +866,7 @@ var sketchpadAction_DrawEdgeFromANode = {
       x2 = n.x - this.sx;
       y2 = n.y - this.sy;
       // check graph schema to find types of allowed edges
-      var targetObjectSchema = GraphSchema.Objects[n.objectType] || emptySchema;
+      var targetObjectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptySchema;
       var allowedEdgeTypesToTarget = (
           intersection(keySet( this.objectSchema.Links),
                        keySet(targetObjectSchema.RevLinks))
@@ -1351,25 +1461,6 @@ $(window)
 ////////////////////////////////////////////////////////////////////////////////
 // query execution & result presentation
 ////////////////////////////////////////////////////////////////////////////////
-function smallgraphsShowDialog(selector, options, msg) {
-  var dialog = $(selector).dialog($.extend({
-        modal: true,
-        width:  document.body.offsetWidth  * (1-.618),
-        height: document.body.offsetHeight * (1-.618),
-      }, options));
-  dialog.find(".description").html(msg);
-  return dialog;
-}
-
-function smallgraphsShowError(msg) {
-  smallgraphsShowDialog("#error-dialog", {
-        title: "Error",
-        buttons: [ { text: "OK", click: function() {
-              $(this).dialog("close");
-            }} ],
-      }, msg);
-}
-
 var smallgraphsCurrentOffset;
 var smallgraphsCurrentQuery;
 var smallgraphsCurrentResultMapping;
@@ -1396,7 +1487,7 @@ function smallgraphsRunQuery() {
 }
 
 function smallgraphsSendQuery(query, offset, msg) {
-  var queryURL = graphdURL + "/query";
+  var queryURL = smallgraphsGraphURL + "/query";
 
   var sgq = "<pre>"+ smallgraphSerialize(query) +"</pre>";
   if (msg == null) {
