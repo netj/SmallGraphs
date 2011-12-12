@@ -3,7 +3,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
     <title>SmallGraphs</title>
-    <link rel="graphd" href="http://localhost:53411/reppler">
+    <link rel="graphd" href="http://localhost:53411/test">
     <script type="text/javascript" src="smallgraph/syntax.js"></script>
     <script type="text/javascript" src="smallgraph/serialize.js"></script>
     <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
@@ -180,6 +180,12 @@
       .invalid.edge line {
         opacity: 0.4;
         stroke-dasharray: 14,14;
+      }
+
+      .edge.drawing line {
+        /* XXX: no arrowhead seems more confusing :(
+        marker-end: none; marker-end: url();
+        */
       }
 
       #query-sketchpad .attribute.node:hover rect { stroke: #f63; }
@@ -515,7 +521,15 @@ var sketch = $("#query-sketch")[0];
 function addToSketchpad(name, attrs, target) {
   var node = sketchpadDoc.createElementNS(SVGNameSpace, name);
   $(node).attr(attrs);
-  (target || sketch).appendChild(node);
+  if (target)
+    target.appendChild(node);
+  else {
+    // place nodes before edges, so that edges are rendered on top of them
+    if (name == "g" && attrs.class == "node")
+      sketchpad.insertBefore(node, sketchpad.firstChild);
+    else
+      sketchpad.appendChild(node);
+  }
   return node;
 }
 
@@ -669,7 +683,7 @@ var EdgeReverseMark = "<- ";
 function prefixAttributeMark(t) { return EdgeAttributeMark+t; }
 function prefixReverseMark(t) { return EdgeReverseMark+t; }
 var nullNode = { w: 0, h: 0 };
-var emptySchema = { Links: {}, Attributes: {} }
+var emptySchema = { Links: {}, Attributes: {}, RevLinks: {} }
 var edgeId = 0;
 var sketchpadAction_DrawEdgeFromANode = {
   name: "draw edge from a node",
@@ -695,21 +709,25 @@ var sketchpadAction_DrawEdgeFromANode = {
       this.label = $(addToSketchpad("text", {
           dx: EdgeLabelLeft, dy: EdgeLabelTop,
         }, e));
+      $(e).addClass("drawing");
       // prepare related schema for this source node
       this.objectSchema = GraphSchema.Objects[n.objectType] || emptySchema;
       this.allowedEdgeTypes = (
+          // outgoing edges
+          keySet(this.objectSchema.Links)
+        ).concat(
+          // incoming edges
+          keySet(this.objectSchema.RevLinks)
+            // prefix with reverse edge marks
+            .map(prefixReverseMark)
+        ).concat(
+          // attribute edges
           removeAll(
           keySet(this.objectSchema.Attributes)
               // exclude label attribute
               , this.objectSchema.Label == null ? [] : [this.objectSchema.Label])
             // prefix with attribute marks
             .map(prefixAttributeMark)
-        ).concat(
-          keySet(this.objectSchema.Links)
-        ).concat(
-          keySet(this.objectSchema.RevLinks)
-            // prefix with reverse edge marks
-            .map(prefixReverseMark)
         );
       return this;
     }
@@ -738,7 +756,7 @@ var sketchpadAction_DrawEdgeFromANode = {
       x2 = n.x - this.sx;
       y2 = n.y - this.sy;
       // check graph schema to find types of allowed edges
-      var targetObjectSchema = GraphSchema.Objects[n.objectType];
+      var targetObjectSchema = GraphSchema.Objects[n.objectType] || emptySchema;
       var allowedEdgeTypesToTarget = (
           intersection(keySet( this.objectSchema.Links),
                        keySet(targetObjectSchema.RevLinks))
@@ -812,6 +830,7 @@ var sketchpadAction_DrawEdgeFromANode = {
               }
               e.linkType = type;
               $("text", e).text(type);
+              $(e).removeClass("drawing");
               console.log("added edge", type, e);
             } else {
               // cancel edge creation
@@ -846,9 +865,11 @@ var sketchpadAction_DrawEdgeFromANode = {
                 attrNode.isAttributeNode = true;
                 // finish attribute edge
                 e.target = attrNode;
+                adjustEdgeLayout(e);
                 e.linkType = type;
                 $(e).addClass("attribute");
                 $("text", e).text(type);
+                $(e).removeClass("drawing");
                 // show whether the attribute node and edge is valid or not?
                 if (attrNode.attributeType == null) {
                   $(attrNode).addClass("invalid");
@@ -878,13 +899,14 @@ var sketchpadAction_DrawEdgeFromANode = {
                 adjustEdgeLayout(e);
                 e.linkType = type;
                 $("text", e).text(type);
+                $(e).removeClass("drawing");
                 // and show whether the edge can be valid or not
                 if (allowedNodeTypes == null || allowedNodeTypes.length == 0) {
                   $(e).addClass("invalid");
                   // if edge itself is invalid, any node can come at the end
                   allowedNodeTypes = NodeTypes;
                 } else
-                  $(attrNode).removeClass("invalid");
+                  $(e).removeClass("invalid");
                 // ask user to choose what type of node should be added
                 setTimeout(function() {
                   queryTypeEntryShow(
