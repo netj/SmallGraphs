@@ -371,6 +371,7 @@ http.createServer (req,res) ->
         sendHeaders = (code, hdrs) ->
             res.writeHead code,
                 mergeObject {
+                    "Access-Control-Allow-Origin": "*"
                     "Content-Type": "text/plain" # "application/json"
                 }, hdrs
         sendError = (err) ->
@@ -383,7 +384,6 @@ http.createServer (req,res) ->
             switch req.method
                 when 'OPTIONS'
                     sendHeaders 200,
-                        "Access-Control-Allow-Origin": "*"
                         "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
                         "Access-Control-Allow-Headers": req.headers["access-control-request-headers"]
                     res.end()
