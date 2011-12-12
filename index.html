@@ -468,8 +468,8 @@ function smallgraphsLoadSchema() {
   document.title = smallgraphsOriginalTitle +" of "+ smallgraphsGraphURL; // TODO use friendlier name/label of graph
   $("#graph-url").text(smallgraphsGraphURL);
   $.getJSON(smallgraphsGraphURL + "/schema", function(schema) {
-        if (smallgraphsGraphURLHistory.indexOf(smallgraphsGraphURL) == -1)
-          smallgraphsGraphURLHistory.unshift(smallgraphsGraphURL);
+        smallgraphsGraphURLHistory = removeAll(smallgraphsGraphURLHistory, [smallgraphsGraphURL]);
+        smallgraphsGraphURLHistory.unshift(smallgraphsGraphURL);
         $.cookie("smallgraphsGraphURLHistory", JSON.stringify(smallgraphsGraphURLHistory));
         smallgraphsGraphSchema = schema;
         // learn nodes types
@@ -1827,9 +1827,13 @@ function smallgraphsShowResults(data, offset) {
           agg[1].forEach(function(attrAgg) {
               var attrName = attrAgg[0];
               var aggfn = attrAgg[1];
-              var attrNode = findAttributeNode(id, attrName);
-              addDataOverviewFor(attrNode.id,
-                function(d) { return d.names[id].attrs[attrName]; });
+              $(".attribute.node", sketch)
+                .filter(function() { return this.sourceId == id; })
+                .each(function(attrNode) {
+                    addDataOverviewFor(attrNode.id,
+                      function(d) { return d.names[id].attrs[attrName]; });
+                  })
+                ;
             });
         } else if (decl.look) {
           var look = decl.look;
