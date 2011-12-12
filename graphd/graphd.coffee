@@ -321,6 +321,9 @@ _MySQL = require "mysql"
 class MySQLGraph extends RelationalDataBaseGraph
     constructor: (@descriptor) ->
         super @descriptor
+        d = @descriptor
+        unless d.host? and d.port? and d.user? and d.password? and d.database?
+            throw new Error "host, port, user, password, database are required for the graph descriptor"
 
     runSQL: (sql, rowTransformer, q) ->
         # then send it to MySQL and transform the result
@@ -342,7 +345,9 @@ class MySQLGraph extends RelationalDataBaseGraph
             console.log "aborting request " + (err ? "")
             client.end()
             client.destroy()
-        client.on 'error', q.abort
+        client.once 'error', (err) ->
+            q.abort err
+            q.emit 'error', err
         q
 
 
@@ -358,7 +363,7 @@ loadGraph = (graphId) ->
 graphsById = {}
 getGraph = (graphId) ->
     g = graphsById[graphId]
-    unless g?
+    unless g? # TODO compare timestamps for refreshing
         graphsById[graphId] = g = loadGraph graphId
     return g
 
@@ -387,7 +392,14 @@ http.createServer (req,res) ->
             parsedURL = url.parse req.url, true
             [_, graphId, command] = parsedURL.pathname.match(/^\/(.*)\/(schema|query)$/)
             # TODO sanitize graphId (../, ...)
-            g = getGraph graphId
+            try
+                g = getGraph graphId
+            catch err
+                console.log "Cannot get graph '#{graphId}': " + err
+            unless g?
+                sendHeaders 404
+                res.end "Graph not available"
+                return
             console.log ">> #{command} for graph '#{graphId}'"
             switch command
                 when 'schema' # /#{graphname}/schema GET
@@ -402,9 +414,9 @@ http.createServer (req,res) ->
                                 sendHeaders 200
                                 res.end (JSON.stringify result)
                         queried.on 'error', sendError
-                        req.on "close", queried.abort
-                        req.on "error", queried.abort
-                        res.on "error", queried.abort
+                        req.once "close", queried.abort
+                        req.once "error", queried.abort
+                        res.once "error", queried.abort
                         return
                     switch req.method
                         when 'POST'
