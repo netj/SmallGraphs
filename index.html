@@ -636,9 +636,9 @@ function addToSketchpad(name, attrs, target) {
   else {
     // place nodes before edges, so that edges are rendered on top of them
     if (name == "g" && attrs.class == "node")
-      sketchpad.insertBefore(node, sketchpad.firstChild);
+      sketch.insertBefore(node, sketch.firstChild);
     else
-      sketchpad.appendChild(node);
+      sketch.appendChild(node);
   }
   return node;
 }
