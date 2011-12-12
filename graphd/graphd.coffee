@@ -157,16 +157,17 @@ class RelationalDataBaseGraph
                         lookFor = env[s.name].lookFors
                         if lookFor?
                             for attrName in lookFor.attrs
+                              do (attrName) ->
                                 attrFieldName = compileAttribute s, attrName
                                 if attrFieldName?
                                     addFieldTransform attrFieldName, (v, r) ->
                                         r.names[s.name].attrs[attrName] = v
+                    unless aggregate?
+                        labelFieldName = compileAttribute s, s.layout.label
+                        if labelFieldName?
+                            addFieldTransform labelFieldName, (v, r) ->
+                                r.names[s.name].label = v
                     env[s.name].outputDone = true
-                unless aggregate?
-                    labelFieldName = compileAttribute s, s.layout.label
-                    if labelFieldName?
-                        addFieldTransform labelFieldName, (v, r) ->
-                            r.names[s.name].label = v
             else
                 addFieldTransform s.sqlIdName, (v, r) ->
                     r.walks[s.walkNum][s.stepNum] =
@@ -189,8 +190,9 @@ class RelationalDataBaseGraph
                 j = 0
                 addSQLNames = (o) ->
                     o.sqlTableName = sqlName o.tag, o.type
-                    o.sqlIdName    = sqlName o.tag, o.type, "id"
-                    o.sqlId        = [o.sqlTableName, "id"]
+                    if o.layout.id?
+                        o.sqlIdName    = sqlName o.tag, o.type, "id"
+                        o.sqlId        = [o.sqlTableName, o.layout.id.field]
                     if (o.name = o.step.objectRef ? o.step.alias)?
                         env[o.name].references ?= []
                         env[o.name].references.push o
