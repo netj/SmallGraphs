@@ -3,14 +3,14 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
     <title>SmallGraphs</title>
-    <link rel="graphd" href="http://localhost:53411/test">
-    <script type="text/javascript" src="d3/d3.js"></script>
-    <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
-    <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
-    <script type="text/javascript" src="jquery-svg/jquery.svgdom.js"></script>
-    <script type="text/javascript" src="jquery-ui/js/jquery-ui-1.8.16.custom.min.js"></script>
+    <link rel="graphd" href="http://localhost:53411/reppler">
     <script type="text/javascript" src="smallgraph/syntax.js"></script>
     <script type="text/javascript" src="smallgraph/serialize.js"></script>
+    <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
+    <script type="text/javascript" src="jquery-ui/js/jquery-ui-1.8.16.custom.min.js"></script>
+    <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
+    <script type="text/javascript" src="jquery-svg/jquery.svgdom.js"></script>
+    <script type="text/javascript" src="d3/d3.js"></script>
     <style type="text/css">
       @import url("jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css");
 
@@ -96,7 +96,9 @@
         text-align: center;
       }
       .ui-autocomplete {
-        text-align: center;
+        text-align: left;
+        max-height: 61.8%; /* TODO fix jQuery UI not to overflow the window */
+        overflow: auto;
       }
       #query-type-entry input, .ui-widget {
         font-size: 0.8em;
@@ -372,6 +374,22 @@ function smallgraphsLoadSchema() {
       NodeTypes.sort();
       // learn labels for types
       $.extend(LabelForType, schema.TypeLabels);
+      // augment with an inverted index of links between objects
+      for (var objType in schema.Objects) {
+        var links = schema.Objects[objType].Links;
+        for (var lnType in links) {
+          var targetObjTypes = links[lnType];
+          for (var i in targetObjTypes) {
+            var targetObjType = targetObjTypes[i];
+            var targetObjSchema = schema.Objects[targetObjType];
+            if (targetObjSchema.RevLinks == null)
+              targetObjSchema.RevLinks = {};
+            if (targetObjSchema.RevLinks[lnType] == null)
+              targetObjSchema.RevLinks[lnType] = [];
+            targetObjSchema.RevLinks[lnType].push(objType);
+          }
+        }
+      }
     });
 }
 smallgraphsLoadSchema();
@@ -416,7 +434,7 @@ function keySet(obj) {
   var keys = [];
   for (var key in obj)
     keys.push(key);
-  return keys;
+  return keys.sort();
 }
 
 function removeAll(allElements, elementsToRemove) {
@@ -425,6 +443,10 @@ function removeAll(allElements, elementsToRemove) {
   return allElements.filter(function(n) { return (elementsToRemove.indexOf(n) == -1) });
 }
 
+function intersection(a, b) {
+  // TODO obviously there's a better implementation of this
+  return removeAll(a, removeAll(a, b));
+}
 
 function attributeNodeLabelForType(xsdType) {
   var label = LabelForType[xsdType];
@@ -457,6 +479,18 @@ function updateEdgeCoordinates(e, x2, y2) {
       x2: x2 -dx2, y2: y2 -dy2,
     });
   $("text", e).attr({ x : x2 / 2, y : y2 / 2 });
+}
+
+function adjustEdgeLayout() {
+  for (var i = 0; i < arguments.length; i++) {
+    var e = arguments[i];
+    // adjust transformation based on source.x/y
+    $(e).attr({
+        transform: translate(e.source.x, e.source.y),
+      });
+    // then update the edge end point coordinates based on target.x/y
+    updateEdgeCoordinates(e, e.target.x - e.source.x, e.target.y - e.source.y);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -532,7 +566,7 @@ function queryTypeEntryShow(x, y, list, done) {
   $("#query-type-input").autocomplete({
       delay: 0,
       minLength: 0,
-      source: list.sort(),
+      source: list,
     });
   $("#query-type-entry")
     .css({
@@ -630,6 +664,10 @@ var sketchpadAction_MoveNode = {
   },
 };
 
+var EdgeAttributeMark = "@";
+var EdgeReverseMark = "<- ";
+function prefixAttributeMark(t) { return EdgeAttributeMark+t; }
+function prefixReverseMark(t) { return EdgeReverseMark+t; }
 var nullNode = { w: 0, h: 0 };
 var emptySchema = { Links: {}, Attributes: {} }
 var edgeId = 0;
@@ -659,12 +697,20 @@ var sketchpadAction_DrawEdgeFromANode = {
         }, e));
       // prepare related schema for this source node
       this.objectSchema = GraphSchema.Objects[n.objectType] || emptySchema;
-      function prefixAtSign(a) { return "@"+a; }
-      this.allowedEdgeTypes = keySet(this.objectSchema.Links).concat(
-          keySet(this.objectSchema.Attributes).map(prefixAtSign));
-      // exclude label attribute
-      if (this.objectSchema.Label)
-        this.allowedEdgeTypes = removeAll(this.allowedEdgeTypes, [prefixAtSign(this.objectSchema.Label)]);
+      this.allowedEdgeTypes = (
+          removeAll(
+          keySet(this.objectSchema.Attributes)
+              // exclude label attribute
+              , this.objectSchema.Label == null ? [] : [this.objectSchema.Label])
+            // prefix with attribute marks
+            .map(prefixAttributeMark)
+        ).concat(
+          keySet(this.objectSchema.Links)
+        ).concat(
+          keySet(this.objectSchema.RevLinks)
+            // prefix with reverse edge marks
+            .map(prefixReverseMark)
+        );
       return this;
     }
   },
@@ -691,13 +737,16 @@ var sketchpadAction_DrawEdgeFromANode = {
       // attract end of edge to the node
       x2 = n.x - this.sx;
       y2 = n.y - this.sy;
-      // check graph schema
-      var targetObjectType = n.objectType;
-      var allowedEdgeTypesToTarget = [];
-      var objectsByLinks = this.objectSchema.Links;
-      for (var l in objectsByLinks)
-        if (objectsByLinks[l].indexOf(targetObjectType) != -1)
-          allowedEdgeTypesToTarget.push(l);
+      // check graph schema to find types of allowed edges
+      var targetObjectSchema = GraphSchema.Objects[n.objectType];
+      var allowedEdgeTypesToTarget = (
+          intersection(keySet( this.objectSchema.Links),
+                       keySet(targetObjectSchema.RevLinks))
+        ).concat(
+          intersection(keySet( this.objectSchema.RevLinks),
+                       keySet(targetObjectSchema.Links))
+            .map(prefixReverseMark)
+        );
       this.allowedEdgeTypesToTarget = allowedEdgeTypesToTarget;
       // show whether edge is invalid or not
       if (allowedEdgeTypesToTarget.length == 0)
@@ -721,7 +770,6 @@ var sketchpadAction_DrawEdgeFromANode = {
       sketchpadPhantomNode.y = ty + y2/r * (NodeHeight/2);
       $(sketchpadPhantomNode).addClass("active");
       // show whether edge is invalid or not
-      // TODO also check links
       if (this.allowedEdgeTypes.length == 0)
         $(e).addClass("invalid");
       else
@@ -742,12 +790,26 @@ var sketchpadAction_DrawEdgeFromANode = {
       $(e).remove();
     } else if (n && !n.isAttributeNode) { // finish edge to the target
       e.target = n;
+      var allowedEdgeTypesToTarget = this.allowedEdgeTypesToTarget;
       // ask user to choose type
       queryTypeEntryShow(
           lx, ly,
-          this.allowedEdgeTypesToTarget,
+          allowedEdgeTypesToTarget,
           function(type) {
             if (type) {
+              // show whether the edge is valid or not
+              if (allowedEdgeTypesToTarget.indexOf(type) == -1)
+                $(e).addClass("invalid");
+              else
+                $(e).removeClass("invalid");
+              // reverse the edge if needed
+              if (type.substring(0, EdgeReverseMark.length) == EdgeReverseMark) {
+                type = type.substring(EdgeReverseMark.length); // get the proper type name
+                var node = e.target;
+                e.target = e.source;
+                e.source = node;
+                adjustEdgeLayout(e);
+              }
               e.linkType = type;
               $("text", e).text(type);
               console.log("added edge", type, e);
@@ -757,8 +819,7 @@ var sketchpadAction_DrawEdgeFromANode = {
             }
           });
     } else { // add both a node and an edge to it
-      var attrSchema = this.objectSchema.Attributes;
-      var linkSchema = this.objectSchema.Links;
+      var objSchema = this.objectSchema;
       var tx = sketchpadPhantomNode.x;
       var ty = sketchpadPhantomNode.y;
       queryTypeEntryShow(
@@ -769,9 +830,9 @@ var sketchpadAction_DrawEdgeFromANode = {
             $(sketchpadPhantomNode).removeClass("active");
             $("rect", sketchpadPhantomNode).attr({ width : 0, height: 0 });
             if (type) {
-              if (type.match(/^@/)) {
+              if (type.substring(0, EdgeAttributeMark.length) == EdgeAttributeMark) {
                 // add an attribute node
-                type = type.substring(1); // remove the at sign
+                type = type.substring(EdgeAttributeMark.length); // get the proper type name
                 var attrNode = createNode(
                     tx, ty,
                     NodeWidth/2, NodeHeight/2,
@@ -780,8 +841,8 @@ var sketchpadAction_DrawEdgeFromANode = {
                 $(attrNode).addClass("attribute");
                 attrNode.subjectId = e.source.id;
                 attrNode.attributeName = type;
-                attrNode.attributeType = attrSchema[type];
-                $("text", attrNode).text(attributeNodeLabelForType(attrSchema[type]));
+                attrNode.attributeType = objSchema.Attributes[type];
+                $("text", attrNode).text(attributeNodeLabelForType(objSchema.Attributes[type]));
                 attrNode.isAttributeNode = true;
                 // finish attribute edge
                 e.target = attrNode;
@@ -798,28 +859,42 @@ var sketchpadAction_DrawEdgeFromANode = {
                 }
                 console.log("added attribute edge", type, e);
               } else {
-                // ask user to choose what type of node should be added
+                // create a node at the end
+                var node = createNode(tx, ty);
+                var allowedNodeTypes;
+                if (type.substring(0, EdgeReverseMark.length) == EdgeReverseMark) {
+                  type = type.substring(EdgeReverseMark.length); // get the proper type name
+                  // reverse the edge
+                  e.target = e.source;
+                  e.source = node;
+                  // find out what types of node can come as a source
+                  allowedNodeTypes = objSchema.RevLinks[type];
+                } else {
+                  // e.source remains the same
+                  e.target = node;
+                  // find out what types of node can come as a target
+                  allowedNodeTypes = objSchema.Links[type];
+                }
+                adjustEdgeLayout(e);
                 e.linkType = type;
                 $("text", e).text(type);
-                // show whether edge can be invalid or not
-                var allowedNodeTypes = linkSchema[type];
+                // and show whether the edge can be valid or not
                 if (allowedNodeTypes == null || allowedNodeTypes.length == 0) {
                   $(e).addClass("invalid");
                   // if edge itself is invalid, any node can come at the end
                   allowedNodeTypes = NodeTypes;
                 } else
                   $(attrNode).removeClass("invalid");
-                var node = createNode(tx, ty);
+                // ask user to choose what type of node should be added
                 setTimeout(function() {
                   queryTypeEntryShow(
-                      tx, ty,
-                      allowedNodeTypes, function(nodeType) {
+                      sketchpad.offsetLeft + tx -NodeWidth  +(NodeWidth -EntryWidth ),
+                      sketchpad.offsetTop  + ty -NodeHeight +(NodeHeight-EntryHeight),
+                      allowedNodeTypes.sort(), function(nodeType) {
                         if (nodeType) {
                           // create node
                           node.objectType = nodeType;
                           $("text", node).text(nodeType);
-                          // finish edge
-                          e.target = node;
                           // show whether node and edge are invalid or not
                           if (allowedNodeTypes.indexOf(nodeType) == -1) {
                             // edge is invalid if this type of node is not allowed
@@ -831,7 +906,6 @@ var sketchpadAction_DrawEdgeFromANode = {
                               $(node).removeClass("invalid");
                           } else
                             $(node).removeClass("invalid");
-                          updateEdgeCoordinates(e, tx - e.source.x, ty - e.source.y);
                           console.log("added edge", type, e, "with a node", nodeType, node);
                         } else {
                           // cancel node creation
