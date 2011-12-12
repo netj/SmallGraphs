@@ -356,12 +356,12 @@ var ResultFillColors = [
 ];
 
 // quantitative types
-var QuantitativeTypes = [
-  "xsd:decimal",
-  "xsd:integer",
-  "xsd:float",
-  "xsd:double",
-];
+var QuantitativeTypes = {
+  "xsd:decimal": parseInt,
+  "xsd:integer": parseInt,
+  "xsd:float":  parseFloat,
+  "xsd:double": parseFloat,
+};
 // TODO more types: ordinal, nominal, temporal, geospatial, ...
 
 var Identity = function(x) { return x; };
@@ -1807,8 +1807,10 @@ function smallgraphsShowResults(data, offset) {
     // from the query, derive a function for summarizing data for visual encodings
     var dataOverview = {};
     var dataColorIndex = 0;
-    function addDataOverviewFor(id, map) {
+    function addDataOverviewFor(id, name, map) {
       dataOverview[id] = {
+        id: id,
+        attr: name,
         map: map,
         min: null,
         max: null,
@@ -1822,15 +1824,15 @@ function smallgraphsShowResults(data, offset) {
         if (decl.aggregate) {
           var agg = decl.aggregate;
           var id = agg[0];
-          addDataOverviewFor(id,
+          addDataOverviewFor(id, "label",
             function(d) { return d.names[id].label; });
           agg[1].forEach(function(attrAgg) {
               var attrName = attrAgg[0];
               var aggfn = attrAgg[1];
               $(".attribute.node", sketch)
-                .filter(function() { return this.sourceId == id; })
-                .each(function(attrNode) {
-                    addDataOverviewFor(attrNode.id,
+                .filter(function() { return this.subjectId == id && this.attributeName == attrName; })
+                .toArray().forEach(function(attrNode) {
+                    addDataOverviewFor(attrNode.id, attrName,
                       function(d) { return d.names[id].attrs[attrName]; });
                   })
                 ;
@@ -1840,11 +1842,11 @@ function smallgraphsShowResults(data, offset) {
           var id = look[0];
           look[1].forEach(function(attrName) {
               $(".attribute.node", sketch)
-                .filter(function() { return this.sourceId == id; })
-                .each(function(attrNode) {
-                    if (QuantitativeTypes.indexOf(attrNode.attributeType) != -1)
-                      addDataOverviewFor(attrNode.id,
-                        function(d) { return d.names[id].attrs[attrName]; });
+                .filter(function() { return this.subjectId == id && this.attributeName == attrName; })
+                .toArray().forEach(function(attrNode) {
+                    if (QuantitativeTypes[attrNode.attributeType] != null)
+                      addDataOverviewFor(attrNode.id, attrName,
+                        function(d) { return (d.names[id].attrs[attrName]); });
                   })
                 ;
             });

@@ -140,6 +140,7 @@ class RelationalDataBaseGraph
                                 attrs: {}
                         # aggregate each attribute
                         for [attrName, aggfn] in aggregate.attrs
+                          do (attrName) ->
                             aggfn ?= "count"
                             attrFieldName = compileAttribute s, attrName
                             if attrFieldName?
