@@ -17,6 +17,13 @@ QNAME                       {alpha}{alnum}*("-"{alnum}+)*
 ")"                                                          return ')';
 "["                                                          return '[';
 "]"                                                          return ']';
+"|"                                                          return '|';
+"="                                                          return '='
+"!="                                                         return '!='
+"<="                                                         return '<='
+">="                                                         return '>='
+"<"                                                          return '<'
+">"                                                          return '>'
 "{"                                                          return '{';
 "}"                                                          return '}';
 "->"                                                         return '->';
@@ -40,9 +47,8 @@ QNAME                       {alpha}{alnum}*("-"{alnum}+)*
 \"(?:{esc}["bfnrt/{esc}]|{esc}"u"[a-fA-F0-9]{4}|[^"{esc}])*\"  yytext = yytext.substr(1,yyleng-2); return 'STRING_LIT';
 {int}{frac}?{exp}?\b                                         return 'NUMBER_LIT';
 \${alpha}{alnum}*("-"{alnum}+)*(\.{alpha}{alnum}*("-"{alnum}+)*)* return 'VARREF';
-"@"({QNAME}":")?{QNAME}                                         return 'ATTRNAME';
-({QNAME}":")?{QNAME}                                            return 'NAME';
-"="                                                          return '='
+"@"({QNAME}":")?{QNAME}                                      return 'ATTRNAME';
+({QNAME}":")?{QNAME}                                         return 'NAME';
 <<EOF>>                                                      return 'EOF';
 
 %%

@@ -70,16 +70,44 @@ optional_alias
     ;
 
 optional_constraint
-    :
-        {$$ = null;}
-        /* TODO */
+    : '[' constraint_disjunctions ']' optional_constraint
+        {$$ = [$constraint_disjunctions].concat($optional_constraint);}
+    |
+        {$$ = [];}
+    ;
+
+constraint_disjunctions
+    : constraint '|' constraint_disjunctions
+        {$$ = [$constraint].concat($constraint_disjunctions);}
+    | constraint
+        {$$ = [$constraint];}
+    ;
+
+constraint
+    : rel expr
+        {$$ = {rel:$rel, expr:$expr};}
+    ;
+
+rel
+    : '=' | '!=' | '<=' | '<' | '>=' | '>'
+    ;
+
+expr
+    : NUMBER_LIT
+        {$$ = parseFloat($1);}
+    | STRING_LIT
     ;
 
 attributes
-    : ATTRNAME
-        {$$ = [$ATTRNAME.substring(1)];}
-    | ATTRNAME ',' attributes
-        {$$ = [$ATTRNAME.substring(1)].concat($attributes);}
+    : attribute ',' attributes
+        {$$ = [$attribute].concat($attributes);}
+    | attribute
+        {$$ = [$attribute];}
+    ;
+
+attribute
+    : ATTRNAME optional_constraint
+        {$$ = {name:$ATTRNAME.substring(1), constraint:$optional_constraint};}
     ;
 
 optional_attributeAggregations
@@ -95,8 +123,8 @@ attributeAggregations
         {$$ = [$attributeAggregation].concat($attributeAggregations);}
     ;
 attributeAggregation
-    : ATTRNAME AS aggregation
-        {$$ = [$ATTRNAME.substring(1), $aggregation];}
+    : ATTRNAME AS aggregation optional_constraint
+        {$$ = [$ATTRNAME.substring(1), $aggregation, $optional_constraint];}
     ;
 aggregation
     : COUNT | SUM | MIN | MAX
