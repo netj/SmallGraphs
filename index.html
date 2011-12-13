@@ -2211,7 +2211,13 @@ $("#result-refine")
 
 $("#result-reorder")
   .button()
-  // TODO .click(...)
+  .click(function() {
+      // FIXME reorder results from here
+      $("#result-refine").click();
+      setTimeout(function() {
+        $("#query-order").click();
+      }, 500);
+    })
   ;
 
 
