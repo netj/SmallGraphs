@@ -42,6 +42,10 @@ serialize = (smallgraph) ->
         else if decl.let
             d = decl.let
             s += "let #{d[0]} = #{serializeStep d[1]}"
+        else if decl.orderby
+            d = decl.orderby
+            s += "order by "
+            s += ("$#{ord[0]} @#{ord[1]} #{ord[2]}" for ord in d).join ", "
         s += ";\n"
     s
 

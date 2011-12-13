@@ -126,7 +126,7 @@ class RelationalDataBaseGraph
                 addFieldTransform null, (r) ->
                     r.walks[s.walkNum][s.stepNum] = s.name
                 aggregate = env[s.name].aggregates
-                unless env[s.name].outputDone
+                unless env[s.name].outputStep
                     if aggregate?
                         # aggregate id's as count
                         aggfn = "count"
@@ -168,7 +168,7 @@ class RelationalDataBaseGraph
                         if labelFieldName?
                             addFieldTransform labelFieldName, (v, r) ->
                                 r.names[s.name].label = v
-                    env[s.name].outputDone = true
+                    env[s.name].outputStep = s
             else
                 addFieldTransform s.sqlIdName, (v, r) ->
                     r.walks[s.walkNum][s.stepNum] =
@@ -249,6 +249,16 @@ class RelationalDataBaseGraph
                     }
                     """
                 i++
+        # collect ordering criteria
+        orderByFields = []
+        for decl in query
+            if decl.orderby?
+                for d in decl.orderby
+                    s = env[d[0]].outputStep
+                    attrName = d[1]
+                    attrFieldName = compileAttribute s, attrName
+                    if attrFieldName?
+                        orderByFields.push [attrFieldName, d[2]]
         numWalks = i
         # join walks on coinciding nodes (hyperwalk) and project fields
         junctionConditions = []
@@ -299,6 +309,10 @@ class RelationalDataBaseGraph
             #{
                 unless hasAggregation and groupByFields.length > 0 then ""
                 else "GROUP BY #{(uniq groupByFields).join ",\n         "}"
+            }
+            #{
+                unless orderByFields.length > 0 then ""
+                else "ORDER BY #{("#{ord[0]} #{ord[1].toUpperCase()}" for ord in orderByFields).join ",\n "}"
             }
             """
             rowTransformer

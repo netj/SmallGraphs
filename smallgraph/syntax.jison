@@ -34,6 +34,8 @@ declaration
         {name=$VARREF.substring(1); $$ = {look:[name, $attributes]};}
     | AGGREGATE VARREF optional_attributeAggregations
         {name=$VARREF.substring(1); $$ = {aggregate:[name, $optional_attributeAggregations]};}
+    | ORDER BY orderings
+        {$$ = {orderby:$orderings};}
     ;
 
 walk
@@ -98,6 +100,23 @@ attributeAggregation
     ;
 aggregation
     : COUNT | SUM | MIN | MAX
+    ;
+
+orderings
+    : ordering
+        {$$ = [$ordering];}
+    | ordering ',' orderings
+        {$$ = [$ordering].concat($orderings);}
+    ;
+
+ordering
+    : VARREF ATTRNAME order
+        {$$ = [$VARREF.substring(1), $ATTRNAME.substring(1), $order];}
+    ;
+
+order
+    : DESCENDING
+    | ASCENDING
     ;
 
 subgraph

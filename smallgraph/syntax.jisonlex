@@ -29,6 +29,10 @@ QNAME                       {alpha}{alnum}*("-"{alnum}+)*
 "aggregate"                                                  return 'AGGREGATE';
 "with"                                                       return 'WITH';
 "as"                                                         return 'AS';
+"order"                                                      return 'ORDER';
+"by"                                                         return 'BY';
+"desc"                                                       return 'DESCENDING';
+"asc"                                                        return 'ASCENDING';
 "count"                                                      return 'COUNT';
 "sum"                                                        return 'SUM';
 "min"                                                        return 'MIN';
