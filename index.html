@@ -427,8 +427,11 @@ smallgraphsGraphURL = smallgraphsGraphURLHistory[0];
 
 function smallgraphsShowGraphURLPicker() {
   function finishGraphURLInput() {
-    smallgraphsGraphURL = $("#graph-url-input").val();
-    smallgraphsLoadSchema();
+    var newURL = $("#graph-url-input").val();
+    if (newURL != smallgraphsGraphURL) {
+      smallgraphsGraphURL = newURL;
+      smallgraphsLoadSchema();
+    }
   }
   // show dialog for choosing target graph
   var urlDialog = smallgraphsShowDialog("#graph-url-dialog", {
@@ -471,9 +474,13 @@ function smallgraphsLoadSchema() {
   document.title = smallgraphsOriginalTitle +" of "+ smallgraphsGraphURL; // TODO use friendlier name/label of graph
   $("#graph-url").text(smallgraphsGraphURL);
   $.getJSON(smallgraphsGraphURL + "/schema", function(schema) {
+        // record the URL in history
         smallgraphsGraphURLHistory = removeAll(smallgraphsGraphURLHistory, [smallgraphsGraphURL]);
         smallgraphsGraphURLHistory.unshift(smallgraphsGraphURL);
         $.cookie("smallgraphsGraphURLHistory", JSON.stringify(smallgraphsGraphURLHistory));
+        // clear sketch
+        sketchpadClearSketch();
+        // switch schema
         smallgraphsGraphSchema = schema;
         // learn nodes types
         NodeTypes = [];
@@ -570,6 +577,12 @@ function intersection(a, b) {
 function attributeNodeLabelForType(xsdType) {
   var label = LabelForType[xsdType];
   return label ? label : xsdType;
+}
+
+function sketchpadClearSketch() {
+  nodeId = edgeId = 0;
+  // TODO warn user if there's a sketch being deleted
+  $("*", sketch).remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
