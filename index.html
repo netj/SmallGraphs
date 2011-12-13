@@ -85,6 +85,20 @@
         padding-top: 100px;
       }
 
+      #aggregation-list, #ordering-list {
+        list-style-type: none; 
+        margin: 0px;
+        padding: 0px;
+      }
+      #aggregation-list li, #ordering-list li {
+        margin: 2px;
+        padding: 2px;
+        padding-left: 8px;
+      }
+      li .ui-icon {
+        display: inline-block;
+      }
+
       .ui-accordion .ui-accordion-header {
         font-size: 12px;
       }
@@ -172,6 +186,13 @@
       .aggregate.attribute.node rect {
         stroke-width: 2px;
         stroke-dasharray: 6,4;
+      }
+
+      .orderby-desc.node rect {
+        stroke: #f3f;
+      }
+      .orderby-asc.node rect {
+        stroke: #3ff;
       }
 
       #arrowhead {
@@ -330,22 +351,35 @@
         <input type="url" id="graph-url-input" size="42">
         <span class="description">Enter a URL to a graph living in a <a href="https://github.com/netj/SmallGraphs/wiki/GraphD"><em>GraphD</em> server</a>.</span>
       </div>
+      <div id="ordering-dialog" class="dialog">
+        <ul id="ordering-list">
+          <li class="ui-state-default">
+          <label for="order-0"></label>
+          <select class="ui-widget" id="order-0">
+            <option value="desc">9-&gt;0</option>
+            <option value="asc">0-&gt;9</option>
+          </select>
+          <a href="#" class="ui-corner-all" role="button"><span class="ui-icon ui-icon-closethick">remove</span></a>
+          </li>
+        </ul>
+        <span class="description"></span>
+      </div>
       <div id="aggregation-dialog" class="dialog">
         <ul id="aggregation-list">
-          <li class="Quantitative"><label for="aggfn-0"></label>
+          <li class="ui-state-default" for="Quantitative"><label for="aggfn-0"></label>
           <select id="aggfn-0">
             <option>Sum</option>
             <option>Count</option>
             <option>MAX</option>
             <option>min</option>
           </select></li>
-          <li class="Ordinal"><label for="aggfn-1"></label>
+          <li for="Ordinal"><label for="aggfn-1"></label>
           <select id="aggfn-1">
             <option>Count</option>
             <option>MAX</option>
             <option>min</option>
           </select></li>
-          <li class="Nominal"><label for="aggfn-2"></label>
+          <li for="Nominal"><label for="aggfn-2"></label>
           <select id="aggfn-2">
             <option>Count</option>
           </select></li>
@@ -1228,7 +1262,7 @@ var sketchpadAction_RemoveSelection = {
 var aggregationSelectionPrototype;
 aggregationSelectionPrototype = {};
 $("#aggregation-list li").each(function() {
-      aggregationSelectionPrototype[this.className] = this;
+      aggregationSelectionPrototype[$(this).attr("for")] = this;
     })
   .remove()
   ;
@@ -1270,7 +1304,8 @@ function sketchpadSetupAggregation(attrNodes) {
   }
   smallgraphsShowDialog("#aggregation-dialog", {
       title: "Choose How to Aggregate Attributes",
-      buttons: [ { text: "OK", click: function() {
+      width: document.body.offsetWidth * .618,
+      buttons: [ { text: "Save", click: function() {
             finishAggregationForm();
             $(this).dialog("close");
             aggregationSetupInProgress = false;
@@ -1332,9 +1367,91 @@ var sketchpadAction_SetupAggregation = {
 };
 
 
+
+var sketchpadCurrentOrdering = [];
+var orderingSelectionPrototype;
+orderingSelectionPrototype = $("#ordering-list li")[0];
+$("#ordering-list li").remove();
+function sketchpadSetupOrdering(orderbyNodes) {
+  if (orderbyNodes.length == 0)
+    orderbyNodes = $(".orderby-desc.node, .orderby-asc.node", sketch).toArray();
+  if (orderbyNodes.length == 0)
+    return;
+  var orderlst = $("#ordering-list");
+  // prepare the form
+  $("li", orderlst).remove();
+  var idx = 0;
+  orderbyNodes.forEach(function(node) {
+      var listitem = $(orderingSelectionPrototype).clone();
+      $("a", listitem)
+        .click(function() { listitem.remove(); })
+        ;
+      listitem[0].node = node;
+      var newId = $("label", listitem).attr("for").replace(/\d+$/, idx++);
+      $("label", listitem)
+        .attr({
+            for: newId,
+          })
+        .text(
+          $(node).hasClass("attribute") ?
+            $("#"+node.subjectId +" text", sketch).text() +" "+
+            prefixAttributeMark(node.attributeName)
+          :
+            $("text", node).text()
+          )
+        ;
+      $("select", listitem)
+        .attr("id", newId)
+        .val(node.ordering)
+        ;
+      node.ordering = $("select", listitem).val();
+      orderlst.append(listitem);
+    });
+  // make it reorderable
+  orderlst.sortable();
+  orderlst.disableSelection();
+  function clearOrdering() {
+    $(".orderby-desc.node, .orderby-asc.node", sketch)
+      .removeClass("orderby-desc")
+      .removeClass("orderby-asc")
+      ;
+    sketchpadCurrentOrdering = [];
+  }
+  function finishOrderingForm() {
+    clearOrdering();
+    $("li", orderlst).each(function() {
+        this.node.ordering = $("select", this).val();
+        $(this.node).addClass("orderby-"+this.node.ordering);
+        sketchpadCurrentOrdering.push(this.node);
+      });
+  }
+  smallgraphsShowDialog("#ordering-dialog", {
+      title: "Choose How to Order the Results",
+      width: document.body.offsetWidth * .618,
+      buttons: [ { text: "Reset", click: function() {
+              clearOrdering();
+              $(this).dialog("close");
+            }},
+            { text: "Save", click: function() {
+              finishOrderingForm();
+              $(this).dialog("close");
+            }},
+          ],
+    });
+}
+function sketchpadSetupOrderingForSelection() {
+  var orderbyNodes = sketchpadCurrentOrdering.concat(
+        removeAll(sketchpadCurrentSelection.filter(
+            function(n) { return $(n).hasClass("node"); }),
+          sketchpadCurrentOrdering)
+      );
+  sketchpadSetupOrdering(orderbyNodes);
+}
+
+
 $("#query-order")
   .button()
-  // TODO .click(...)
+  .click(sketchpadSetupOrderingForSelection)
   ;
 
 
@@ -1803,7 +1920,11 @@ function smallgraphsCompileSketchToQuery() {
       aggregationMap[n.id] = [];
       nodeOccurs[n.id]++;
     });
-  // TODO nodeOccurs ++ for orderBy nodes
+  // scan nodes for ordering
+  sketchpadCurrentOrdering.forEach(function(n) {
+      if (! $(n).hasClass("attribute"))
+        nodeOccurs[n.id]++;
+    });
   // enumerate attributes we're interested in
   var attributes = [];
   $(".attribute.edge", sketch).each(function(i,e){
@@ -1831,6 +1952,14 @@ function smallgraphsCompileSketchToQuery() {
     var attrsToAggregate = aggregationMap[nId];
     aggregations.push({aggregate:[nId, attrsToAggregate]});
   }
+  // codegen orderbys
+  var orderings = [];
+  sketchpadCurrentOrdering.forEach(function(n) {
+      if ($(n).hasClass("attribute"))
+        orderings.push([n.subjectId, n.attributeName, n.ordering]);
+      else
+        orderings.push([n.id, null, n.ordering]);
+    });
   // declare objects we will later reference a few times
   var namedObjects = [];
   for (var id in nodeOccurs) {
@@ -1855,6 +1984,7 @@ function smallgraphsCompileSketchToQuery() {
     .concat(walks)
     .concat(attributes)
     .concat(aggregations)
+    .concat({orderby:orderings})
     ;
   var resultMapping = function(data, resultSVG) {
     resultMappings.forEach(function(mapping) {
@@ -1932,7 +2062,7 @@ function smallgraphsShowResults(data, offset) {
       })
       ;
     $(".node, .edge", resultPrototype)
-      .removeClass("selected attribute invalid")
+      .removeClass("selected attribute invalid orderby-desc orderby-asc")
       ;
     $(".edge text", resultPrototype)
       .remove()
@@ -2024,6 +2154,7 @@ function smallgraphsShowResults(data, offset) {
       var y = rect.attr("y");
       var h = rect.attr("height");
       var w = rect.attr("width");
+      // FIXME sometimes w is strangely big
       var wScale = d3.scale.linear()
         .domain([overview.min, overview.max])
         .range([0, w])
