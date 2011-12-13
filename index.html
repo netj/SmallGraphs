@@ -169,6 +169,10 @@
         font-size: 1.25em;
         font-style: italic;
       }
+      .aggregate.attribute.node rect {
+        stroke-width: 2px;
+        stroke-dasharray: 6,4;
+      }
 
       #arrowhead {
         fill: #06c;
@@ -326,6 +330,28 @@
         <input type="url" id="graph-url-input" size="42">
         <span class="description">Enter a URL to a graph living in a <a href="https://github.com/netj/SmallGraphs/wiki/GraphD"><em>GraphD</em> server</a>.</span>
       </div>
+      <div id="aggregation-dialog" class="dialog">
+        <ul id="aggregation-list">
+          <li class="Quantitative"><label for="aggfn-0"></label>
+          <select id="aggfn-0">
+            <option>Sum</option>
+            <option>Count</option>
+            <option>MAX</option>
+            <option>min</option>
+          </select></li>
+          <li class="Ordinal"><label for="aggfn-1"></label>
+          <select id="aggfn-1">
+            <option>Count</option>
+            <option>MAX</option>
+            <option>min</option>
+          </select></li>
+          <li class="Nominal"><label for="aggfn-2"></label>
+          <select id="aggfn-2">
+            <option>Count</option>
+          </select></li>
+        </ul>
+        <span class="description"></span>
+      </div>
     </div>
 
     <script type="text/javascript">
@@ -357,6 +383,8 @@ var ResultFillColors = [
   "#5b6591",
   "#59879b",
 ];
+
+// TODO ordinal types
 
 // quantitative types
 var QuantitativeTypes = {
@@ -579,12 +607,6 @@ function attributeNodeLabelForType(xsdType) {
   return label ? label : xsdType;
 }
 
-function sketchpadClearSketch() {
-  nodeId = edgeId = 0;
-  // TODO warn user if there's a sketch being deleted
-  $("*", sketch).remove();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // transforms, coordinates stuff
 
@@ -657,6 +679,18 @@ function addToSketchpad(name, attrs, target) {
       sketch.appendChild(node);
   }
   return node;
+}
+
+function sketchpadClearSketch() {
+  nodeId = edgeId = 0;
+  // TODO warn user if there's a sketch being deleted
+  $("*", sketch).remove();
+}
+
+function attributeNodesOf(n) {
+  return $(".attribute.node", sketch)
+    .filter(function(attrNode) { return this.subjectId == n.id; })
+    ;
 }
 
 var queryTypeEntryHandler = null;
@@ -876,7 +910,7 @@ var sketchpadAction_DrawEdgeFromANode = {
     var y2 = ty - this.sy;
     if (n) { // pointing on a node
       e.target = n;
-      // hide phantom attribute node
+      // hide phantom node
       $(sketchpadPhantomNode).removeClass("active");
       $("rect", sketchpadPhantomNode).attr({ width : 0, height: 0 });
       // attract end of edge to the node
@@ -904,7 +938,7 @@ var sketchpadAction_DrawEdgeFromANode = {
       var r = Math.sqrt(x2*x2 + y2*y2);
       var dx = x2/r * (NodeWidth /2 + EdgeMarkerSize);
       var dy = y2/r * (NodeHeight/2 + EdgeMarkerSize);
-      // show phantom attribute node
+      // show phantom node
       $("rect", sketchpadPhantomNode)
         .attr({
           width: NodeWidth, height: NodeHeight,
@@ -985,6 +1019,8 @@ var sketchpadAction_DrawEdgeFromANode = {
                     0
                   );
                 $(attrNode).addClass("attribute");
+                if ($(e.source).hasClass("aggregate"))
+                  $(attrNode).addClass("aggregate");
                 attrNode.subjectId = e.source.id;
                 attrNode.attributeName = type;
                 attrNode.attributeType = objSchema.Attributes[type];
@@ -1189,31 +1225,112 @@ var sketchpadAction_RemoveSelection = {
   },
 };
 
-function sketchpadToggleAggregation() {
-  sketchpadCurrentSelection.forEach(function(n) {
-      if (!$(n).hasClass("node"))
-        return;
-      $(n).toggleClass("aggregate");
-      // TODO toggleClass of linked attributes
+var aggregationSelectionPrototype;
+aggregationSelectionPrototype = {};
+$("#aggregation-list li").each(function() {
+      aggregationSelectionPrototype[this.className] = this;
+    })
+  .remove()
+  ;
+function sketchpadSetupAggregation(attrNodes) {
+  if (attrNodes.length == 0) {
+    aggregationSetupInProgress = false;
+    return;
+  }
+  aggregationSetupInProgress = true;
+  var agglst = $("#aggregation-list");
+  // prepare the form
+  $("li", agglst).remove();
+  var idx = 0;
+  attrNodes.forEach(function(attrNode) {
+      var dataType = QuantitativeTypes[attrNode.attributeType] != null ? "Quantitative" : "Ordinal"; // TODO Nominal types?
+      var listitem = $(aggregationSelectionPrototype[dataType]).clone();
+      listitem[0].attributeNode = attrNode;
+      var newId = $("label", listitem).attr("for").replace(/\d+$/, idx++);
+      $("label", listitem)
+        .attr({
+            for: newId,
+          })
+        .text(
+            $("#"+attrNode.subjectId +" text", sketch).text() +" "+
+            prefixAttributeMark(attrNode.attributeName)
+          )
+        ;
+      $("select", listitem)
+        .attr("id", newId)
+        .val(attrNode.aggregateFunction)
+        ;
+      attrNode.aggregateFunction = $("select", listitem).val();
+      agglst.append(listitem);
+    });
+  function finishAggregationForm() {
+    $("li", agglst).each(function() {
+        this.attributeNode.aggregateFunction = $("select", this).val();
+      });
+  }
+  smallgraphsShowDialog("#aggregation-dialog", {
+      title: "Choose How to Aggregate Attributes",
+      buttons: [ { text: "OK", click: function() {
+            finishAggregationForm();
+            $(this).dialog("close");
+            aggregationSetupInProgress = false;
+          }} ],
+      close: function() {
+            aggregationSetupInProgress = false;
+          },
     });
 }
+function sketchpadSetupAggregationForSelection() {
+  var aggAttrNodes = [];
+  sketchpadCurrentSelection.forEach(function(n) {
+      if ($(n).hasClass("aggregate") && $(n).hasClass("node")) {
+        if ($(n).hasClass("attribute"))
+          aggAttrNodes.push(n);
+        else
+          aggAttrNodes = aggAttrNodes.concat(attributeNodesOf(n).toArray());
+      }
+    });
+  sketchpadSetupAggregation(aggAttrNodes);
+}
+
+var aggregationSetupInProgress = false;
+function sketchpadToggleAggregation() {
+  if (aggregationSetupInProgress)
+    return;
+  // toggle aggregation
+  sketchpadCurrentSelection.forEach(function(n) {
+      if ($(n).hasClass("node") && !$(n).hasClass("attribute")) {
+        $(n).toggleClass("aggregate");
+        attributeNodesOf(n).toggleClass("aggregate");
+      }
+    });
+  // choose how attributes are being aggregated
+  sketchpadSetupAggregationForSelection();
+}
+
 $("#query-aggregate")
   .button()
   .click(sketchpadToggleAggregation)
   ;
 var sketchpadAction_ToggleAggregation = {
   name: "toggle aggregation",
-  keypress: function() {
-    sketchpadToggleAggregation();
-  }
+  keypress: sketchpadToggleAggregation,
 };
 var sketchpadAction_SetupAggregation = {
   name: "setup aggregation",
   dblclick: function() {
-    console.log("TODO setup aggregations...");
-    // TODO show dialog for choosing how to aggregate each linked attribute
+    var node = getNode(event.target);
+    if (node) {
+      if ($(node).hasClass("aggregate")) {
+        if ($(node).hasClass("attribute"))
+          sketchpadSetupAggregation([node]);
+        else
+          sketchpadSetupAggregation(attributeNodesOf(node).toArray());
+      }
+    }
   }
 };
+
 
 $("#query-order")
   .button()
@@ -1686,11 +1803,12 @@ function smallgraphsCompileSketchToQuery() {
       aggregationMap[n.id] = [];
       nodeOccurs[n.id]++;
     });
+  // TODO nodeOccurs ++ for orderBy nodes
   // enumerate attributes we're interested in
   var attributes = [];
   $(".attribute.edge", sketch).each(function(i,e){
         if (aggregationMap[e.source.id]) // either aggregated
-          aggregationMap[e.source.id].push([e.linkType, e.target.aggregateFunction]);
+          aggregationMap[e.source.id].push([e.linkType, e.target.aggregateFunction.toLowerCase()]);
         else // or individual value
           attributes.push({look:[e.source.id, [e.linkType]]});
         resultMappings.push(function(data, resultSVG) {
