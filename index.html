@@ -113,6 +113,9 @@
         max-height: 61.8%; /* TODO fix jQuery UI not to overflow the window */
         overflow: auto;
       }
+      .ui-autocomplete li {
+        white-space: nowrap;
+      }
       #query-type-entry input, .ui-widget {
         font-size: 0.8em;
       }
@@ -336,7 +339,7 @@ var NodeRounding = 10;//px
 var EdgeMarkerSize = 12;//px
 var EdgeLabelLeft = 0;//px
 var EdgeLabelTop  = 10;//px
-var EntryWidth  = 100/2;//px
+var EntryWidth  = 70/2;//px
 var EntryHeight = 25/2;//px
 
 var ResultPageSize = 250;//results
@@ -645,10 +648,11 @@ function addToSketchpad(name, attrs, target) {
 
 var queryTypeEntryHandler = null;
 var queryTypeEntryWasBlurred = null;
+var borderWithPadding = 3;//px XXX bad hard coding the border width and padding size of input
 $("#query-type-input")
   .css({
-      width:  EntryWidth *2+"px",
-      height: EntryHeight*2+"px",
+      width:  (EntryWidth -borderWithPadding)*2+"px",
+      height: (EntryHeight-borderWithPadding)*2+"px",
     })
   .keyup(function() {
       switch (event.keyCode) {
@@ -720,8 +724,8 @@ var sketchpadAction_AddNode = {
       var node = createNode(event.offsetX, event.offsetY);
       // ask user to choose type
       queryTypeEntryShow(
-          sketchpad.offsetLeft + event.offsetX -NodeWidth  +(NodeWidth -EntryWidth ),
-          sketchpad.offsetTop  + event.offsetY -NodeHeight +(NodeHeight-EntryHeight),
+          sketchpad.offsetLeft + event.offsetX -EntryWidth ,
+          sketchpad.offsetTop  + event.offsetY -EntryHeight,
           NodeTypes, function(type) {
             if (type) {
               node.objectType = type;
@@ -1020,8 +1024,8 @@ var sketchpadAction_DrawEdgeFromANode = {
                 // ask user to choose what type of node should be added
                 setTimeout(function() {
                   queryTypeEntryShow(
-                      sketchpad.offsetLeft + tx -NodeWidth  +(NodeWidth -EntryWidth ),
-                      sketchpad.offsetTop  + ty -NodeHeight +(NodeHeight-EntryHeight),
+                      sketchpad.offsetLeft + tx -EntryWidth ,
+                      sketchpad.offsetTop  + ty -EntryHeight,
                       allowedNodeTypes.sort(), function(nodeType) {
                         if (nodeType) {
                           // create node
