@@ -123,11 +123,12 @@ class RelationalDataBaseGraph
             tables.push [s.layout.id.table, s.sqlTableName]
             fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
             if s.name?
+                env1 = env[s.name]
                 addFieldTransform null, (r) ->
                     r.walks[s.walkNum][s.stepNum] = s.name
-                aggregate = env[s.name].aggregates
-                unless env[s.name].outputStep
-                    if aggregate?
+                unless env1.outputStep
+                    env1.sqlAttrNames = {}
+                    if env1.aggregates?
                         # aggregate id's as count
                         aggfn = "count"
                         aggregatedFieldName = sqlName s.tag, s.type, s.layout.id.field, aggfn
@@ -138,8 +139,9 @@ class RelationalDataBaseGraph
                             r.names[s.name] =
                                 label: v
                                 attrs: {}
+                        s.sqlOrderByFieldName = aggregatedFieldName
                         # aggregate each attribute
-                        for [attrName, aggfn] in aggregate.attrs
+                        for [attrName, aggfn] in env1.aggregates.attrs
                           do (attrName) ->
                             aggfn ?= "count"
                             attrFieldName = compileAttribute s, attrName
@@ -150,25 +152,28 @@ class RelationalDataBaseGraph
                                     field: attrFieldName
                                 addFieldTransform aggregatedAttrFieldName, (v, r) ->
                                     r.names[s.name].attrs[attrName] = v
+                                env1.sqlAttrNames[attrName] = aggregatedAttrFieldName
                     else # look for attributes only when not aggregating
                         addFieldTransform s.sqlIdName, (v, r) ->
                             r.names[s.name] =
                                 id: v
                                 attrs: {}
-                        lookFor = env[s.name].lookFors
-                        if lookFor?
-                            for attrName in lookFor.attrs
+                        if env1.lookFors?
+                            for attrName in env1.lookFors.attrs
                               do (attrName) ->
                                 attrFieldName = compileAttribute s, attrName
                                 if attrFieldName?
                                     addFieldTransform attrFieldName, (v, r) ->
                                         r.names[s.name].attrs[attrName] = v
-                    unless aggregate?
-                        labelFieldName = compileAttribute s, s.layout.label
-                        if labelFieldName?
-                            addFieldTransform labelFieldName, (v, r) ->
-                                r.names[s.name].label = v
-                    env[s.name].outputStep = s
+                                    env1.sqlAttrNames[attrName] = attrFieldName
+                        # label attribute
+                        if s.layout.label?
+                            labelFieldName = compileAttribute s, s.layout.label
+                            if labelFieldName?
+                                addFieldTransform labelFieldName, (v, r) ->
+                                    r.names[s.name].label = v
+                                env1.sqlAttrNames[s.layout.label] = labelFieldName
+                    env1.outputStep = s
             else
                 addFieldTransform s.sqlIdName, (v, r) ->
                     r.walks[s.walkNum][s.stepNum] =
@@ -254,11 +259,17 @@ class RelationalDataBaseGraph
         for decl in query
             if decl.orderby?
                 for d in decl.orderby
-                    s = env[d[0]].outputStep
+                    env1 = env[d[0]]
+                    s = env1.outputStep
                     attrName = d[1]
-                    attrFieldName = compileAttribute s, attrName
-                    if attrFieldName?
-                        orderByFields.push [attrFieldName, d[2]]
+                    if not attrName? and not env1.aggregates?
+                        attrName = s.layout.label
+                    orderbyFieldName =
+                        if attrName?
+                            env1.sqlAttrNames[attrName]
+                        else
+                            s.sqlOrderByFieldName ? s.sqlIdName
+                    orderByFields.push [orderbyFieldName, d[2]]
         numWalks = i
         # join walks on coinciding nodes (hyperwalk) and project fields
         junctionConditions = []

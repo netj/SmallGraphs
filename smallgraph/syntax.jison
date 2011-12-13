@@ -110,7 +110,9 @@ orderings
     ;
 
 ordering
-    : VARREF ATTRNAME order
+    : VARREF order
+        {$$ = [$VARREF.substring(1), null, $order];}
+    | VARREF ATTRNAME order
         {$$ = [$VARREF.substring(1), $ATTRNAME.substring(1), $order];}
     ;
 
