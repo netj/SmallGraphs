@@ -122,6 +122,18 @@ class RelationalDataBaseGraph
         addStepOutput = (s) ->
             tables.push [s.layout.id.table, s.sqlTableName]
             fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
+            if s.step.constraint?
+                # TODO support full CNF
+                cnf = s.step.constraint
+                if cnf.length > 0
+                    c = cnf[0][0]
+                    sqlExpr = (expr) ->
+                        switch typeof expr
+                            when 'string'
+                                '"' + ((expr.replace /\\/, '\\').replace /"/, '\"') + '"'
+                            else
+                                expr
+                    conditions.push [[s.sqlTableName, s.layout.id.field], c.rel, sqlExpr c.expr]
             if s.name?
                 env1 = env[s.name]
                 addFieldTransform null, (r) ->
@@ -208,6 +220,7 @@ class RelationalDataBaseGraph
                     if st[refField]?
                         throw new Error "unknown reference to "+st[refField] unless env[st[refField]]?.step?
                         st = mergeObject env[st[refField]].step, st
+                        # TODO augment constraints, dont replace
                     if st.alias?
                         env[st.alias] ?= {}
                         env[st.alias].step = st

@@ -60,7 +60,7 @@ serialize = (smallgraph) ->
         else if decl.orderby
             d = decl.orderby
             s += "order by "
-            s += ("$#{ord[0]} @#{ord[1]} #{ord[2]}" for ord in d).join ", "
+            s += ("$#{ord[0]}#{if ord[1]? then " @#{ord[1]}" else ""} #{ord[2]}" for ord in d).join ", "
         s += ";\n"
     s
 
