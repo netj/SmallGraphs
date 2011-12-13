@@ -127,7 +127,7 @@ class RelationalDataBaseGraph
                 addFieldTransform null, (r) ->
                     r.walks[s.walkNum][s.stepNum] = s.name
                 unless env1.outputStep
-                    env1.sqlAttrNames = {}
+                    env1.sqlOrderByAttrFieldName = {}
                     if env1.aggregates?
                         # aggregate id's as count
                         aggfn = "count"
@@ -152,7 +152,7 @@ class RelationalDataBaseGraph
                                     field: attrFieldName
                                 addFieldTransform aggregatedAttrFieldName, (v, r) ->
                                     r.names[s.name].attrs[attrName] = v
-                                env1.sqlAttrNames[attrName] = aggregatedAttrFieldName
+                                env1.sqlOrderByAttrFieldName[attrName] = aggregatedAttrFieldName
                     else # look for attributes only when not aggregating
                         addFieldTransform s.sqlIdName, (v, r) ->
                             r.names[s.name] =
@@ -165,14 +165,14 @@ class RelationalDataBaseGraph
                                 if attrFieldName?
                                     addFieldTransform attrFieldName, (v, r) ->
                                         r.names[s.name].attrs[attrName] = v
-                                    env1.sqlAttrNames[attrName] = attrFieldName
+                                    env1.sqlOrderByAttrFieldName[attrName] = attrFieldName
                         # label attribute
                         if s.layout.label?
                             labelFieldName = compileAttribute s, s.layout.label
                             if labelFieldName?
                                 addFieldTransform labelFieldName, (v, r) ->
                                     r.names[s.name].label = v
-                                env1.sqlAttrNames[s.layout.label] = labelFieldName
+                                env1.sqlOrderByAttrFieldName[s.layout.label] = labelFieldName
                     env1.outputStep = s
             else
                 addFieldTransform s.sqlIdName, (v, r) ->
@@ -266,7 +266,7 @@ class RelationalDataBaseGraph
                         attrName = s.layout.label
                     orderbyFieldName =
                         if attrName?
-                            env1.sqlAttrNames[attrName]
+                            env1.sqlOrderByAttrFieldName[attrName]
                         else
                             s.sqlOrderByFieldName ? s.sqlIdName
                     orderByFields.push [orderbyFieldName, d[2]]
