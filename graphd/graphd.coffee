@@ -143,9 +143,11 @@ class RelationalDataBaseGraph
                     conditions.push [[s.sqlTableName, s.layout.id.field], c.rel, sqlExpr c.expr]
             if s.name?
                 env1 = env[s.name]
+                unless env1?
+                    throw new Error "bad reference: $#{s.name}"
                 addFieldTransform null, (r) ->
                     r.walks[s.walkNum][s.stepNum] = s.name
-                if env1.outputStep
+                if env1.outputStep?
                     # use the representative table
                     s.sqlTableName = env1.outputStep.sqlTableName
                     s.sqlIdName = env1.outputStep.sqlIdName
@@ -285,6 +287,8 @@ class RelationalDataBaseGraph
             if decl.orderby?
                 for d in decl.orderby
                     env1 = env[d[0]]
+                    unless env1?
+                        throw new Error "bad reference: $#{d[0]}"
                     s = env1.outputStep
                     attrName = d[1]
                     if not attrName? and not env1.aggregates?

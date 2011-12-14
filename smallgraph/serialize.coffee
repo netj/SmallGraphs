@@ -41,7 +41,7 @@ serialize = (smallgraph) ->
                 if typeof a == 'object'
                     "@#{a.name}#{serializeConstraint a.constraint}"
                 else
-                    "@{#a}"
+                    "@#{a}"
             s += "look $#{d[0]} for #{d[1].map(attrNameOrNameWithConstraint).join ", "}"
         else if decl.aggregate
             d = decl.aggregate
@@ -59,6 +59,7 @@ serialize = (smallgraph) ->
             s += "let #{d[0]} = #{serializeStep d[1]}"
         else if decl.orderby
             d = decl.orderby
+            continue unless decl.orderby?.length > 0
             s += "order by "
             s += ("$#{ord[0]}#{if ord[1]? then " @#{ord[1]}" else ""} #{ord[2]}" for ord in d).join ", "
         s += ";\n"
