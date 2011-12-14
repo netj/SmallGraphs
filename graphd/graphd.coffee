@@ -61,8 +61,6 @@ class RelationalDataBaseGraph
             if n then n.replace /[^A-Za-z_0-9]/g, "_"
         sqlName = ->
             "_#{(sqlSanitizeName name for name in arguments).join "_"}_"
-        sqlField = ([tableName, field, alias]) ->
-            "#{tableName}.#{field} as #{alias}"
         sqlTable = ([table, alias]) ->
             "#{table} as #{alias}"
         sqlNameRef = (e) ->
@@ -72,7 +70,6 @@ class RelationalDataBaseGraph
                 "#{e[0]}.#{e[1]}"
         sqlCond = ([left, rel, right]) ->
             "#{sqlNameRef left} #{rel} #{sqlNameRef right}"
-        walkSQLs = []
         # index "look for"s and "aggregate"s in a lightweight first pass scan
         env = {}
         for decl in query
@@ -89,6 +86,9 @@ class RelationalDataBaseGraph
                 aggregate = env[name].aggregates
                 aggregate.attrs = attrAggs
         # now, do the real compilation for walks
+        fields = {}
+        tables = []
+        conditions = []
         transforms = []
         transformFields = []
         addFieldTransform = (fName, tr) ->
@@ -108,20 +108,27 @@ class RelationalDataBaseGraph
             attrFieldName = sqlName s.tag, s.type, attrName
             # TODO generalize this to cover link attributes
             if !attr.table || attr.table == s.layout.id.table
-                fields.push [s.sqlTableName, attr.field, attrFieldName]
+                fields[attrFieldName] = [s.sqlTableName, attr.field]
+                attrField = [
+                        attrFieldName
+                        [s.sqlTableName, attr.field]
+                    ]
             else
                 tableName = sqlName s.tag, s.type, "attr", attr.table
                 # TODO unless attr.table already pushed
                 tables.push [attr.table, tableName]
                 conditions.push [s.sqlId, '=', [tableName, attr.joinOn]]
-                fields.push [tableName, attr.field, attrFieldName]
+                fields[attrFieldName] = [tableName, attr.field]
+                attrField = [
+                        attrFieldName
+                        [tableName, attr.field]
+                    ]
             s.compiledAttributes ?= {}
-            s.compiledAttributes[attrName] = attrFieldName
-            attrFieldName
+            s.compiledAttributes[attrName] = attrField
+            attrField
+        hasAggregation = false
         aggregatingFields = {}
         addStepOutput = (s) ->
-            tables.push [s.layout.id.table, s.sqlTableName]
-            fields.push [s.sqlTableName, s.layout.id.field, s.sqlIdName]
             if s.step.constraint?
                 # TODO support full CNF
                 cnf = s.step.constraint
@@ -138,15 +145,24 @@ class RelationalDataBaseGraph
                 env1 = env[s.name]
                 addFieldTransform null, (r) ->
                     r.walks[s.walkNum][s.stepNum] = s.name
-                unless env1.outputStep
+                if env1.outputStep
+                    # use the representative table
+                    s.sqlTableName = env1.outputStep.sqlTableName
+                    s.sqlIdName = env1.outputStep.sqlIdName
+                    s.sqlId = env1.outputStep.sqlId
+                else
+                    tables.push [s.layout.id.table, s.sqlTableName]
+                    fields[s.sqlIdName] = [s.sqlTableName, s.layout.id.field]
                     env1.sqlOrderByAttrFieldName = {}
                     if env1.aggregates?
+                        hasAggregation = true
                         # aggregate id's as count
                         aggfn = "count"
                         aggregatedFieldName = sqlName s.tag, s.type, s.layout.id.field, aggfn
                         aggregatingFields[aggregatedFieldName] =
                             fn: aggfn
-                            field: s.sqlIdName
+                            fieldname: s.sqlIdName
+                            fieldref: s.sqlId
                         addFieldTransform aggregatedFieldName, (v, r) ->
                             r.names[s.name] =
                                 label: v
@@ -156,12 +172,14 @@ class RelationalDataBaseGraph
                         for [attrName, aggfn] in env1.aggregates.attrs
                           do (attrName) ->
                             aggfn ?= "count"
-                            attrFieldName = compileAttribute s, attrName
-                            if attrFieldName?
+                            attrField = compileAttribute s, attrName
+                            if attrField?
+                                [attrFieldName, attrFieldRef] = attrField
                                 aggregatedAttrFieldName = sqlName s.tag, s.type, attrName, aggfn
                                 aggregatingFields[aggregatedAttrFieldName] =
                                     fn: aggfn
-                                    field: attrFieldName
+                                    fieldname: attrFieldName
+                                    fieldref: attrField
                                 addFieldTransform aggregatedAttrFieldName, (v, r) ->
                                     r.names[s.name].attrs[attrName] = v
                                 env1.sqlOrderByAttrFieldName[attrName] = aggregatedAttrFieldName
@@ -173,25 +191,30 @@ class RelationalDataBaseGraph
                         if env1.lookFors?
                             for attrName in env1.lookFors.attrs
                               do (attrName) ->
-                                attrFieldName = compileAttribute s, attrName
-                                if attrFieldName?
+                                attrField = compileAttribute s, attrName
+                                if attrField?
+                                    [attrFieldName, attrFieldRef] = attrField
                                     addFieldTransform attrFieldName, (v, r) ->
                                         r.names[s.name].attrs[attrName] = v
                                     env1.sqlOrderByAttrFieldName[attrName] = attrFieldName
                         # label attribute
                         if s.layout.label?
-                            labelFieldName = compileAttribute s, s.layout.label
-                            if labelFieldName?
+                            labelField = compileAttribute s, s.layout.label
+                            if labelField?
+                                [labelFieldName, labelFieldRef] = labelField
                                 addFieldTransform labelFieldName, (v, r) ->
                                     r.names[s.name].label = v
                                 env1.sqlOrderByAttrFieldName[s.layout.label] = labelFieldName
                     env1.outputStep = s
             else
+                tables.push [s.layout.id.table, s.sqlTableName]
+                fields[s.sqlIdName] = [s.sqlTableName, s.layout.id.field]
                 addFieldTransform s.sqlIdName, (v, r) ->
                     r.walks[s.walkNum][s.stepNum] =
                         id: v
-                labelFieldName = compileAttribute s, s.layout.label
-                if labelFieldName?
+                labelField = compileAttribute s, s.layout.label
+                if labelField?
+                    [labelFieldName, labelFieldRef] = labelField
                     addFieldTransform labelFieldName, (v, r) ->
                         r.walks[s.walkNum][s.stepNum].label = v
         i = 0
@@ -202,9 +225,6 @@ class RelationalDataBaseGraph
                 env[name].step = step
             if decl.walk? # process walk
                 {walk} = decl
-                fields = []
-                tables = []
-                conditions = []
                 j = 0
                 addSQLNames = (o) ->
                     o.sqlTableName = sqlName o.tag, o.type
@@ -243,6 +263,8 @@ class RelationalDataBaseGraph
                     t = objectStep j++
                     console.assert l.layout.to == t.type,
                         "invalid walk step: #{s.type} -#{l.type}-> #{t.type}"
+                    # add target object's fields and table
+                    addStepOutput t
                     # add conditions for joining source and target based on link's layout
                     if !l.layout.table || l.layout.table == s.layout.id.table
                         # link's layout specifies the field on the source object's table
@@ -255,17 +277,7 @@ class RelationalDataBaseGraph
                         tables.push [l.layout.table, l.sqlTableName]
                         conditions.push [s.sqlId, '=', [l.sqlTableName, l.layout.joinOn]]
                         conditions.push [[l.sqlTableName, l.layout.field], '=', t.sqlId]
-                    # add target object's fields and table
-                    addStepOutput t
                     s = t
-                walkSQLs.push """
-                    SELECT #{fields.map(sqlField).join ",\n       "}
-                    FROM #{tables.map(sqlTable).join ",\n     "}
-                    #{
-                        if conditions.length == 0 then ""
-                        else "WHERE #{conditions.map(sqlCond).join "\n  AND "}"
-                    }
-                    """
                 i++
         # collect ordering criteria
         orderByFields = []
@@ -285,7 +297,6 @@ class RelationalDataBaseGraph
                     orderByFields.push [orderbyFieldName, d[2]]
         numWalks = i
         # join walks on coinciding nodes (hyperwalk) and project fields
-        junctionConditions = []
         for name,env1 of env
             steps = env1.references
             if steps and steps.length > 1
@@ -293,8 +304,21 @@ class RelationalDataBaseGraph
                 lastStep = steps[i++]
                 while i < steps.length
                     st = steps[i++]
-                    junctionConditions.push [lastStep.sqlIdName, '=', st.sqlIdName]
+                    conditions.push [lastStep.sqlId, '=', st.sqlId]
                     lastStep = st
+        # prepare some groupBys and aggregateFields
+        aggFieldDecs = []
+        for aggFieldName, {fn, fieldname, fieldref} of aggregatingFields
+            fields[fieldname] = null # no need to select the actual fields being aggregated
+            aggFieldDecs.push "#{fn.toUpperCase()}(#{
+                if fn == "count" then "DISTINCT "
+                else ""}#{sqlNameRef fieldref}) AS #{aggFieldName}"
+        fieldDecs = []
+        groupByFieldNames = []
+        for fieldname, fieldref of fields
+            if fieldref?
+                fieldDecs.push "#{sqlNameRef fieldref} AS #{fieldname}"
+                groupByFieldNames.push fieldname
         # define how to transform results
         rowTransformer = (row) ->
             r =
@@ -304,35 +328,17 @@ class RelationalDataBaseGraph
             transforms.forEach (tr) -> tr(r)
             r
         # finally, return SQL and transformer back
-        hasAggregation = false
-        groupByFields = []
         [
             """
-            SELECT #{
-                fields = ([f,_]) ->
-                    # apply aggregation function to some fields
-                    if aggregatingFields[f]?
-                        aggregate = aggregatingFields[f]
-                        hasAggregation = true
-                        "#{aggregate.fn.toUpperCase()}(#{
-                            if aggregate.fn == "count" then "DISTINCT "
-                            else ""}#{aggregate.field}) AS #{f}"
-                    else
-                        groupByFields.push f
-                        f
-                (uniq transformFields.map(fields)).join ",\n       "
-            } FROM
+            SELECT #{fieldDecs.concat(aggFieldDecs).join ",\n       "}
+            FROM #{tables.map(sqlTable).join ",\n     "}
             #{
-                walkNum = 0
-                ("(#{w.replace /\n/g, "$& "}) AS walk_#{walkNum++}" for w in walkSQLs).join ",\n"
+                if conditions.length == 0 then ""
+                else "WHERE #{conditions.map(sqlCond).join "\n  AND "}"
             }
             #{
-                if junctionConditions.length == 0 then ""
-                else "WHERE #{junctionConditions.map(sqlCond).join "\n  AND "}"
-            }
-            #{
-                unless hasAggregation and groupByFields.length > 0 then ""
-                else "GROUP BY #{(uniq groupByFields).join ",\n         "}"
+                unless hasAggregation and fieldDecs.length > 0 then ""
+                else "GROUP BY #{(fieldname for fieldname in groupByFieldNames).join ",\n         "}"
             }
             #{
                 unless orderByFields.length > 0 then ""
@@ -346,7 +352,7 @@ class RelationalDataBaseGraph
         q = new EventEmitter
         q.abort = (err) ->
         # first compile query
-        console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<<"
+        console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<< >>>\n#{smallgraph.serialize query}\n<<<"
         queryNorm = normalizeSmallGraphQuery query
         [sql, rowTransformer] = @compileSmallGraphQueryToSQL query
         sql += "\nLIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
