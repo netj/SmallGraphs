@@ -3,4 +3,7 @@
 	url = git://github.com/mbostock/d3.git
 [submodule "jquery-cookie"]
 	path = jquery-cookie
-	url = https://github.com/carhartl/jquery-cookie
+	url = git://github.com/carhartl/jquery-cookie
+[submodule "jquery-svg"]
+	path = jquery-svg
+	url = git://github.com/apendleton/jquery-svg.git

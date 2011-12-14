@@ -6,3 +6,5 @@
 /graphd/node_modules
 *.js
 *.vim
+
+/gh-pages
