@@ -297,7 +297,7 @@
           <input type="radio" id="query-mode-layout" name="query-mode" value="layout"                  ><label for="query-mode-layout">Layout</label>
           <!--<input type="radio" id="query-mode-pan"    name="query-mode" value="pan"                     ><label for="query-mode-pan"   >Pan   </label>-->
         </span>
-        <button id="query-constraint">Constraint</button>
+        <button style="display:none;" id="query-constraint">Constraint</button>
         <button id="query-aggregate">Aggregate</button>
         <button id="query-order">Order</button>
         <button id="query-run">Search!</button>
@@ -1145,11 +1145,6 @@ var sketchpadAction_DrawEdgeFromANode = {
   },
 };
 
-var sketchpadAction_AddConstraint = {
-  name: "add constraints",
-  // TODO
-};
-
 
 var sketchpadCurrentSelection = [];
 var sketchpadAction_SelectNodeOrEdge = {
@@ -1266,6 +1261,12 @@ function sketchpadSetupConstraint(nodes) {
 }
 function sketchpadSetupConstraintForSelection() {
 }
+
+var sketchpadAction_AddConstraint = {
+  name: "add constraints",
+  // TODO
+};
+
 $("#query-constraint")
   .button()
   .click(sketchpadSetupConstraintForSelection)
