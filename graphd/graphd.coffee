@@ -181,7 +181,7 @@ class RelationalDataBaseGraph
                                 aggregatingFields[aggregatedAttrFieldName] =
                                     fn: aggfn
                                     fieldname: attrFieldName
-                                    fieldref: attrField
+                                    fieldref: attrFieldRef
                                 addFieldTransform aggregatedAttrFieldName, (v, r) ->
                                     r.names[s.name].attrs[attrName] = v
                                 env1.sqlOrderByAttrFieldName[attrName] = aggregatedAttrFieldName
