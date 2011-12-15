@@ -356,11 +356,11 @@ class RelationalDataBaseGraph
         q = new EventEmitter
         q.abort = (err) ->
         # first compile query
-        console.log ">>> SmallGraph Query:\n#{JSON.stringify query}\n<<< >>>\n#{smallgraph.serialize query}\n<<<"
-        queryNorm = normalizeSmallGraphQuery query
+        console.log "#{new Date()}: >>> SmallGraph Query:\n#{JSON.stringify query}\n<<< >>>\n#{smallgraph.serialize query}\n<<<"
+        query = normalizeSmallGraphQuery query
         [sql, rowTransformer] = @compileSmallGraphQueryToSQL query
         sql += "\nLIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
-        console.log ">>> Compiled SQL:\n#{sql}\n<<<"
+        console.log "#{new Date()}: >>> Compiled SQL:\n#{sql}\n<<<"
         @runSQL sql, rowTransformer, q
 
     runSQL: (sql, rowTransformer, q) ->
@@ -386,14 +386,14 @@ class MySQLGraph extends RelationalDataBaseGraph
         client.useDatabase @descriptor.database
         client.query sql, (err, results, fields) ->
             if err
-                console.error "MySQL error:", JSON.stringify err
+                console.error "#{new Date()}: MySQL error:", JSON.stringify err
                 q.emit 'error', err
             else
-                console.log "MySQL returned #{results.length} results"
+                console.log "#{new Date()}: MySQL returned #{results.length} results"
                 q.emit 'result', results.map rowTransformer
             client.end()
         q.abort = (err) ->
-            console.log "aborting request " + (err ? "")
+            console.log "<< #{new Date()}: aborting request " + (err ? "")
             client.end()
             client.destroy()
         client.once 'error', (err) ->
@@ -430,7 +430,7 @@ http.createServer (req,res) ->
                 "Content-Type": "application/json"
             res.end (JSON.stringify err)
         try
-            console.log ">> handling #{req.method} request for #{req.url} from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
+            console.log ">> #{new Date()}: handling #{req.method} request for #{req.url} from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
             # reply to OPTIONS request for cross origin AJAX
             switch req.method
                 when 'OPTIONS'
@@ -451,7 +451,7 @@ http.createServer (req,res) ->
                 sendHeaders 404
                 res.end "Graph not available"
                 return
-            console.log ">> #{command} for graph '#{graphId}'"
+            console.log " #{command} for graph '#{graphId}'"
             switch command
                 when 'schema' # /#{graphname}/schema GET
                     # send schema of this graph for SmallGraphs UI
@@ -461,10 +461,16 @@ http.createServer (req,res) ->
                 when 'query' # /#{graphname}/query {POST,GET,OPTIONS}
                     # process queries sketched from SmallGraphs UI on this graph
                     sendResultOf = (queried) ->
+                        # send garbage back to keep the connection from dropping (WebKit drops it after 2 min)
+                        keepAlive = -> res.write " "
+                        keepAliveInterval = setInterval keepAlive, 10000
                         queried.on 'result', (result) ->
+                                clearInterval keepAliveInterval
                                 sendHeaders 200
                                 res.end (JSON.stringify result)
-                        queried.on 'error', sendError
+                        queried.on 'error', (err) ->
+                            clearInterval keepAliveInterval
+                            sendError err
                         req.once "close", queried.abort
                         req.once "error", queried.abort
                         res.once "error", queried.abort
@@ -494,9 +500,9 @@ http.createServer (req,res) ->
                 "Content-Type": "text/plain"
             res.end "Unknown command: #{command}"
         catch err
-            console.error "Error:", JSON.stringify err
+            console.error "<< #{new Date()}: Error:", JSON.stringify err
             sendError err
 
     .listen _GraphDPort
 
-console.log "graphd running on port #{_GraphDPort}"
+console.log "#{new Date()}: graphd running on port #{_GraphDPort}"
