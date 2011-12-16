@@ -1,6 +1,7 @@
 SmallGraphs
 ===========
-Created by Jaeho Shin
+Stanford CS448b Data Visualization (2011 Fall)
+Jaeho Shin
 
 
 Quick Start
@@ -10,7 +11,20 @@ To build the code into usable state, run:
 
     make
 
-You can open index.html from Safari or Chrome to use the frontend UI.
+Now you can open index.html from Safari or Chrome to use the frontend UI.
+
+<big>
+Dear CS448b teaching staffs,
+
+instead of setting up a graphd backend server, you can use the UI with the
+backend I will be running temporarily for the CS448b evaluation purpose.  The
+Graph URL is `http://netj.org:53411/test`.  If it seems not working please send
+me an email at Jaeho.Shin@Stanford.EDU or call me at 650-450-7458.
+
+Thank you for a wonderful quarter!
+
+~Jaeho
+</big>
 
 
 To publish everything to Github, run:
