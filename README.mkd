@@ -1,0 +1,42 @@
+SmallGraphs
+===========
+Created by Jaeho Shin
+
+
+Quick Start
+-----------
+
+To build the code into usable state, run:
+
+    make
+
+You can open index.html from Safari or Chrome to use the frontend UI.
+
+
+To publish everything to Github, run:
+
+    make publish
+
+To run the backend graphd server, run:
+
+    make graphd
+
+You will need to specify the information required for connecting to the
+underlying MySQL database with the graph layout definitions in a `graphd.json`
+file at `graphd/graphs/YOURGRAPHNAME/graphd.json` to access it from
+`http://YOURHOSTNAME:53411/YOURGRAPHNAME`.
+
+
+Layout
+------
+
+ * Frontend UI
+   * `index.html` contains most of the code
+   * `jquery-\*`, `d3` are the modules UI depends on
+   * `resource/` contains some images used in the UI
+ * Backend Graph Query Processor
+   * `graphd/graphd.coffee` contains the backend code
+ * SmallGraph DSL
+   * `smallgraph/` contains the parser and serializer for our SmallGraph DSL
+
+
