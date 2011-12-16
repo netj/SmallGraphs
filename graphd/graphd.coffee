@@ -78,6 +78,7 @@ class RelationalDataBaseGraph
                 env[name] ?= {}
                 env[name].lookFors ?= {}
                 lookFor = env[name].lookFors
+                # TODO give structure to string attrs
                 lookFor.attrs = (lookFor.attrs ? []).concat attrs
             if decl.aggregate?
                 [name, attrAggs] = decl.aggregate
@@ -191,14 +192,15 @@ class RelationalDataBaseGraph
                                 id: v
                                 attrs: {}
                         if env1.lookFors?
-                            for attrName in env1.lookFors.attrs
-                              do (attrName) ->
-                                attrField = compileAttribute s, attrName
-                                if attrField?
-                                    [attrFieldName, attrFieldRef] = attrField
-                                    addFieldTransform attrFieldName, (v, r) ->
-                                        r.names[s.name].attrs[attrName] = v
-                                    env1.sqlOrderByAttrFieldName[attrName] = attrFieldName
+                            for attr in env1.lookFors.attrs
+                                do (attr) ->
+                                    attrName = if typeof attr == 'string' then attr else attr.name
+                                    attrField = compileAttribute s, attrName
+                                    if attrField?
+                                        [attrFieldName, attrFieldRef] = attrField
+                                        addFieldTransform attrFieldName, (v, r) ->
+                                            r.names[s.name].attrs[attrName] = v
+                                        env1.sqlOrderByAttrFieldName[attrName] = attrFieldName
                         # label attribute
                         if s.layout.label?
                             labelField = compileAttribute s, s.layout.label
@@ -390,7 +392,10 @@ class MySQLGraph extends RelationalDataBaseGraph
                 q.emit 'error', err
             else
                 console.log "#{new Date()}: MySQL returned #{results.length} results"
-                q.emit 'result', results.map rowTransformer
+                try
+                    q.emit 'result', results.map rowTransformer
+                catch err
+                    q.emit 'error', err
             client.end()
         q.abort = (err) ->
             console.log "<< #{new Date()}: aborting request " + (err ? "")
