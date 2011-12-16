@@ -50,5 +50,5 @@ publish: all
 	# TODO sync submodule version with the source
 	# commit and push to github!
 	cd gh-pages && git add . && git add -u && git commit
-	cd gh-pages && git push github gh-pages
+	cd gh-pages && git push origin gh-pages
 
