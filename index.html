@@ -740,6 +740,7 @@ $("#query-type-input")
       switch (event.keyCode) {
         case 27: // esc
           this.value = "";
+          event.preventDefault(); // esc causes bad thing sometime, e.g. exiting full screen mode, etc.
           break;
         case 14: // enter
         case 13: // return
@@ -1943,9 +1944,10 @@ function smallgraphsCompileSketchToQuery() {
   var attributes = [];
   $(".attribute.edge", sketch).each(function(i,e){
         if (aggregationMap[e.source.id]) // either aggregated
-          aggregationMap[e.source.id].push([e.linkType, e.target.aggregateFunction.toLowerCase()]);
+          aggregationMap[e.source.id].push([e.linkType, (e.target.aggregateFunction || "count").toLowerCase()]); // FIXME: assign aggregateFunction when adding attributes to aggregated nodes
         else // or individual value
           attributes.push({look:[e.source.id, [e.linkType]]});
+          // TODO attributes.push({look:[e.source.id, [{name:e.linkType, constraint:[/*constraints CNF*/]}]]});
         resultMappings.push(function(data, resultSVG) {
             var attr = data.names[e.source.id].attrs;
             if (attr) {

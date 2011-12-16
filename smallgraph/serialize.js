@@ -62,7 +62,7 @@
     return s;
   };
   serialize = function(smallgraph) {
-    var aggfn, attr, attrNameOrNameWithConstraint, constraint, d, decl, ord, s, step, _i, _j, _len, _len2, _ref;
+    var aggfn, attr, attrNameOrNameWithConstraint, constraint, d, decl, ord, s, step, _i, _j, _len, _len2, _ref, _ref2;
     s = "";
     for (_i = 0, _len = smallgraph.length; _i < _len; _i++) {
       decl = smallgraph[_i];
@@ -79,7 +79,7 @@
           if (typeof a === 'object') {
             return "@" + a.name + (serializeConstraint(a.constraint));
           } else {
-            return "@{#a}";
+            return "@" + a;
           }
         };
         s += "look $" + d[0] + " for " + (d[1].map(attrNameOrNameWithConstraint).join(", "));
@@ -109,6 +109,9 @@
         s += "let " + d[0] + " = " + (serializeStep(d[1]));
       } else if (decl.orderby) {
         d = decl.orderby;
+        if (!(((_ref2 = decl.orderby) != null ? _ref2.length : void 0) > 0)) {
+          continue;
+        }
         s += "order by ";
         s += ((function() {
           var _k, _len3, _results;
