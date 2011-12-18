@@ -7,7 +7,7 @@ serializeExpr = (expr) ->
 
 serializeConstraint = (conj) ->
     if conj
-        ("[#{("#{c.rel}#{serializeExpr c.expr}" for c in disj).join " | "}]" for disj in conj).join ""
+        ("[#{("#{c.rel}#{serializeExpr c.expr}" for c in disj).join "; "}]" for disj in conj).join ""
     else
         ""
 
@@ -16,15 +16,15 @@ serializeStep = (step) ->
     if step.objectType
         s += step.objectType
         s += "(#{step.alias})" if step.alias
-        s += "#{serializeConstraint step.constraint}" if step.constraint
+        s += serializeConstraint step.constraint if step.constraint
     else if step.objectRef
         s += "$#{step.objectRef}"
-        s += "#{serializeConstraint step.constraint}" if step.constraint
+        s += serializeConstraint step.constraint if step.constraint
     else if step.linkType
         s += " -"
         s += step.linkType
         s += "(#{step.alias})" if step.alias
-        s += "#{serializeConstraint step.constraint}" if step.constraint
+        s += serializeConstraint step.constraint if step.constraint
         s += "-> "
     s
 
@@ -48,7 +48,7 @@ serialize = (smallgraph) ->
             s += "aggregate $#{d[0]}"
             if d[1] and d[1].length > 0
                 s += " with "
-                s += ("@#{attr} as #{aggfn} #{serializeConstraint constraint}" for [attr, aggfn, constraint] in d[1]).join ", "
+                s += ("@#{attr} as #{aggfn}#{serializeConstraint constraint}" for [attr, aggfn, constraint] in d[1]).join ", "
         else if decl.subgraph
             d = decl.subgraph
             s += "subgraph #{d[0]} = {\n  "

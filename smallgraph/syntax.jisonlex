@@ -17,7 +17,6 @@ QNAME                       {alpha}{alnum}*("-"{alnum}+)*
 ")"                                                          return ')';
 "["                                                          return '[';
 "]"                                                          return ']';
-"|"                                                          return '|';
 "="                                                          return '='
 "!="                                                         return '!='
 "<="                                                         return '<='

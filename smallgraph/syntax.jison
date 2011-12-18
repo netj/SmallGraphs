@@ -77,7 +77,7 @@ optional_constraint
     ;
 
 constraint_disjunctions
-    : constraint '|' constraint_disjunctions
+    : constraint ';' constraint_disjunctions
         {$$ = [$constraint].concat($constraint_disjunctions);}
     | constraint
         {$$ = [$constraint];}

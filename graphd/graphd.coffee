@@ -61,6 +61,8 @@ class RelationalDataBaseGraph
             if n then n.replace /[^A-Za-z_0-9]/g, "_"
         sqlName = ->
             "_#{(sqlSanitizeName name for name in arguments).join "_"}_"
+        sqlSubName = (name, subnames...) ->
+            name + (sqlName subnames...)
         sqlTable = ([table, alias]) ->
             "#{table} as #{alias}"
         sqlNameRef = (e) ->
@@ -70,70 +72,66 @@ class RelationalDataBaseGraph
                 "#{e[0]}.#{e[1]}"
         sqlCond = ([left, rel, right]) ->
             "#{sqlNameRef left} #{rel} #{sqlNameRef right}"
-        # index "look for"s and "aggregate"s in a lightweight first pass scan
+        #############################################################
+        # first, a quick validation of names
         env = {}
         for decl in query
+            if decl.let? # update env from let decl
+                [name, step] = decl.let
+                if env[name]?
+                    throw new Error "Cannot define $#{name} more than once"
+                env1 = env[name] = {}
+                env1.step = step
+            if decl.walk? # look for aliases in each walk
+                for step in decl.walk
+                    if step.alias?
+                        name = step.alias
+                        env1 = env[name] ?= {}
+                        env1.step ?= step
+                    if step.objectRef? or step.linkRef?
+                        name = step.objectRef ? step.linkRef
+                        unless env[name]?
+                            throw new Error "Bad reference to $#{name} from a walk"
             if decl.look?
                 [name, attrs] = decl.look
-                env[name] ?= {}
-                env[name].lookFors ?= {}
-                lookFor = env[name].lookFors
+                env1 = env[name]
+                unless env1?
+                    throw new Error "Bad reference to $#{name} from a look"
+                env1.lookFors ?= {}
+                lookFors = env1.lookFors
                 # TODO give structure to string attrs
-                lookFor.attrs = (lookFor.attrs ? []).concat attrs
+                lookFors.attrs = (lookFors.attrs ? []).concat attrs
+                if env1.aggregates? # look xor aggregate
+                    throw new Error "Cannot look for attributes of aggregated objects: $#{name}"
             if decl.aggregate?
                 [name, attrAggs] = decl.aggregate
-                env[name] ?= {}
-                env[name].aggregates ?= {}
-                aggregate = env[name].aggregates
-                aggregate.attrs = attrAggs
-        # now, do the real compilation for walks
+                env1 = env[name]
+                unless env1?
+                    throw new Error "Bad reference to $#{name} from an aggregate"
+                env1.aggregates ?= {}
+                env1.aggregates.attrs = attrAggs
+                if env1.lookFors? # look xor aggregate
+                    throw new Error "Cannot look for attributes of aggregated objects: $#{name}"
+        # XXX console.log ">>>env-precompilation>>>", JSON.stringify env, null, 2
+        #############################################################
+        # then, do some compilation for walks
         fields = {}
         tables = []
         conditions = []
         transforms = []
         transformFields = []
         addFieldTransform = (fName, tr) ->
+            # XXX console.log "rowTransformer for ", fName
             if fName?
                 transformFields.push [fName,tr]
             else
                 transforms.push tr
-        compileAttribute = (s, attrName) ->
-            return null unless attrName?
-            # try not to compile same attr twice
-            if s.compiledAttributes? and s.compiledAttributes[attrName]?
-                return s.compiledAttributes[attrName]
-            # add attribute field selection
-            unless (attr = s.layout.attrs[attrName])?
-                console.error "unknown attribute #{attrName} for #{s.type}"
-                return null
-            attrFieldName = sqlName s.tag, s.type, attrName
-            # TODO generalize this to cover link attributes
-            if !attr.table || attr.table == s.layout.id.table
-                fields[attrFieldName] = [s.sqlTableName, attr.field]
-                attrField = [
-                        attrFieldName
-                        [s.sqlTableName, attr.field]
-                    ]
-            else
-                tableName = sqlName s.tag, s.type, "attr", attr.table
-                # TODO unless attr.table already pushed
-                tables.push [attr.table, tableName]
-                conditions.push [s.sqlId, '=', [tableName, attr.joinOn]]
-                fields[attrFieldName] = [tableName, attr.field]
-                attrField = [
-                        attrFieldName
-                        [tableName, attr.field]
-                    ]
-            s.compiledAttributes ?= {}
-            s.compiledAttributes[attrName] = attrField
-            attrField
-        hasAggregation = false
-        aggregatingFields = {}
-        addStepOutput = (s) ->
-            if s.step.constraint?
+        walkMappings = []
+        compileOneStep = (s) ->
+            if s.constraint?
                 # TODO support full CNF
-                cnf = s.step.constraint
-                if cnf.length > 0
+                cnf = s.constraint
+                if cnf.length > 0 and cnf[0]?.length > 0
                     c = cnf[0][0]
                     sqlExpr = (expr) ->
                         switch typeof expr
@@ -141,190 +139,257 @@ class RelationalDataBaseGraph
                                 '"' + ((expr.replace /\\/, '\\').replace /"/, '\"') + '"'
                             else
                                 expr
-                    conditions.push [[s.sqlTableName, s.layout.id.field], c.rel, sqlExpr c.expr]
+                    conditions.push [[s.sql.tableName, s.layout.id.field], c.rel, sqlExpr c.expr]
             if s.name?
                 env1 = env[s.name]
                 unless env1?
                     throw new Error "bad reference: $#{s.name}"
                 addFieldTransform null, (r) ->
+                    # XXX console.log "mapping", s.walkNum, s.stepNum
                     r.walks[s.walkNum][s.stepNum] = s.name
-                if env1.outputStep?
-                    # use the representative table
-                    s.sqlTableName = env1.outputStep.sqlTableName
-                    s.sqlIdName = env1.outputStep.sqlIdName
-                    s.sqlId = env1.outputStep.sqlId
-                else
-                    tables.push [s.layout.id.table, s.sqlTableName]
-                    fields[s.sqlIdName] = [s.sqlTableName, s.layout.id.field]
-                    env1.sqlOrderByAttrFieldName = {}
-                    if env1.aggregates?
-                        hasAggregation = true
-                        # aggregate id's as count
-                        aggfn = "count"
-                        aggregatedFieldName = sqlName s.tag, s.type, s.layout.id.field, aggfn
-                        aggregatingFields[aggregatedFieldName] =
-                            fn: aggfn
-                            fieldname: s.sqlIdName
-                            fieldref: s.sqlId
-                        addFieldTransform aggregatedFieldName, (v, r) ->
-                            r.names[s.name] =
-                                label: v
-                                attrs: {}
-                        s.sqlOrderByFieldName = aggregatedFieldName
-                        # aggregate each attribute
-                        for [attrName, aggfn] in env1.aggregates.attrs
-                          do (attrName) ->
-                            aggfn ?= "count"
-                            attrField = compileAttribute s, attrName
-                            if attrField?
-                                [attrFieldName, attrFieldRef] = attrField
-                                aggregatedAttrFieldName = sqlName s.tag, s.type, attrName, aggfn
-                                aggregatingFields[aggregatedAttrFieldName] =
-                                    fn: aggfn
-                                    fieldname: attrFieldName
-                                    fieldref: attrFieldRef
-                                addFieldTransform aggregatedAttrFieldName, (v, r) ->
-                                    r.names[s.name].attrs[attrName] = v
-                                env1.sqlOrderByAttrFieldName[attrName] = aggregatedAttrFieldName
-                    else # look for attributes only when not aggregating
-                        addFieldTransform s.sqlIdName, (v, r) ->
-                            r.names[s.name] =
-                                id: v
-                                attrs: {}
-                        if env1.lookFors?
-                            for attr in env1.lookFors.attrs
-                                do (attr) ->
-                                    attrName = if typeof attr == 'string' then attr else attr.name
-                                    attrField = compileAttribute s, attrName
-                                    if attrField?
-                                        [attrFieldName, attrFieldRef] = attrField
-                                        addFieldTransform attrFieldName, (v, r) ->
-                                            r.names[s.name].attrs[attrName] = v
-                                        env1.sqlOrderByAttrFieldName[attrName] = attrFieldName
-                        # label attribute
-                        if s.layout.label?
-                            labelField = compileAttribute s, s.layout.label
-                            if labelField?
-                                [labelFieldName, labelFieldRef] = labelField
-                                addFieldTransform labelFieldName, (v, r) ->
-                                    r.names[s.name].label = v
-                                env1.sqlOrderByAttrFieldName[s.layout.label] = labelFieldName
-                    env1.outputStep = s
+                unless env1.outputMapping?
+                    tables.push [s.layout.id.table, s.sql.tableName]
+                    fields[s.sql.idName] = [s.sql.tableName, s.layout.id.field]
+                    env1.outputMapping = s
             else
-                tables.push [s.layout.id.table, s.sqlTableName]
-                fields[s.sqlIdName] = [s.sqlTableName, s.layout.id.field]
-                addFieldTransform s.sqlIdName, (v, r) ->
+                tables.push [s.layout.id.table, s.sql.tableName]
+                fields[s.sql.idName] = [s.sql.tableName, s.layout.id.field]
+                addFieldTransform s.sql.idName, (v, r) ->
+                    # XXX console.log "mapping", s.walkNum, s.stepNum
                     r.walks[s.walkNum][s.stepNum] =
                         id: v
-                labelField = compileAttribute s, s.layout.label
-                if labelField?
-                    [labelFieldName, labelFieldRef] = labelField
-                    addFieldTransform labelFieldName, (v, r) ->
-                        r.walks[s.walkNum][s.stepNum].label = v
         i = 0
         for decl in query
-            if decl.let? # update env from let decl
-                [name, step] = decl.let
-                env[name] ?= {}
-                env[name].step = step
             if decl.walk? # process walk
                 {walk} = decl
+                walkMappings[i] = []
                 j = 0
-                addSQLNames = (o) ->
-                    o.sqlTableName = sqlName o.tag, o.type
-                    if o.layout.id?
-                        o.sqlIdName    = sqlName o.tag, o.type, "id"
-                        o.sqlId        = [o.sqlTableName, o.layout.id.field]
-                    if (o.name = o.step.objectRef ? o.step.alias)?
-                        env[o.name].references ?= []
-                        env[o.name].references.push o
-                    o
-                oneStep = (j, refField, tyField, layoutF) ->
-                    st = walk[j]
-                    if st[refField]?
-                        throw new Error "unknown reference to "+st[refField] unless env[st[refField]]?.step?
-                        st = mergeObject env[st[refField]].step, st
-                        # TODO augment constraints, dont replace
-                    if st.alias?
-                        env[st.alias] ?= {}
-                        env[st.alias].step = st
-                    ty = st[tyField]
-                    addSQLNames
+                stepMapping = (j, refField, tyField, layoutF) ->
+                    step = walk[j]
+                    walkMappings[i][j] = m =
                         walkNum: i
                         stepNum: j
                         tag: "#{i}_#{j}"
-                        step: st
-                        type: ty
-                        layout: layoutF ty
-                objectStep = (j) ->
-                    oneStep j, "objectRef", "objectType", (ty) -> objects[ty]
-                linkStep = (s, j) ->
-                    oneStep j, "linkRef",   "linkType",   (ty) -> s.layout.links[ty]
-                s = objectStep j++
-                addStepOutput s
+                        step: step
+                        constraint: step.constraint
+                    # if this step references a name or has an alias, look up the env
+                    if step[refField]?
+                        m.name = step[refField]
+                        env1 = env[m.name]
+                        # TODO what about recursive references? e.g., let a = object; let b = $a; walk $b;
+                        unless env1?.step?
+                            throw new Error "unknown reference to "+m.name
+                        step = env1.step
+                        # augment constraint, dont replace
+                        m.constraint = (step.constraint ? []).concat m.constraint
+                    else if step.alias?
+                        m.name = step.alias
+                        env1 = env[step.alias]
+                        if env1?.step?
+                            # check for type mismatches
+                            unless step[tyField] == env1.step[tyField]
+                                throw new Error "type mismatch with previous alias "+m.name
+                            # TODO decide whether we want to merge constraint, making walk order matter
+                            #m.constraint ?= []
+                            #m.constraint = env1.step.constraint.concat m.constraint
+                        else
+                            # add an entry to env otherwise
+                            env1 = env[step.alias] ?= {}
+                            env1.step = step
+                    else
+                        env1 = null
+                    # record references
+                    if env1?
+                        env1.name = m.name
+                        env1.referingSteps ?= []
+                        env1.referingSteps.push m
+                    # type and layout
+                    m.type = step[tyField]
+                    m.layout = layoutF m.type
+                    # assign SQL names if it hasn't got them yet
+                    m.sql = env1?.sql
+                    unless m.sql?
+                        m.sql =
+                            tableName: sqlName m.tag, m.type
+                        if m.layout.id?
+                            m.sql.idName = sqlName m.tag, m.type, "id"
+                            m.sql.idRef  = [m.sql.tableName, m.layout.id.field]
+                        env1.sql ?= m.sql if env1?
+                    m
+                objectStepMapping =  (j) -> stepMapping j, "objectRef", "objectType", (ty) -> objects[ty]
+                linkStepMapping = (s, j) -> stepMapping j,   "linkRef",   "linkType", (ty) -> s.layout.links[ty]
+                s = objectStepMapping j++
+                compileOneStep s
                 while j < walk.length
-                    l = linkStep s, j++
-                    t = objectStep j++
+                    l = linkStepMapping s, j++
+                    t = objectStepMapping j++
                     console.assert l.layout.to == t.type,
                         "invalid walk step: #{s.type} -#{l.type}-> #{t.type}"
                     # add target object's fields and table
-                    addStepOutput t
+                    compileOneStep t
                     # add conditions for joining source and target based on link's layout
                     if !l.layout.table || l.layout.table == s.layout.id.table
                         # link's layout specifies the field on the source object's table
-                        conditions.push [[s.sqlTableName, l.layout.field], '=', t.sqlId]
+                        conditions.push [[s.sql.tableName, l.layout.field], '=', t.sql.idRef]
                     else if l.layout.table == t.layout.id.table
                         # or a field on the target table, so we still don't need any additional join
-                        conditions.push [s.sqlId, '=', [t.sqlTableName, l.layout.joinOn]]
+                        conditions.push [s.sql.idRef, '=', [t.sql.tableName, l.layout.joinOn]]
                     else
                         # otherwise, we need to consult another table that defines the link between source and target
-                        tables.push [l.layout.table, l.sqlTableName]
-                        conditions.push [s.sqlId, '=', [l.sqlTableName, l.layout.joinOn]]
-                        conditions.push [[l.sqlTableName, l.layout.field], '=', t.sqlId]
+                        tables.push [l.layout.table, l.sql.tableName]
+                        conditions.push [[l.sql.tableName, l.layout.joinOn], '=', s.sql.idRef]
+                        conditions.push [[l.sql.tableName, l.layout.field ], '=', t.sql.idRef]
                     s = t
                 i++
+        #############################################################
+        # compile attributes and aggregations
+        compileAttribute = (stepMapping, attrName) ->
+            return null unless attrName?
+            # try not to compile same attr twice
+            if stepMapping.compiledAttributes? and stepMapping.compiledAttributes[attrName]?
+                return stepMapping.compiledAttributes[attrName]
+            # add attribute field selection
+            unless (attr = stepMapping.layout.attrs[attrName])?
+                throw new Error "unknown attribute #{attrName} for $#{stepMapping.name}"
+                return null
+            attrFieldName = sqlSubName stepMapping.sql.tableName, attrName
+            # TODO generalize this to cover link attributes
+            if !attr.table || attr.table == stepMapping.layout.id.table
+                fields[attrFieldName] = [stepMapping.sql.tableName, attr.field]
+                attrField = [
+                    attrFieldName
+                    [stepMapping.sql.tableName, attr.field]
+                ]
+            else
+                tableName = sqlSubName stepMapping.sql.tableName, "attr", attr.table
+                # TODO unless attr.table already pushed
+                tables.push [attr.table, tableName]
+                conditions.push [stepMapping.sql.idRef, '=', [tableName, attr.joinOn]]
+                fields[attrFieldName] = [tableName, attr.field]
+                attrField = [
+                    attrFieldName
+                    [tableName, attr.field]
+                ]
+            stepMapping.compiledAttributes ?= {}
+            stepMapping.compiledAttributes[attrName] = attrField
+            attrField
+        # compile attributes
+        for name, env1 of env
+            continue unless env1.referingSteps?
+            continue if env1.aggregates?
+            do (name) ->
+                outputMapping = env1.outputMapping
+                env1.sql.orderByAttrFieldName = {}
+                addFieldTransform outputMapping.sql.idName, (v, r) ->
+                    # XXX console.log "mapping", name
+                    r.names[name] =
+                        id: v
+                        attrs: {}
+                # look for attributes
+                if env1.lookFors?
+                    for attr in env1.lookFors.attrs
+                        do (attr) ->
+                            attrName = if typeof attr == 'string' then attr else attr.name
+                            attrField = compileAttribute outputMapping, attrName
+                            if attrField?
+                                [attrFieldName, attrFieldRef] = attrField
+                                addFieldTransform attrFieldName, (v, r) ->
+                                    # XXX console.log "mapping", name, attrName
+                                    r.names[name].attrs[attrName] = v
+                                env1.sql.orderByAttrFieldName[attrName] = attrFieldName
+                # label attribute
+                if outputMapping.layout.label?
+                    labelField = compileAttribute outputMapping, outputMapping.layout.label
+                    if labelField?
+                        [labelFieldName, labelFieldRef] = labelField
+                        addFieldTransform labelFieldName, (v, r) ->
+                            # XXX console.log "mapping", name, "label"
+                            r.names[name].label = v
+                        env1.sql.orderByAttrFieldName[outputMapping.layout.label] = labelFieldName
+        # compile label attributes for unnamed steps of walks
+        for walkMapping in walkMappings
+            for stepMapping in walkMapping
+                continue if stepMapping.name?
+                continue unless stepMapping.layout?.label?
+                labelField = compileAttribute stepMapping, stepMapping.layout.label
+                if labelField?
+                    [labelFieldName, labelFieldRef] = labelField
+                    do (stepMapping) ->
+                        addFieldTransform labelFieldName, (v, r) ->
+                            # XXX console.log "mapping", stepMapping.walkNum, stepMapping.stepNum, "label"
+                            r.walks[stepMapping.walkNum][stepMapping.stepNum].label = v
+        # compile aggregations
+        hasAggregation = false
+        aggregatingFields = {}
+        for name, env1 of env
+            continue unless env1.referingSteps?
+            continue unless env1.aggregates?
+            hasAggregation = true
+            do (name) ->
+                env1.sql.orderByAttrFieldName = {}
+                outputMapping = env1.outputMapping
+                # aggregate id as count
+                aggfn = "count"
+                aggregatedFieldName = sqlName outputMapping.tag, outputMapping.type, outputMapping.layout.id.field, aggfn
+                aggregatingFields[aggregatedFieldName] =
+                    fn: aggfn
+                    fieldName: outputMapping.sql.idName
+                    fieldRef : outputMapping.sql.idRef
+                addFieldTransform aggregatedFieldName, (v, r) ->
+                    # XXX console.log "mapping agg", name
+                    r.names[name] =
+                        label: v
+                        attrs: {}
+                env1.sql.orderByFieldName = aggregatedFieldName
+                # aggregate each attribute
+                for [attrName, aggfn] in env1.aggregates.attrs
+                    do (attrName) ->
+                        aggfn ?= "count"
+                        attrField = compileAttribute outputMapping, attrName
+                        if attrField?
+                            [attrFieldName, attrFieldRef] = attrField
+                            aggregatedAttrFieldName = sqlName outputMapping.tag, outputMapping.type, attrName, aggfn
+                            aggregatingFields[aggregatedAttrFieldName] =
+                                fn: aggfn
+                                fieldName: attrFieldName
+                                fieldRef : attrFieldRef
+                            addFieldTransform aggregatedAttrFieldName, (v, r) ->
+                                # XXX console.log "mapping agg", name, attrName
+                                r.names[name].attrs[attrName] = v
+                            env1.sql.orderByAttrFieldName[attrName] = aggregatedAttrFieldName
+        # XXX console.log ">>>env>>>", JSON.stringify env, null, 2
+        #############################################################
         # collect ordering criteria
         orderByFields = []
         for decl in query
             if decl.orderby?
                 for d in decl.orderby
-                    env1 = env[d[0]]
+                    [name, attrName, order] = d
+                    env1 = env[name]
                     unless env1?
-                        throw new Error "bad reference: $#{d[0]}"
-                    s = env1.outputStep
-                    attrName = d[1]
+                        throw new Error "bad reference: $#{name}"
                     if not attrName? and not env1.aggregates?
-                        attrName = s.layout.label
+                        attrName = env1.outputMapping.layout.label
                     orderbyFieldName =
                         if attrName?
-                            env1.sqlOrderByAttrFieldName[attrName]
+                            env1.sql.orderByAttrFieldName[attrName]
                         else
-                            s.sqlOrderByFieldName ? s.sqlIdName
-                    orderByFields.push [orderbyFieldName, d[2]]
+                            env1.sql.orderByFieldName ? env1.outputMapping.sql.idName
+                    orderByFields.push [orderbyFieldName, order]
         numWalks = i
-        # join walks on coinciding nodes (hyperwalk) and project fields
-        for name,env1 of env
-            steps = env1.references
-            if steps and steps.length > 1
-                i = 0
-                lastStep = steps[i++]
-                while i < steps.length
-                    st = steps[i++]
-                    conditions.push [lastStep.sqlId, '=', st.sqlId]
-                    lastStep = st
         # prepare some groupBys and aggregateFields
         aggFieldDecs = []
-        for aggFieldName, {fn, fieldname, fieldref} of aggregatingFields
-            fields[fieldname] = null # no need to select the actual fields being aggregated
+        for aggFieldName, {fn, fieldName, fieldRef} of aggregatingFields
+            delete fields[fieldName] # no need to select the actual fields being aggregated
             aggFieldDecs.push "#{fn.toUpperCase()}(#{
                 if fn == "count" then "DISTINCT "
-                else ""}#{sqlNameRef fieldref}) AS #{aggFieldName}"
+                else ""}#{sqlNameRef fieldRef}) AS #{aggFieldName}"
         fieldDecs = []
         groupByFieldNames = []
-        for fieldname, fieldref of fields
-            if fieldref?
-                fieldDecs.push "#{sqlNameRef fieldref} AS #{fieldname}"
-                groupByFieldNames.push fieldname
+        for fieldName, fieldRef of fields
+            if fieldRef?
+                fieldDecs.push "#{sqlNameRef fieldRef} AS #{fieldName}"
+                groupByFieldNames.push fieldName
         # define how to transform results
         rowTransformer = (row) ->
             r =
@@ -344,11 +409,11 @@ class RelationalDataBaseGraph
             }
             #{
                 unless hasAggregation and fieldDecs.length > 0 then ""
-                else "GROUP BY #{(fieldname for fieldname in groupByFieldNames).join ",\n         "}"
+                else "GROUP BY #{(fieldName for fieldName in groupByFieldNames).join ",\n         "}"
             }
             #{
                 unless orderByFields.length > 0 then ""
-                else "ORDER BY #{("#{ord[0]} #{ord[1].toUpperCase()}" for ord in orderByFields).join ",\n "}"
+                else "ORDER BY #{("#{ord[0]} #{ord[1].toUpperCase()}" for ord in orderByFields).join ",\n         "}"
             }
             """
             rowTransformer
@@ -358,11 +423,11 @@ class RelationalDataBaseGraph
         q = new EventEmitter
         q.abort = (err) ->
         # first compile query
-        console.log "#{new Date()}: >>> SmallGraph Query:\n#{JSON.stringify query}\n<<< >>>\n#{smallgraph.serialize query}\n<<<"
+        console.log "#{new Date()}: Query in JSON: >\n#{JSON.stringify query, null, 0}\n< in SmallGraph: >\n#{smallgraph.serialize query}<"
         query = normalizeSmallGraphQuery query
         [sql, rowTransformer] = @compileSmallGraphQueryToSQL query
         sql += "\nLIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
-        console.log "#{new Date()}: >>> Compiled SQL:\n#{sql}\n<<<"
+        console.log "#{new Date()}: Compiled SQL >\n#{sql}\n<"
         @runSQL sql, rowTransformer, q
 
     runSQL: (sql, rowTransformer, q) ->
@@ -456,7 +521,7 @@ http.createServer (req,res) ->
                 sendHeaders 404
                 res.end "Graph not available"
                 return
-            console.log " #{command} for graph '#{graphId}'"
+            console.log ">>> #{command} for graph '#{graphId}'"
             switch command
                 when 'schema' # /#{graphname}/schema GET
                     # send schema of this graph for SmallGraphs UI
@@ -465,14 +530,15 @@ http.createServer (req,res) ->
                     return
                 when 'query' # /#{graphname}/query {POST,GET,OPTIONS}
                     # process queries sketched from SmallGraphs UI on this graph
-                    sendResultOf = (queried) ->
+                    sendResultOf = (queried, jsonIndent = 0) ->
                         # send garbage back to keep the connection from dropping (WebKit drops it after 2 min)
+                        sendHeaders 200 # XXX can't we defer sending headers while keeping the connection alive?
                         keepAlive = -> res.write " "
                         keepAliveInterval = setInterval keepAlive, 10000
                         queried.on 'result', (result) ->
                                 clearInterval keepAliveInterval
-                                sendHeaders 200
-                                res.end (JSON.stringify result)
+                                # XXX console.log (JSON.stringify result)
+                                res.end JSON.stringify result, null, jsonIndent
                         queried.on 'error', (err) ->
                             clearInterval keepAliveInterval
                             sendError err
@@ -498,7 +564,7 @@ http.createServer (req,res) ->
                             limit  ?= 100
                             offset ?= 0
                             query = smallgraph.parse q
-                            sendResultOf g.query query, limit, offset
+                            sendResultOf (g.query query, limit, offset), 2
                             return
             # if this point is reached, request was not handled, so error should be returned
             sendHeaders 400,
