@@ -1932,6 +1932,7 @@ function smallgraphsCompileSketchToQuery() {
   // scan nodes being aggregated
   var aggregationMap = {};
   $(".aggregate.node", sketch).each(function(i,n) {
+      if ($(n).hasClass("attribute")) return;
       aggregationMap[n.id] = [];
       nodeOccurs[n.id]++;
     });
