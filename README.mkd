@@ -2,6 +2,16 @@ SmallGraphs
 ===========
 Created by Jaeho Shin
 
+SmallGraphs initialy began as a final project for the
+[Data Visualization course at Stanford University][cs448b].  You can
+find [a short paper about it][cs448b-finalpaper] with more information
+from [its wiki page][cs448b-finalproject].
+
+[cs448b]: https://graphics.stanford.edu/wikis/cs448b-11-fall
+[cs448b-finalproject]: https://graphics.stanford.edu/wikis/cs448b-11-fall/FP-ShinJaeho
+[cs448b-finalpaper]: https://graphics.stanford.edu/wikis/cs448b-11-fall/FP-ShinJaeho?action=AttachFile&do=get&target=CS448B_FinalPaper_ShinJaeho_revised.pdf
+
+
 
 Quick Start
 -----------
@@ -10,7 +20,7 @@ To build the code into usable state, run:
 
     make
 
-You can open index.html from Safari or Chrome to use the frontend UI.
+You can open `index.html` from Safari or Chrome to use the frontend UI.
 
 
 To publish everything to Github, run:
@@ -32,11 +42,38 @@ Layout
 
  * Frontend UI
    * `index.html` contains most of the code
-   * `jquery-\*`, `d3` are the modules UI depends on
+   * `jquery-*`, `d3` are the modules UI depends on
    * `resource/` contains some images used in the UI
  * Backend Graph Query Processor
    * `graphd/graphd.coffee` contains the backend code
  * SmallGraph DSL
    * `smallgraph/` contains the parser and serializer for our SmallGraph DSL
 
+
+Links
+-----
+
+ * SmallGraphs' frontend UI works with a WebKit-based browser, such as
+   Safari or Chrome.  It heavily depends on [jQuery][] and
+   [jQuery UI][].  [jQuery-SVG][] and [jQuery-cookie][] made it
+   possible to keep the code short.  [d3.js][] also played an
+   important role in visualizing the results.
+ * The backend [GraphD][] server runs on top of [node.js][] and
+   connects to MySQL databases with [node-mysql][].
+ * SmallGraph parser is generated with [Jison][].
+ * Most parts are written in JavaScript and [CoffeeScript][].
+
+[jQuery]: http://jquery.com
+[jQuery UI]: http://jqueryui.com
+[jQuery-SVG]: http://keith-wood.name/svg.html "Keith Wood's jQuery SVG plugin"
+[jQuery-cookie]: https://github.com/carhartl/jquery-cookie "Klaus Hartl's jQuery Cookie plugin"
+
+[d3.js]: http://mbostock.github.com/d3/ "Data-Driven Documents by Mike Bostock and others"
+
+[CoffeeScript]: http://coffeescript.org/
+[Jison]: http://zaach.github.com/jison/ "a JavaScript parser generator by Zach Carter"
+
+[graphd]: https://github.com/netj/SmallGraphs/wiki/GraphD
+[node.js]: http://nodejs.org/
+[node-mysql]: https://github.com/felixge/node-mysql "Felix Geisendörfer's node module of MySQL client protocol implementation"
 
