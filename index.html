@@ -510,7 +510,7 @@ function smallgraphsShowGraphURLPicker() {
     });
   // populate graph url history for autocomplete
   $("#graph-url-input")
-    .val(smallgraphsGraphURL)
+    .val(smallgraphsGraphURL || "http://localhost:53411/")
     .keyup(function() {
         switch (event.keyCode) {
           case 14: // enter
