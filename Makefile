@@ -8,6 +8,7 @@ BUILD_DEPS := \
     #
 GRAPHD_DEPS := \
     mysql \
+    underscore \
     #
 
 .PHONY: all check-builddeps graphd

@@ -46,6 +46,8 @@ serialize = (smallgraph) ->
         else if decl.aggregate
             d = decl.aggregate
             s += "aggregate $#{d[0]}"
+            if d[2] and d[2].length > 0
+                s += serializeConstraint d[2]
             if d[1] and d[1].length > 0
                 s += " with "
                 s += ("@#{attr} as #{aggfn}#{serializeConstraint constraint}" for [attr, aggfn, constraint] in d[1]).join ", "

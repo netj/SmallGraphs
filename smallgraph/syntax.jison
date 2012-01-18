@@ -32,8 +32,8 @@ declaration
         {$$ = {let:[$NAME, $object]};}
     | LOOK VARREF FOR attributes
         {name=$VARREF.substring(1); $$ = {look:[name, $attributes]};}
-    | AGGREGATE VARREF optional_attributeAggregations
-        {name=$VARREF.substring(1); $$ = {aggregate:[name, $optional_attributeAggregations]};}
+    | AGGREGATE VARREF optional_constraint optional_attributeAggregations
+        {name=$VARREF.substring(1); $$ = {aggregate:[name, $optional_attributeAggregations, $optional_constraint]};}
     | ORDER BY orderings
         {$$ = {orderby:$orderings};}
     ;

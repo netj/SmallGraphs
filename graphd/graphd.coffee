@@ -3,34 +3,20 @@ _GraphDPort = 53411
 _GraphDirectoryPath = "graphs"
 
 
-# TODO move this to smallgraph
-smallgraph =
-    parse: (require "../smallgraph/syntax").parse
-    serialize: (require "../smallgraph/serialize").serialize
+{_} = require "underscore"
 
 http = require "http"
 url = require "url"
 fs = require "fs"
 
+# TODO move this to smallgraph
+smallgraph =
+    parse: (require "../smallgraph/syntax").parse
+    serialize: (require "../smallgraph/serialize").serialize
 
 normalizeSmallGraphQuery = (query) ->
     # TODO type check, prevent invalid queries from being run
     query # TODO someday
-
-
-uniq = (list) ->
-    list2 = []
-    for v in list
-        list2.push v if -1 == list2.indexOf v
-    list2
-
-mergeObject = ->
-    o = {}
-    for oo in arguments
-        for k,v of oo
-            o[k] = v
-    o
-
 
 {EventEmitter} = require('events')
 
@@ -66,12 +52,28 @@ class RelationalDataBaseGraph
         sqlTable = ([table, alias]) ->
             "#{table} as #{alias}"
         sqlNameRef = (e) ->
-            if typeof e == 'string'
-                e
+            switch typeof e
+                when 'string'
+                    e
+                when 'number'
+                    e
+                else
+                    "#{e[0]}.#{e[1]}"
+        sqlExpr = (expr) ->
+            switch typeof expr
+                when 'string'
+                    '"' + ((expr.replace /\\/, '\\').replace /"/, '\"') + '"'
+                else
+                    expr
+        sqlCond = (cond) ->
+            if _.isArray cond
+                [left, rel, right] = cond
+                "#{sqlNameRef left} #{rel} #{sqlNameRef right}"
+            else if typeof cond == 'object'
+                {disjunctions} = cond
+                "(#{(sqlCond c for c in disjunctions).join " OR "})"
             else
-                "#{e[0]}.#{e[1]}"
-        sqlCond = ([left, rel, right]) ->
-            "#{sqlNameRef left} #{rel} #{sqlNameRef right}"
+                throw new Error "malformed SQL condition: #{cond}"
         #############################################################
         # first, a quick validation of names
         env = {}
@@ -104,12 +106,13 @@ class RelationalDataBaseGraph
                 if env1.aggregates? # look xor aggregate
                     throw new Error "Cannot look for attributes of aggregated objects: $#{name}"
             if decl.aggregate?
-                [name, attrAggs] = decl.aggregate
+                [name, attrAggs, constraint] = decl.aggregate
                 env1 = env[name]
                 unless env1?
                     throw new Error "Bad reference to $#{name} from an aggregate"
                 env1.aggregates ?= {}
                 env1.aggregates.attrs = attrAggs
+                env1.aggregates.constraint = constraint
                 if env1.lookFors? # look xor aggregate
                     throw new Error "Cannot look for attributes of aggregated objects: $#{name}"
         # XXX console.log ">>>env-precompilation>>>", JSON.stringify env, null, 2
@@ -126,20 +129,12 @@ class RelationalDataBaseGraph
                 transformFields.push [fName,tr]
             else
                 transforms.push tr
-        walkMappings = []
+        compileConstraint = (conjs, lhs, conditionsAcc = conditions) ->
+            return unless conjs? and conjs.length > 0 and conjs[0].length > 0
+            for disjs in conjs
+                conditionsAcc.push
+                    disjunctions: ([lhs, c.rel, sqlExpr c.expr] for c in disjs)
         compileOneStep = (s) ->
-            if s.constraint?
-                # TODO support full CNF
-                cnf = s.constraint
-                if cnf.length > 0 and cnf[0]?.length > 0
-                    c = cnf[0][0]
-                    sqlExpr = (expr) ->
-                        switch typeof expr
-                            when 'string'
-                                '"' + ((expr.replace /\\/, '\\').replace /"/, '\"') + '"'
-                            else
-                                expr
-                    conditions.push [[s.sql.tableName, s.layout.id.field], c.rel, sqlExpr c.expr]
             if s.name?
                 env1 = env[s.name]
                 unless env1?
@@ -148,16 +143,18 @@ class RelationalDataBaseGraph
                     # XXX console.log "mapping", s.walkNum, s.stepNum
                     r.walks[s.walkNum][s.stepNum] = s.name
                 unless env1.outputMapping?
-                    tables.push [s.layout.id.table, s.sql.tableName]
-                    fields[s.sql.idName] = [s.sql.tableName, s.layout.id.field]
                     env1.outputMapping = s
+                    tables.push [s.layout.id.table, s.sql.tableName]
+                    fields[s.sql.idName] = s.sql.idRef
+                    # XXX might be aggregated so defer # compileConstraint s.constraint, fields[s.sql.idName]
             else
                 tables.push [s.layout.id.table, s.sql.tableName]
-                fields[s.sql.idName] = [s.sql.tableName, s.layout.id.field]
+                fields[s.sql.idName] = s.sql.idRef
                 addFieldTransform s.sql.idName, (v, r) ->
                     # XXX console.log "mapping", s.walkNum, s.stepNum
                     r.walks[s.walkNum][s.stepNum] =
                         id: v
+        walkMappings = []
         i = 0
         for decl in query
             if decl.walk? # process walk
@@ -289,7 +286,12 @@ class RelationalDataBaseGraph
                 if env1.lookFors?
                     for attr in env1.lookFors.attrs
                         do (attr) ->
-                            attrName = if typeof attr == 'string' then attr else attr.name
+                            if typeof attr == 'string'
+                                attrName = attr
+                                attrConstraint = null
+                            else
+                                attrName = attr.name
+                                attrConstraint = attr.constraint
                             attrField = compileAttribute outputMapping, attrName
                             if attrField?
                                 [attrFieldName, attrFieldRef] = attrField
@@ -297,6 +299,7 @@ class RelationalDataBaseGraph
                                     # XXX console.log "mapping", name, attrName
                                     r.names[name].attrs[attrName] = v
                                 env1.sql.orderByAttrFieldName[attrName] = attrFieldName
+                                compileConstraint attrConstraint, attrFieldRef
                 # label attribute
                 if outputMapping.layout.label?
                     labelField = compileAttribute outputMapping, outputMapping.layout.label
@@ -306,6 +309,10 @@ class RelationalDataBaseGraph
                             # XXX console.log "mapping", name, "label"
                             r.names[name].label = v
                         env1.sql.orderByAttrFieldName[outputMapping.layout.label] = labelFieldName
+                        #compileConstraint outputMapping.constraint, labelFieldRef
+                # constraints
+                if outputMapping.constraint?
+                    compileConstraint outputMapping.constraint, outputMapping.sql.idRef
         # compile label attributes for unnamed steps of walks
         for walkMapping in walkMappings
             for stepMapping in walkMapping
@@ -318,9 +325,15 @@ class RelationalDataBaseGraph
                         addFieldTransform labelFieldName, (v, r) ->
                             # XXX console.log "mapping", stepMapping.walkNum, stepMapping.stepNum, "label"
                             r.walks[stepMapping.walkNum][stepMapping.stepNum].label = v
+        # compile constraints of unnamed steps
+        for walkMapping in walkMappings
+            for stepMapping in walkMapping
+                continue if stepMapping.name?
+                compileConstraint stepMapping.constraint, stepMapping.sql.idRef
         # compile aggregations
         hasAggregation = false
         aggregatingFields = {}
+        groupbyConditions = []
         for name, env1 of env
             continue unless env1.referingSteps?
             continue unless env1.aggregates?
@@ -341,8 +354,9 @@ class RelationalDataBaseGraph
                         label: v
                         attrs: {}
                 env1.sql.orderByFieldName = aggregatedFieldName
+                compileConstraint env1.aggregates.constraint, aggregatedFieldName, groupbyConditions
                 # aggregate each attribute
-                for [attrName, aggfn] in env1.aggregates.attrs
+                for [attrName, aggfn, aggregatedAttrConstraint] in env1.aggregates.attrs
                     do (attrName) ->
                         aggfn ?= "count"
                         attrField = compileAttribute outputMapping, attrName
@@ -357,6 +371,7 @@ class RelationalDataBaseGraph
                                 # XXX console.log "mapping agg", name, attrName
                                 r.names[name].attrs[attrName] = v
                             env1.sql.orderByAttrFieldName[attrName] = aggregatedAttrFieldName
+                            compileConstraint aggregatedAttrConstraint, aggregatedAttrFieldName, groupbyConditions
         # XXX console.log ">>>env>>>", JSON.stringify env, null, 2
         #############################################################
         # collect ordering criteria
@@ -410,6 +425,10 @@ class RelationalDataBaseGraph
             #{
                 unless hasAggregation and fieldDecs.length > 0 then ""
                 else "GROUP BY #{(fieldName for fieldName in groupByFieldNames).join ",\n         "}"
+            }
+            #{
+                if groupbyConditions.length == 0 then ""
+                else "HAVING #{groupbyConditions.map(sqlCond).join "\n   AND "}"
             }
             #{
                 unless orderByFields.length > 0 then ""
@@ -491,7 +510,7 @@ getGraph = (graphId) ->
 http.createServer (req,res) ->
         sendHeaders = (code, hdrs) ->
             res.writeHead code,
-                mergeObject {
+                _.extend {
                     "Access-Control-Allow-Origin": "*"
                     "Content-Type": "text/plain" # "application/json"
                 }, hdrs
@@ -511,7 +530,7 @@ http.createServer (req,res) ->
                     return
             # prepare the graph we'll be working on by parsing the URL
             parsedURL = url.parse req.url, true
-            [_, graphId, command] = parsedURL.pathname.match(/^\/(.*)\/(schema|query)$/)
+            [__, graphId, command] = parsedURL.pathname.match(/^\/(.*)\/(schema|query)$/)
             # TODO sanitize graphId (../, ...)
             try
                 g = getGraph graphId
