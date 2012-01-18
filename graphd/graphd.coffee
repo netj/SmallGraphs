@@ -146,7 +146,6 @@ class RelationalDataBaseGraph
                     env1.outputMapping = s
                     tables.push [s.layout.id.table, s.sql.tableName]
                     fields[s.sql.idName] = s.sql.idRef
-                    # XXX might be aggregated so defer # compileConstraint s.constraint, fields[s.sql.idName]
             else
                 tables.push [s.layout.id.table, s.sql.tableName]
                 fields[s.sql.idName] = s.sql.idRef
@@ -178,7 +177,7 @@ class RelationalDataBaseGraph
                             throw new Error "unknown reference to "+m.name
                         step = env1.step
                         # augment constraint, dont replace
-                        m.constraint = (step.constraint ? []).concat m.constraint
+                        m.constraint = (step.constraint ? []).concat (m.constraint ? [])
                     else if step.alias?
                         m.name = step.alias
                         env1 = env[step.alias]
@@ -281,7 +280,6 @@ class RelationalDataBaseGraph
                     # XXX console.log "mapping", name
                     r.names[name] =
                         id: v
-                        attrs: {}
                 # look for attributes
                 if env1.lookFors?
                     for attr in env1.lookFors.attrs
@@ -297,6 +295,7 @@ class RelationalDataBaseGraph
                                 [attrFieldName, attrFieldRef] = attrField
                                 addFieldTransform attrFieldName, (v, r) ->
                                     # XXX console.log "mapping", name, attrName
+                                    r.names[name].attrs ?= {}
                                     r.names[name].attrs[attrName] = v
                                 env1.sql.orderByAttrFieldName[attrName] = attrFieldName
                                 compileConstraint attrConstraint, attrFieldRef
@@ -309,7 +308,6 @@ class RelationalDataBaseGraph
                             # XXX console.log "mapping", name, "label"
                             r.names[name].label = v
                         env1.sql.orderByAttrFieldName[outputMapping.layout.label] = labelFieldName
-                        #compileConstraint outputMapping.constraint, labelFieldRef
                 # constraints
                 if outputMapping.constraint?
                     compileConstraint outputMapping.constraint, outputMapping.sql.idRef
@@ -352,7 +350,6 @@ class RelationalDataBaseGraph
                     # XXX console.log "mapping agg", name
                     r.names[name] =
                         label: v
-                        attrs: {}
                 env1.sql.orderByFieldName = aggregatedFieldName
                 compileConstraint env1.aggregates.constraint, aggregatedFieldName, groupbyConditions
                 # aggregate each attribute
@@ -369,6 +366,7 @@ class RelationalDataBaseGraph
                                 fieldRef : attrFieldRef
                             addFieldTransform aggregatedAttrFieldName, (v, r) ->
                                 # XXX console.log "mapping agg", name, attrName
+                                r.names[name].attrs ?= {}
                                 r.names[name].attrs[attrName] = v
                             env1.sql.orderByAttrFieldName[attrName] = aggregatedAttrFieldName
                             compileConstraint aggregatedAttrConstraint, aggregatedAttrFieldName, groupbyConditions
