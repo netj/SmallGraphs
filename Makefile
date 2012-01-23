@@ -33,6 +33,7 @@ graphd: graphd/node_modules
 graphd/node_modules:
 	mkdir -p $@
 	cd graphd && npm install $(GRAPHD_DEPS)
+	ln -sfn ../../smallgraph $@/
 
 publish: all
 	# prepare gh-pages/ directory
