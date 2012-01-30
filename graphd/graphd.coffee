@@ -66,7 +66,7 @@ http.createServer (req,res) ->
                 when 'schema' # /#{graphname}/schema GET
                     # send schema of this graph for SmallGraphs UI
                     sendHeaders 200
-                    res.end JSON.stringify g.smallGraphsSchema
+                    res.end JSON.stringify g.schema
                     return
                 when 'query' # /#{graphname}/query {POST,GET,OPTIONS}
                     # process queries sketched from SmallGraphs UI on this graph

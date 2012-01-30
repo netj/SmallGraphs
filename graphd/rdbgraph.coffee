@@ -1,17 +1,12 @@
-{EventEmitter} = require "events"
 {_} = require "underscore"
 
-smallgraph = require "smallgraph"
+{BaseGraph} = require "./basegraph"
 
-
-class RelationalDataBaseGraph
+class RelationalDataBaseGraph extends BaseGraph
     constructor: (@descriptor) ->
-        # derive SmallGraphs schema from the RDB layout
-        schema =
-            Namespaces:
-                xsd: 'http://www.w3.org/2001/XMLSchema'
-            Objects: {}
-            TypeLabels: {}
+        super
+        # populate schema from the RDB layout
+        schema = @schema
         for objName, objLayout of @descriptor.layout.objects
             links = {}
             for lnName, lnLayout of objLayout.links
@@ -23,7 +18,18 @@ class RelationalDataBaseGraph
                 Label: objLayout.label
                 Links: links
                 Attributes: attrs
-        @smallGraphsSchema = schema
+
+    _runQuery: (query, limit, offset, req, res, q) ->
+        # first compile query into SQL
+        [sql, rowTransformer] = @compileSmallGraphQueryToSQL query
+        sql += "\nLIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
+        console.log "#{new Date()}: Compiled SQL >\n#{sql}\n<"
+        # then, run it
+        @_runSQL sql, rowTransformer, q
+
+    # XXX override this
+    _runSQL: (sql, rowTransformer, q) ->
+        q.emit 'error', new Error "_runSQL not implemented, cannot run #{sql}"
 
     compileSmallGraphQueryToSQL: (query) ->
         objects = @descriptor.layout.objects
@@ -419,20 +425,6 @@ class RelationalDataBaseGraph
             """
             rowTransformer
         ]
-
-    query: (query, limit, offset, req, res) ->
-        q = new EventEmitter
-        q.abort = (err) ->
-        # first compile query
-        console.log "#{new Date()}: Query in JSON: >\n#{JSON.stringify query, null, 0}\n< in SmallGraph: >\n#{smallgraph.serialize query}<"
-        query = smallgraph.normalize query
-        [sql, rowTransformer] = @compileSmallGraphQueryToSQL query
-        sql += "\nLIMIT #{parseInt(limit)} OFFSET #{parseInt(offset)}\n"
-        console.log "#{new Date()}: Compiled SQL >\n#{sql}\n<"
-        @runSQL sql, rowTransformer, q
-
-    runSQL: (sql, rowTransformer, q) ->
-        q.emit 'error', new Error "runSQL not implemented, cannot run #{sql}"
 
 
 exports.RelationalDataBaseGraph = RelationalDataBaseGraph
