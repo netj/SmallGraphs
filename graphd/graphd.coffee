@@ -12,11 +12,14 @@ smallgraph = require "smallgraph"
 
 # factory method
 {MySQLGraph} = require "./mysqlgraph"
+{GreenMarlGraph} = require "./green-marl/greenmarlgraph"
 loadGraph = (graphId) ->
     path = "#{_GraphDirectoryPath}/#{graphId}/graphd.json"
     graphDescriptor = JSON.parse fs.readFileSync path
     if graphDescriptor.mysql
         return new MySQLGraph graphDescriptor.mysql
+    else if graphDescriptor.greenmarl
+        return new GreenMarlGraph graphDescriptor.greenmarl
     else
         throw new Error "unknown graph type"
 

@@ -1,0 +1,5 @@
+*.o
+*.so
+
+/smallgraph.h
+/smallgraph.cc
