@@ -1,19 +1,30 @@
 {spawn} = require 'child_process'
 
-{BaseGraph} = require "../basegraph"
+{StateMachineGraph} = require "../statemachinegraph"
 
-class GreenMarlGraph extends BaseGraph
+class GreenMarlGraph extends StateMachineGraph
     constructor: (@descriptor) ->
-        super
+        super @descriptor
         d = @descriptor
         unless d.graphPath?
             throw new Error "graphPath, ... are required for the graph descriptor"
-        # TODO populate schema from descriptor
-        @schema.Objects = d.Objects
+        # populate schema from descriptor
+        objects = {}
+        for nodeTypeId,nodeType of d.nodes
+            o = objects[nodeType.type] =
+                Attributes: nodeType.props
+                Label: nodeType.label
+            o.Links = {}
+            nodeTypeId = parseInt nodeTypeId
+            for edgeTypeId,edgeType of d.edges when nodeTypeId in edgeType.domain
+                l = o.Links[edgeType.type] ?= []
+                l.push d.nodes[rangeNodeTypeId].type for rangeNodeTypeId in edgeType.range
+        @schema.Objects = objects
 
-    _runQuery: (query, limit, offset, req, res, q) ->
-        # TODO generate C++ code from query
+    _runStateMachine: (statemachine, limit, offset, req, res, q) ->
+        # TODO generate C++ code from statemachine
         #  TODO map types, node/edge URIs in query to long long int IDs
+        q.emit 'result', statemachine; return # FIXME lets construct the correct statemachine for the moment
 
         # use match.sh to compile, link, and run it
         run = spawn "./match.sh", [cxxPath, @descriptor.graphPath]

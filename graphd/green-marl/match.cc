@@ -30,7 +30,7 @@ Matches& Match::extendWithNode(type_t type, nodeedge_id_t id, Matches* matches) 
         SmallGraphWalk *qpath = *it;
         unsigned int curStepIdx = this->paths->at(i)->size();
         if (curStepIdx < qpath->size()
-                && qpath->at(curStepIdx) == type) {
+                && qpath->at(curStepIdx) == type) { // TODO more sophistication needed
             // TODO instead of copying m, try to create an augmented object that shares m
             Match *m = new Match(*this);
             m->paths->at(i)->push_back(id);
