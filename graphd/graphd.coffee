@@ -39,9 +39,10 @@ http.createServer (req,res) ->
                     "Content-Type": "text/plain" # "application/json"
                 }, hdrs
         sendError = (err) ->
+            console.error "<< #{new Date()}: " + err
             sendHeaders 500,
                 "Content-Type": "application/json"
-            res.end (JSON.stringify err)
+            res.end JSON.stringify err+""
         try
             console.log ">> #{new Date()}: handling #{req.method} request for #{req.url} from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
             # reply to OPTIONS request for cross origin AJAX
@@ -74,21 +75,20 @@ http.createServer (req,res) ->
                 when 'query' # /#{graphname}/query {POST,GET,OPTIONS}
                     # process queries sketched from SmallGraphs UI on this graph
                     sendResultOf = (queried, jsonIndent = 0) ->
-                        # send garbage back to keep the connection from dropping (WebKit drops it after 2 min)
-                        sendHeaders 200 # XXX can't we defer sending headers while keeping the connection alive?
-                        keepAlive = -> res.write " "
-                        keepAliveInterval = setInterval keepAlive, 10000
                         queried.on 'result', (result) ->
-                                clearInterval keepAliveInterval
-                                # XXX console.log (JSON.stringify result)
-                                res.end JSON.stringify result, null, jsonIndent
+                            clearInterval keepAliveInterval
+                            # XXX console.log (JSON.stringify result)
+                            res.end JSON.stringify result, null, jsonIndent
                         queried.on 'error', (err) ->
                             clearInterval keepAliveInterval
                             sendError err
                         req.once "close", queried.abort
                         req.once "error", queried.abort
                         res.once "error", queried.abort
-                        return
+                        # send garbage back to keep the connection from dropping (WebKit drops it after 2 min)
+                        sendHeaders 200 # XXX can't we defer sending headers while keeping the connection alive?
+                        keepAlive = -> res.write " "
+                        keepAliveInterval = setInterval keepAlive, 10000
                     switch req.method
                         when 'POST'
                             limit  = req.headers["smallgraphs-result-limit"] ? 100
@@ -114,7 +114,6 @@ http.createServer (req,res) ->
                 "Content-Type": "text/plain"
             res.end "Unknown command: #{command}"
         catch err
-            console.error "<< #{new Date()}: Error:", JSON.stringify err
             sendError err
 
     .listen _GraphDPort

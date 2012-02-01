@@ -26,7 +26,7 @@ check-builddeps:
 	    }
 
 # run graphd
-graphd: graphd/node_modules
+graphd: all graphd/node_modules
 	cd graphd && coffee graphd.coffee
 
 # install graphd dependencies locally
