@@ -529,7 +529,8 @@ function smallgraphsShowGraphURLPicker() {
 $("#graph-url").click(smallgraphsShowGraphURLPicker);
 
 // retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
-var smallgraphsGraphSchema;
+var emptySchema = { Namespaces: {}, Objects: {}, TypeLabels: {} };
+var smallgraphsGraphSchema = emptySchema;
 var smallgraphsOriginalTitle = document.title;
 var smallgraphsGraphURLOriginalMessage = $("#graph-url").html();
 function smallgraphsLoadSchema() {
@@ -573,6 +574,7 @@ function smallgraphsLoadSchema() {
         console.log("Error while loading graph schema", smallgraphsGraphURL, err);
         smallgraphsShowError("Could not load graph schema from: " + smallgraphsGraphURL);
         $("#graph-url").html(smallgraphsGraphURLOriginalMessage);
+        smallgraphsGraphSchema = emptySchema;
       })
     ;
 }
@@ -880,7 +882,7 @@ var EdgeReverseMark = "<- ";
 function prefixAttributeMark(t) { return EdgeAttributeMark+t; }
 function prefixReverseMark(t) { return EdgeReverseMark+t; }
 var nullNode = { w: 0, h: 0 };
-var emptySchema = { Links: {}, Attributes: {}, RevLinks: {} }
+var emptyObjectSchema = { Links: {}, Attributes: {}, RevLinks: {} }
 var edgeId = 0;
 var sketchpadAction_DrawEdgeFromANode = {
   name: "draw edge from a node",
@@ -908,7 +910,7 @@ var sketchpadAction_DrawEdgeFromANode = {
         }, e));
       $(e).addClass("drawing");
       // prepare related schema for this source node
-      this.objectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptySchema;
+      this.objectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptyObjectSchema;
       this.allowedEdgeTypes = (
           // outgoing edges
           keySet(this.objectSchema.Links)
@@ -953,7 +955,7 @@ var sketchpadAction_DrawEdgeFromANode = {
       x2 = n.x - this.sx;
       y2 = n.y - this.sy;
       // check graph schema to find types of allowed edges
-      var targetObjectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptySchema;
+      var targetObjectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptyObjectSchema;
       var allowedEdgeTypesToTarget = (
           intersection(keySet( this.objectSchema.Links),
                        keySet(targetObjectSchema.RevLinks))
