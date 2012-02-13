@@ -76,13 +76,13 @@
       }
       #progress-dialog {
         background-image: url(resource/spinner.gif);
-        background-position: center 20px;
-        padding-top: 70px;
+        background-position: 20px 20px;
+        padding-left: 70px;
       }
       #error-dialog {
         background-image: url(resource/Crystal_error.png);
-        background-position: center 20px;
-        padding-top: 100px;
+        background-position: 15px 15px;
+        padding-left: 90px;
       }
 
       #aggregation-list, #ordering-list {
@@ -502,10 +502,16 @@ function smallgraphsShowGraphURLPicker() {
         width:  400,
         height: 200,
         resizable: false,
-        buttons: [ { text: "Connect", click: function() {
-              $(this).dialog("close");
-              finishGraphURLInput();
-            }} ],
+        buttons: {
+            "Continue Unconnected": function() {
+                $(this).dialog("close");
+                smallgraphsResetSchema();
+              },
+            "Connect": function() {
+                $(this).dialog("close");
+                finishGraphURLInput();
+              },
+          },
         close: function() { $("#graph-url-input").blur(); },
     });
   // populate graph url history for autocomplete
@@ -533,6 +539,12 @@ var emptySchema = { Namespaces: {}, Objects: {}, TypeLabels: {} };
 var smallgraphsGraphSchema = emptySchema;
 var smallgraphsOriginalTitle = document.title;
 var smallgraphsGraphURLOriginalMessage = $("#graph-url").html();
+function smallgraphsResetSchema() {
+  sketchpadClearSketch();
+  $("#graph-url").html(smallgraphsGraphURLOriginalMessage);
+  smallgraphsGraphSchema = emptySchema;
+  NodeTypes = [];
+}
 function smallgraphsLoadSchema() {
   console.log("loading graph", smallgraphsGraphURL);
   document.title = smallgraphsOriginalTitle +" of "+ smallgraphsGraphURL; // TODO use friendlier name/label of graph
@@ -573,8 +585,7 @@ function smallgraphsLoadSchema() {
     .error(function(err) {
         console.log("Error while loading graph schema", smallgraphsGraphURL, err);
         smallgraphsShowError("Could not load graph schema from: " + smallgraphsGraphURL);
-        $("#graph-url").html(smallgraphsGraphURLOriginalMessage);
-        smallgraphsGraphSchema = emptySchema;
+        smallgraphsResetSchema();
       })
     ;
 }
@@ -815,11 +826,12 @@ var sketchpadAction_AddNode = {
             if (type) {
               node.objectType = type;
               $("text", node).text(type);
-              // show whether edge is invalid or not
-              if (NodeTypes.indexOf(type) == -1)
-                $(node).addClass("invalid");
-              else
-                $(node).removeClass("invalid");
+              if (smallgraphsGraphSchema !== emptySchema)
+                // show whether edge is invalid or not
+                if (NodeTypes.indexOf(type) == -1)
+                  $(node).addClass("invalid");
+                else
+                  $(node).removeClass("invalid");
               console.log("added node", type, node);
             } else {
               // cancel node creation
@@ -910,7 +922,7 @@ var sketchpadAction_DrawEdgeFromANode = {
         }, e));
       $(e).addClass("drawing");
       // prepare related schema for this source node
-      this.objectSchema = smallgraphsGraphSchema.Objects[n.objectType] || emptyObjectSchema;
+      this.objectSchema = (smallgraphsGraphSchema.Objects || {})[n.objectType] || emptyObjectSchema;
       this.allowedEdgeTypes = (
           // outgoing edges
           keySet(this.objectSchema.Links)
@@ -965,11 +977,12 @@ var sketchpadAction_DrawEdgeFromANode = {
             .map(prefixReverseMark)
         );
       this.allowedEdgeTypesToTarget = allowedEdgeTypesToTarget;
-      // show whether edge is invalid or not
-      if (allowedEdgeTypesToTarget.length == 0)
-        $(e).addClass("invalid");
-      else
-        $(e).removeClass("invalid");
+      if (smallgraphsGraphSchema !== emptySchema)
+        // show whether edge is invalid or not
+        if (allowedEdgeTypesToTarget.length == 0)
+          $(e).addClass("invalid");
+        else
+          $(e).removeClass("invalid");
     } else { // not pointing on a node
       e.target = nullNode;
       // calculate some length for displacing the phantom node from cursor
@@ -986,11 +999,12 @@ var sketchpadAction_DrawEdgeFromANode = {
       sketchpadPhantomNode.x = tx + x2/r * (NodeWidth /2);
       sketchpadPhantomNode.y = ty + y2/r * (NodeHeight/2);
       $(sketchpadPhantomNode).addClass("active");
-      // show whether edge is invalid or not
-      if (this.allowedEdgeTypes.length == 0)
-        $(e).addClass("invalid");
-      else
-        $(e).removeClass("invalid");
+      if (smallgraphsGraphSchema !== emptySchema)
+        // show whether edge is invalid or not
+        if (this.allowedEdgeTypes.length == 0)
+          $(e).addClass("invalid");
+        else
+          $(e).removeClass("invalid");
     }
     updateEdgeCoordinates(e, x2, y2);
   },
@@ -1015,10 +1029,11 @@ var sketchpadAction_DrawEdgeFromANode = {
           function(type) {
             if (type) {
               // show whether the edge is valid or not
-              if (allowedEdgeTypesToTarget.indexOf(type) == -1)
-                $(e).addClass("invalid");
-              else
-                $(e).removeClass("invalid");
+              if (smallgraphsGraphSchema !== emptySchema)
+                if (allowedEdgeTypesToTarget.indexOf(type) == -1)
+                  $(e).addClass("invalid");
+                else
+                  $(e).removeClass("invalid");
               // reverse the edge if needed
               if (type.substring(0, EdgeReverseMark.length) == EdgeReverseMark) {
                 type = type.substring(EdgeReverseMark.length); // get the proper type name
@@ -1071,14 +1086,15 @@ var sketchpadAction_DrawEdgeFromANode = {
                 $(e).addClass("attribute");
                 $("text", e).text(type);
                 $(e).removeClass("drawing");
-                // show whether the attribute node and edge is valid or not?
-                if (attrNode.attributeType == null) {
-                  $(attrNode).addClass("invalid");
-                  $(e).addClass("invalid");
-                } else {
-                  $(attrNode).removeClass("invalid");
-                  $(e).removeClass("invalid");
-                }
+                if (smallgraphsGraphSchema !== emptySchema)
+                  // show whether the attribute node and edge is valid or not?
+                  if (attrNode.attributeType == null) {
+                    $(attrNode).addClass("invalid");
+                    $(e).addClass("invalid");
+                  } else {
+                    $(attrNode).removeClass("invalid");
+                    $(e).removeClass("invalid");
+                  }
                 console.log("added attribute edge", type, e);
               } else {
                 // create a node at the end
@@ -1103,7 +1119,8 @@ var sketchpadAction_DrawEdgeFromANode = {
                 $(e).removeClass("drawing");
                 // and show whether the edge can be valid or not
                 if (allowedNodeTypes == null || allowedNodeTypes.length == 0) {
-                  $(e).addClass("invalid");
+                  if (smallgraphsGraphSchema !== emptySchema)
+                    $(e).addClass("invalid");
                   // if edge itself is invalid, any node can come at the end
                   allowedNodeTypes = NodeTypes;
                 } else
@@ -1118,17 +1135,18 @@ var sketchpadAction_DrawEdgeFromANode = {
                           // create node
                           node.objectType = nodeType;
                           $("text", node).text(nodeType);
-                          // show whether node and edge are invalid or not
-                          if (allowedNodeTypes.indexOf(nodeType) == -1) {
-                            // edge is invalid if this type of node is not allowed
-                            $(e).addClass("invalid");
-                            // but the node can still be a valid one
-                            if (NodeTypes.indexOf(nodeType) == -1)
-                              $(node).addClass("invalid");
-                            else
+                          if (smallgraphsGraphSchema !== emptySchema)
+                            // show whether node and edge are invalid or not
+                            if (allowedNodeTypes.indexOf(nodeType) == -1) {
+                              // edge is invalid if this type of node is not allowed
+                              $(e).addClass("invalid");
+                              // but the node can still be a valid one
+                              if (NodeTypes.indexOf(nodeType) == -1)
+                                $(node).addClass("invalid");
+                              else
+                                $(node).removeClass("invalid");
+                            } else
                               $(node).removeClass("invalid");
-                          } else
-                            $(node).removeClass("invalid");
                           console.log("added edge", type, e, "with a node", nodeType, node);
                         } else {
                           // cancel node creation
@@ -1825,7 +1843,8 @@ function smallgraphsSendQuery(query, offset, msg) {
             // show error in a dialog
             smallgraphsShowError(
                     "Error occurred while running query at '"+ queryURL +"':<br>" +
-                    "<pre>"+ textStatus + "\t" + err +"</pre>"
+                    "<pre>"+ textStatus + "\t" + err +"</pre>" +
+                    "Your query was:" + sgq
                 );
           },
       });
