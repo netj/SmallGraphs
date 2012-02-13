@@ -1,5 +1,6 @@
 (function() {
   var serialize, serializeConstraint, serializeExpr, serializeStep;
+
   serializeExpr = function(expr) {
     switch (typeof expr) {
       case 'string':
@@ -8,6 +9,7 @@
         return expr;
     }
   };
+
   serializeConstraint = function(conj) {
     var c, disj;
     if (conj) {
@@ -24,7 +26,7 @@
               _results2.push("" + c.rel + (serializeExpr(c.expr)));
             }
             return _results2;
-          })()).join(" | ")) + "]");
+          })()).join("; ")) + "]");
         }
         return _results;
       })()).join("");
@@ -32,35 +34,27 @@
       return "";
     }
   };
+
   serializeStep = function(step) {
     var s;
     s = "";
     if (step.objectType) {
       s += step.objectType;
-      if (step.alias) {
-        s += "(" + step.alias + ")";
-      }
-      if (step.constraint) {
-        s += "" + (serializeConstraint(step.constraint));
-      }
+      if (step.alias) s += "(" + step.alias + ")";
+      if (step.constraint) s += serializeConstraint(step.constraint);
     } else if (step.objectRef) {
       s += "$" + step.objectRef;
-      if (step.constraint) {
-        s += "" + (serializeConstraint(step.constraint));
-      }
+      if (step.constraint) s += serializeConstraint(step.constraint);
     } else if (step.linkType) {
       s += " -";
       s += step.linkType;
-      if (step.alias) {
-        s += "(" + step.alias + ")";
-      }
-      if (step.constraint) {
-        s += "" + (serializeConstraint(step.constraint));
-      }
+      if (step.alias) s += "(" + step.alias + ")";
+      if (step.constraint) s += serializeConstraint(step.constraint);
       s += "-> ";
     }
     return s;
   };
+
   serialize = function(smallgraph) {
     var aggfn, attr, attrNameOrNameWithConstraint, constraint, d, decl, ord, s, step, _i, _j, _len, _len2, _ref, _ref2;
     s = "";
@@ -86,6 +80,7 @@
       } else if (decl.aggregate) {
         d = decl.aggregate;
         s += "aggregate $" + d[0];
+        if (d[2] && d[2].length > 0) s += serializeConstraint(d[2]);
         if (d[1] && d[1].length > 0) {
           s += " with ";
           s += ((function() {
@@ -94,7 +89,7 @@
             _results = [];
             for (_k = 0, _len3 = _ref2.length; _k < _len3; _k++) {
               _ref3 = _ref2[_k], attr = _ref3[0], aggfn = _ref3[1], constraint = _ref3[2];
-              _results.push("@" + attr + " as " + aggfn + " " + (serializeConstraint(constraint)));
+              _results.push("@" + attr + " as " + aggfn + (serializeConstraint(constraint)));
             }
             return _results;
           })()).join(", ");
@@ -127,9 +122,11 @@
     }
     return s;
   };
+
   if (typeof require !== 'undefined' && typeof exports !== 'undefined') {
     exports.serialize = serialize;
   } else if (typeof window !== 'undefined') {
     window.smallgraphSerialize = serialize;
   }
+
 }).call(this);
