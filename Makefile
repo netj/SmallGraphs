@@ -37,20 +37,21 @@ graphd/node_modules:
 
 publish: all
 	# prepare gh-pages/ directory
-	[ -d gh-pages ] || git clone --recursive --branch gh-pages . gh-pages
-	cd gh-pages && git checkout gh-pages
-	-cd gh-pages && git remote rm origin && git remote add origin git@github.com:netj/SmallGraphs.git
+	[ -d gh-pages ] || git clone --recursive --branch gh-pages git@github.com:netj/SmallGraphs.git gh-pages
 	# copy everything built here
-	rsync -avR --delete --delete-excluded \
+	rsync -avcR --delete --delete-excluded \
 	    --exclude=*.{coffee,jison{,lex}} --exclude=jquery-ui/development-bundle/ \
-	    index.html resource/ jquery-ui/ smallgraph/ \
+	    {index.html,resource/,smallgraph/,jquery-ui/} \
 	    gh-pages/
-	# add some submodule git repos
-	-cd gh-pages && [ -d d3            ] || git submodule add git://github.com/mbostock/d3.git
-	-cd gh-pages && [ -d jquery-svg    ] || git submodule add git://github.com/apendleton/jquery-svg.git
-	-cd gh-pages && [ -d jquery-cookie ] || git submodule add git://github.com/carhartl/jquery-cookie.git
-	# TODO sync submodule version with the source
+	# add some submodule git repos, and sync submodule version with the source
+	$(call publish-submodule,d3,           git://github.com/mbostock/d3.git)
+	$(call publish-submodule,jquery-svg,   git://github.com/apendleton/jquery-svg.git)
+	$(call publish-submodule,jquery-cookie,git://github.com/carhartl/jquery-cookie.git)
 	# commit and push to github!
 	cd gh-pages && git add . && git add -u && git commit
 	cd gh-pages && git push origin gh-pages
+define publish-submodule
+-cd gh-pages && [ -d $(1) ] || git submodule add $(2)
+cd gh-pages/$(1) && git reset --hard $(shell cd $(1) >/dev/null && git rev-parse HEAD)
+endef
 
