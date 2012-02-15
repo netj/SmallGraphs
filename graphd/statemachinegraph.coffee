@@ -20,38 +20,109 @@ class StateMachineGraph extends BaseGraph
         q.emit 'error', new Error "_runStateMachine not implemented"
 
     constructStateMachine: (query) ->
+        # preprocess query
         qgraph = @simplifyQuery query
-        return @addReturnEdges qgraph
-        # TODO
-        names = {}
-        for decl in query when decl.let?
-            [name, cond] = decl.let
-            names[name] =
-                condition: cond
-        walks = (decl.walk for decl in query when decl.walk?)
-        states = {}
-        statenum = 0
-        genState = ->
-            s = states[statenum] =
-                number: statenum
-                transitions: []
-            statenum++
-            s
-        initState = genState()
-        for walk in walks
-            prevState = initState
-            for stepCondition in walk
-                if stepCondition.objectRef?
-                    namedStep = names[stepCondition.objectRef]
-                    state = namedStep.state ?= genState()
-                    stepCondition = namedStep.condition
-                else
-                    state = genState()
-                prevState.transitions.push [stepCondition, state.number]
-                prevState = state
+        qgraph = @addReturnEdges qgraph
+        console.log qgraph
+        # first, assign message IDs
+        msgId = 0
+        msgIdStart = msgId++
+        walks = (w for w in qgraph.edges when w.steps?)
+        for w in walks
+            w.msgIdArrived  = msgId++
+            w.msgIdReturned = msgId++
+        for w in walks
+            w.msgIdWalkingBase = msgId
+            msgId += w.steps.length-1
+        # then, generate actions for each messages
+        stateMachine =
+            messages: []
+        addAction = (desc, msgId, actions...) ->
+            stateMachine.messages[msgId] =
+                msgId: msgId
+                description: desc
+                action: actions
+            msgId
+        genConstraints = (s) ->
+            if typeof s == 'number'
+                qgraph.nodes[s].step
+            else
+                s
+        symNode = "$self"
+        symPath = "$path"
+        symMatch = "$match"
+        #  Start message
+        addAction "Start", msgIdStart,
+            for w_init in walks when (w_init.source.walks_in ? []).length == 0
+                whenNode: symNode
+                satisfies: genConstraints w_init.steps[0]
+                then:
+                    sendMessage: w_init.msgIdWalkingBase + 0
+                    to: symNode
+                    withPath:
+                        newPathWithNode: symNode
+                    withMatch:
+                        newMatch: null
+        for w in walks
+            # TODO Arrived message
+            s = qgraph.nodes[w.target]
+            addAction "Arrived(#{w.id}, #{symMatch})", w.msgIdArrived,
+                [ ]
+            # TODO Returned message
+            s = qgraph.nodes[w.source]
+            addAction "Arrived(#{w.id}, #{symMatch})", w.msgIdReturned,
+                [ ]
+        # Walking message btwn intermediate steps
+        for w in walks
+            mId = w.msgIdWalkingBase
+            for i in [0 .. w.steps.length-3]
+                s = w.steps[i+1]
+                symEdge = "$e"
+                addAction "Walking(#{w.id}, #{i}, #{symPath}, #{symMatch})", mId,
+                    if i % 2 == 1
+                        # node step
+                        whenNode: symNode
+                        satisfies: genConstraints s
+                        then:
+                            sendMessage: mId+1
+                            to: symNode
+                            withPath:
+                                newPath: symPath
+                                augmentedWithNode: symNode
+                            withMatch: symMatch
+                    else
+                        # edge step
+                        foreach: symEdge
+                        in:
+                            outgoingEdgesOf: symNode
+                        do:
+                            whenEdge: symEdge
+                            satisfies: genConstraints s
+                            then:
+                                sendMessage: mId+1
+                                to:
+                                    targetNodeOf: symEdge
+                                withPath:
+                                    newPathAugmentedWithEdge: symEdge
+                                withMatch: symMatch
+                mId++
+            addAction "Walking(#{w.id}, #{w.steps.length-2}, #{symPath}, #{symMatch})", mId,
+                whenNode: symNode
+                satisfies: genConstraints w.steps[w.steps.length-1]
+                then:
+                    sendMessage: w.msgIdArrived
+                    to: symNode
+                    withMatch:
+                        newMatch: symMatch
+                        joinedWithPath:
+                            newPath: symPath
+                            augmentedWithNode: symNode
+                        forWalk: w.id
+        # we're done constructing the state machine
+        stateMachine
 
-    # simplifyQuery creates a simplified graph of the query by representing it
-    # with only walk edges and non-intermediate step nodes.
+    # simplifyQuery creates a collapsed query graph by representing longer walks
+    # with walk edges between non-intermediate step nodes.
     simplifyQuery: (query) ->
         names = {}
         for decl in query when decl.let?

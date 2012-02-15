@@ -184,26 +184,26 @@ messages and take appropriate actions:
     
     * If `q.constraints(w_init, 0).accepts(n)`, then
 
-        **send message** `Walking(w_init, 1, [n], {})` **to** itself `n`.
+        **send message** `Walking(w_init, 0, [n], {})` **to** itself `n`.
 
 
 2. When `Walking(w, s, path, match)` arrives:
 
-    * When `s == 2*k` for some integer `k`,
+    * When `s == 2*k-1` for some integer `k`,
         which means a walk has reached current node, so we may continue it if the
         current node matches the corresponding step.
     
         If `q.constraints(w, 2*k).accepts(n)`, then
 
-        * If `2*k+1 == w.length`, then this walk is complete, so
+        * If `2*k+1 == w.length-1`, then this walk is complete, so
     
             **send message** `Arrived(w, match.add(w, path++[n]))` **to** itself `n`.
     
         * Otherwise,
     
-            **send message** `Walking(w, 2*k+1, path++[n], match)` **to** itself `n`.
+            **send message** `Walking(w, 2*k, path++[n], match)` **to** itself `n`.
 
-    * When `s == 2*k+1` for some integer `k`,
+    * When `s == 2*k` for some integer `k`,
         which means current node matches the step node, so that we can continue
         looking for its matching outgoing edges.
 
@@ -211,7 +211,7 @@ messages and take appropriate actions:
         
         * If `q.constraints(w, 2*k+1).accepts(e)`, then
 
-            **send message** `Walking(w, 2*k+2, path++[e], match)` **to** target node of
+            **send message** `Walking(w, 2*k+1, path++[e], match)` **to** target node of
             it, `e.target`.
 
 
@@ -246,7 +246,7 @@ messages and take appropriate actions:
 
         * When there are no incoming return edges (`s.returns_in.size == 0`), then
 
-            **send message** `Walking(s.walks_out[0], 1, [n], match_i)` **to** itself `n`
+            **send message** `Walking(s.walks_out[0], 0, [n], match_i)` **to** itself `n`
             to initiate walk on the canonical way.
 
             Observe that this is a step with a single outgoing walk
@@ -257,7 +257,7 @@ messages and take appropriate actions:
 
             for each incoming return edge `r_i <- s.returns_in` and
             its corresponding outgoing walk `w_o = r_i.walk`,
-                **send message** `Walking(w_o, 1, [n], match_i)` to itself `n`.
+                **send message** `Walking(w_o, 0, [n], match_i)` to itself `n`.
 
 4. When `Returned(w, match)` arrives:
 
@@ -287,7 +287,7 @@ messages and take appropriate actions:
         this step is on the canonical walk way, and there is an outgoing walk
         `w_o` that does not have a return edge.
 
-        **send message** `Walking(w_o, 1, [n], match_ir)` **to** itself `n`
+        **send message** `Walking(w_o, 0, [n], match_ir)` **to** itself `n`
         to continue walk on the canonical way,
         where `w_o <- s.walks_out - [ r.walk | r <- s.returns_in ]`).
 
