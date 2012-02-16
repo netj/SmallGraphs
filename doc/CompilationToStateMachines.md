@@ -82,7 +82,8 @@ consists only of initial, terminal and junction step nodes.
     1. Visit each neighbor step node that starts a walk edge that ends at the
     current step node in a breadth-first manner.
     2. For each walk edge that starts from the current step node, add a
-    corresponding return edge from the step at which the walk ends.
+    corresponding return edge from the step at which the walk ends only if it
+    has not been visited yet.
 
 
 

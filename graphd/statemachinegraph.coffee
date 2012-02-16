@@ -260,19 +260,20 @@ class StateMachineGraph extends BaseGraph
             qgraph.edges.push ret
             (qgraph.nodes[s].returns_out ?= []).push ret.id
             (qgraph.nodes[t].returns_in  ?= []).push ret.id
-        # Starting from this terminal step node,
-        # add a return edge to here from the target node of each outgoing walk
-        # except the one that we followed to reach this node.
+        # Start visiting from this terminal step node in a breadth first manner,
+        # add return edge to current node from the target node of each outgoing
+        # walk which has not been visited yet.
         # Then, continue visiting source node of each incoming edge, including
-        # the newly added return edges. (depth first order is better for
-        # tracking the immediate edge we followed)
-        visit = (n, outEdgeJustFollowed) ->
+        # the newly added return edges.
+        nodesToVisit = [terminal]
+        while nodesToVisit.length > 0
+            n = nodesToVisit.shift()
             node = qgraph.nodes[n]
-            if node.visited then return else node.visited = true
-            addReturn qgraph.edges[e].target, n, e  for e in node.walks_out when e != outEdgeJustFollowed if node.walks_out?
-            visit qgraph.edges[e].source, e  for e in node.walks_in   if node.walks_in?
-            visit qgraph.edges[e].source, e  for e in node.returns_in if node.returns_in?
-        visit terminal
+            if node.visited then continue else node.visited = true
+            addReturn qgraph.edges[e].target, n, e  for e in node.walks_out when not qgraph.nodes[qgraph.edges[e].target].visited  if node.walks_out?
+            nodesToVisit.push qgraph.edges[e].source  for e in node.walks_in   if node.walks_in?
+            nodesToVisit.push qgraph.edges[e].source  for e in node.returns_in if node.returns_in?
+        # TODO add return edges among disconnected components
         qgraph
 
 exports.StateMachineGraph = StateMachineGraph
