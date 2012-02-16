@@ -6,22 +6,51 @@
 fs = require "fs"
 echo = console.log
 
-statemachine = JSON.parse fs.readFileSync "/dev/stdin"
+statemachine = JSON.parse fs.readFileSync (arguments[0] ? "/dev/stdin")
 
 qgraph = statemachine.qgraph
 
 echo "digraph {"
 
+# mark init nodes
+for n in qgraph.nodes when not n.walks_in? or n.walks_in.length == 0
+    n.isInit = true
+# mark the terminal node
+for n in qgraph.nodes when not n.walks_out? or n.walks_out.length == 0
+    if not n.returns_out?.length
+        n.isTerminal = true
+
+# nodes
 for n in qgraph.nodes
     echo "s#{n.id} ["
-    echo "  label=\"#{n.id}: #{n.step.objectType}(#{n.name ? ""})"
-    echo " ];"
-for e in qgraph.edges
-    echo "s#{e.source} -> s#{e.target} ["
-    echo "  label=\"#{if e.steps? then "w" else "r"}#{e.id}\""
-    echo "  style=dotted" unless e.steps?
+    echo "  label=\"#{
+        if n.name?
+            "$#{n.name} = "
+        else
+            ""
+    }#{n.step.objectType}"
+    if n.isInit
+        echo "  color=\"#33cc33\", style=bold"
+    else if n.isTerminal
+        echo "  color=\"#ff3333\", shape=doubleoctagon, style=\"bold\""
     echo " ];"
 
-echo "}"
+# edges
+for e in qgraph.edges
+    echo "s#{e.source} -> s#{e.target} ["
+    echo "  label=\"#{
+        if e.msgIdArrived?
+            "w#{e.id}(#{e.msgIdWalkingBase}..#{
+                e.msgIdWalkingBase+e.steps.length-1}>#{e.msgIdArrived})"
+        else if e.msgIdReturned?
+            "w#{e.walk}(#{e.msgIdReturned})"
+    }\""
+    if e.steps?
+        echo "  color=\"#3366ff\", fontcolor=\"#003366\""
+    else if e.walk?
+        echo "  style=dashed, color=\"#cccccc\", fontcolor=\"#999999\""
+    echo " ];"
+
+echo "};"
 
 # vim:ft=coffee

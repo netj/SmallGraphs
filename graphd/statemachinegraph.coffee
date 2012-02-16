@@ -23,15 +23,19 @@ class StateMachineGraph extends BaseGraph
         # preprocess query
         qgraph = @simplifyQuery query
         qgraph = @addReturnEdges qgraph
-        console.log qgraph
         # first, assign message IDs
         msgId = 0
         msgIdStart = msgId++
-        walks = (w for w in qgraph.edges when w.steps?)
-        for w in walks
-            w.msgIdArrived  = msgId++
-        for w in walks
-            w.msgIdReturned = msgId++
+        walks = []
+        returns = []
+        for e in qgraph.edges
+            if e.steps?
+                walks.push e
+                e.msgIdArrived = msgId++
+            else if e.walk?
+                returns.push e
+                w = qgraph.edges[e.walk]
+                e.msgIdReturned = w.msgIdReturned = msgId++
         for w in walks
             w.msgIdWalkingBase = msgId
             msgId += w.steps.length-1
@@ -66,8 +70,8 @@ class StateMachineGraph extends BaseGraph
                         newPathWithNode: symNode
                     withMatch:
                         newMatch: null
-        # Arrived message
         for w in walks
+            # Arrived message
             s = qgraph.nodes[w.target]
             addAction "Arrived(#{w.id}, #{symMatch})", w.msgIdArrived,
                 { rememberMatch: symMatch, ofNode: symNode }
@@ -80,8 +84,8 @@ class StateMachineGraph extends BaseGraph
                         if not s.returns_out? or s.returns_out.length == 0
                             output: symMatchIn
                         else # s.returns_out.length > 0
-                            for r_o in s.returns_out
-                                w_i = qgraph.edges[qgraph.edges[r_o].walk]
+                            for r_oId in s.returns_out
+                                w_i = qgraph.edges[qgraph.edges[r_oId].walk]
                                 sendMessage: w_i.msgIdReturned
                                 to:
                                     nodeInMatch: symMatchIn
@@ -98,16 +102,17 @@ class StateMachineGraph extends BaseGraph
                                 newPathWithNode: symNode
                             withMatch: symMatchIn
                         else # s.returns_in.length > 0
-                            for r_i in s.returns_in
-                                w_o = qgraph.edges[qgraph.edges[r_i].walk]
+                            for r_iId in s.returns_in
+                                w_o = qgraph.edges[qgraph.edges[r_iId].walk]
                                 sendMessage: w_o.msgIdWalkingBase+0
                                 to: symNode
                                 withPath:
                                     newPathWithNode: symNode
                                 withMatch: symMatchIn
-        # TODO Returned message
-        for w in walks
-            s = qgraph.nodes[w.source]
+        for r in returns
+            # TODO Returned message
+            s = qgraph.nodes[r.source]
+            w = qgraph.edges[r.walk]
             addAction "Returned(#{w.id}, #{symMatch})", w.msgIdReturned,
                 [ ]
         # Walking message btwn intermediate steps
@@ -244,35 +249,35 @@ class StateMachineGraph extends BaseGraph
     # step, and adding required return edges.
     addReturnEdges: (qgraph) ->
         # how to pick a terminal step
-        pickTerminal = (qgraph) ->
+        pickTerminalId = (qgraph) ->
             for tn in qgraph.nodes
                 if not tn.walks_out? or tn.walks_out.length == 0
                     # TODO pick a better terminal node based on the length of steps of its incoming edge?
                     return tn.id
-        terminal = pickTerminal qgraph
+        terminalId = pickTerminalId qgraph
         # how to add a return edge
-        addReturn = (s, t, w) ->
-            ret =
+        addReturn = (sId, tId, wId) ->
+            r =
                 id: qgraph.edges.length
-                source: s
-                target: t
-                walk: w
-            qgraph.edges.push ret
-            (qgraph.nodes[s].returns_out ?= []).push ret.id
-            (qgraph.nodes[t].returns_in  ?= []).push ret.id
+                source: sId
+                target: tId
+                walk: wId
+            qgraph.edges.push r
+            (qgraph.nodes[sId].returns_out ?= []).push r.id
+            (qgraph.nodes[tId].returns_in  ?= []).push r.id
         # Start visiting from this terminal step node in a breadth first manner,
         # add return edge to current node from the target node of each outgoing
         # walk which has not been visited yet.
         # Then, continue visiting source node of each incoming edge, including
         # the newly added return edges.
-        nodesToVisit = [terminal]
+        nodesToVisit = [terminalId]
         while nodesToVisit.length > 0
-            n = nodesToVisit.shift()
-            node = qgraph.nodes[n]
-            if node.visited then continue else node.visited = true
-            addReturn qgraph.edges[e].target, n, e  for e in node.walks_out when not qgraph.nodes[qgraph.edges[e].target].visited  if node.walks_out?
-            nodesToVisit.push qgraph.edges[e].source  for e in node.walks_in   if node.walks_in?
-            nodesToVisit.push qgraph.edges[e].source  for e in node.returns_in if node.returns_in?
+            nodeId = nodesToVisit.shift()
+            n = qgraph.nodes[nodeId]
+            if n.visited then continue else n.visited = true
+            addReturn qgraph.edges[eId].target, nodeId, eId  for eId in n.walks_out when not qgraph.nodes[qgraph.edges[eId].target].visited  if n.walks_out?
+            nodesToVisit.push qgraph.edges[eId].source       for eId in n.walks_in                                                           if n.walks_in?
+            nodesToVisit.push qgraph.edges[eId].source       for eId in n.returns_in                                                         if n.returns_in?
         # TODO add return edges among disconnected components
         qgraph
 
