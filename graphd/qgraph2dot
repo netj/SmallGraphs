@@ -12,14 +12,6 @@ qgraph = statemachine.qgraph
 
 echo "digraph {"
 
-# mark init nodes
-for n in qgraph.nodes when not n.walks_in? or n.walks_in.length == 0
-    n.isInit = true
-# mark the terminal node
-for n in qgraph.nodes when not n.walks_out? or n.walks_out.length == 0
-    if not n.returns_out?.length
-        n.isTerminal = true
-
 # nodes
 for n in qgraph.nodes
     echo "s#{n.id} ["
@@ -29,9 +21,9 @@ for n in qgraph.nodes
         else
             ""
     }#{n.step.objectType}"
-    if n.isInit
+    if n.isInitial
         echo "  color=\"#33cc33\", style=bold"
-    else if n.isTerminal
+    if n.isTerminal
         echo "  color=\"#ff3333\", shape=doubleoctagon, style=\"bold\""
     echo " ];"
 
@@ -40,10 +32,10 @@ for e in qgraph.edges
     echo "s#{e.source} -> s#{e.target} ["
     echo "  label=\"#{
         if e.msgIdArrived?
-            "w#{e.id}(#{e.msgIdWalkingBase}..#{
-                e.msgIdWalkingBase+e.steps.length-1}>#{e.msgIdArrived})"
+            "#{e.msgIdArrived}=#{e.msgIdWalkingBase}..#{
+                e.msgIdWalkingBase+e.steps.length-2} (w#{e.id})"
         else if e.msgIdReturned?
-            "w#{e.walk}(#{e.msgIdReturned})"
+            "#{e.msgIdReturned} (w#{e.walk})"
     }\""
     if e.steps?
         echo "  color=\"#3366ff\", fontcolor=\"#003366\""

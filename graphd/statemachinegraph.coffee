@@ -39,7 +39,14 @@ class StateMachineGraph extends BaseGraph
         for w in walks
             w.msgIdWalkingBase = msgId
             msgId += w.steps.length-1
+        # mark initial and terminal nodes
+        for s in qgraph.nodes
+            if not s.walks_in?.length
+                s.isInitial = true
+            if not s.walks_out?.length and not s.returns_out?.length
+                s.isTerminal = true
         # then, generate actions for each messages
+        # TODO reduce number of messages sent to self node
         stateMachine =
             qgraph: qgraph
             messages: []
@@ -57,64 +64,96 @@ class StateMachineGraph extends BaseGraph
         symNode = "$self"
         symPath = "$path"
         symMatch = "$match"
-        symMatchIn = "$match_i"
         #  Start message
         addAction "Start", msgIdStart,
-            for w_init in walks when (w_init.source.walks_in ? []).length == 0
+            for s in qgraph.nodes when s.isInitial
+                null # XXX don't remove this line, or you'll break CoffeeScript's parser
+                # TODO group initial nodes with same constraints
                 whenNode: symNode
-                satisfies: genConstraints w_init.steps[0]
+                satisfies: genConstraints s.step
                 then:
-                    sendMessage: w_init.msgIdWalkingBase + 0
-                    to: symNode
-                    withPath:
-                        newPathWithNode: symNode
-                    withMatch:
-                        newMatch: null
+                    for w_initId in s.walks_out
+                        w_init = qgraph.edges[w_initId]
+                        sendMessage: w_init.msgIdWalkingBase
+                        to: symNode
+                        withPath:
+                            newPathWithNode: symNode
+                        withMatch:
+                            newMatch: null
+        # TODO optimize out unnecessary foreach findCompatibleMatchesWithMatch
+        # Arrived messages
+        symMatchIn = "$match_i"
         for w in walks
-            # Arrived message
             s = qgraph.nodes[w.target]
             addAction "Arrived(#{w.id}, #{symMatch})", w.msgIdArrived,
-                { rememberMatch: symMatch, ofNode: symNode }
+                { rememberMatch: symMatch, ofNode: symNode, viaWalk: w.id }
                 foreach: symMatchIn
                 in:
                     findCompatibleMatchesWithMatch: symMatch
                     ofWalks: s.walks_in # TODO find out more points of join
-                do:
-                    if not s.walks_out? or s.walks_out.length == 0
-                        if not s.returns_out? or s.returns_out.length == 0
-                            output: symMatchIn
-                        else # s.returns_out.length > 0
-                            for r_oId in s.returns_out
+                do: _.flatten [
+                    if s.returns_in?.length
+                        # initiate walks that need we expect to return
+                        for r_iId in s.returns_in
+                            w_o = qgraph.edges[qgraph.edges[r_iId].walk]
+                            sendMessage: w_o.msgIdWalkingBase
+                            to: symNode
+                            withPath:
+                                newPathWithNode: symNode
+                            withMatch: symMatchIn
+                    else # no incoming return edges
+                        if s.isTerminal # we can emit since no Returned message is expected
+                            emitMatch: symMatchIn
+                        else if s.walks_out?.length # initiate outgoing walks
+                            for w_oId in s.walks_out
+                                w_o = qgraph.edges[w_oId]
+                                sendMessage: w_o.msgIdWalkingBase
+                                to: symNode
+                                withPath:
+                                    newPathWithNode: symNode
+                                withMatch: symMatchIn
+                        else # or, initiate Returned messages if no outgoing walks
+                            for r_oId in s.returns_out ? []
                                 w_i = qgraph.edges[qgraph.edges[r_oId].walk]
                                 sendMessage: w_i.msgIdReturned
                                 to:
                                     nodeInMatch: symMatchIn
                                     ofWalk: w_i.id
                                     atIndex: 0
-                                withMatch: symMatchIn
-                    else # s.walks_out.length > 0
-                        if not s.returns_in? or s.returns_in.length == 0
-                            # FIXME there can be multiple walks
-                            theWalk = s.walks_out[0]
-                            sendMessage: theWalk.msgIdWalkingBase+0
+                                    withMatch: symMatchIn
+                ]
+        # Returned messages
+        symMatchInRet = "$match_ir"
+        for r in returns
+            w = qgraph.edges[r.walk]
+            s = qgraph.nodes[w.source]
+            walks_out_with_returns = (qgraph.edges[r].walk for r in s.returns_in)
+            addAction "Returned(#{w.id}, #{symMatch})", w.msgIdReturned,
+                { rememberMatch: symMatch, ofNode: symNode, viaWalk: w.id }
+                foreach: symMatchInRet
+                in:
+                    findCompatibleMatchesWithMatch: symMatch
+                    ofWalks: _.union s.walks_in ? [], walks_out_with_returns # TODO find out more points of join
+                do:
+                    if s.isTerminal # we can emit once we get back all the Returned matches
+                        emitMatch: symMatchInRet
+                    else _.flatten [
+                        for r_oId in s.returns_out ? []
+                            w_i = qgraph.edges[qgraph.edges[r_oId].walk]
+                            sendMessage: w_i.msgIdReturned
+                            to:
+                                nodeInMatch: symMatchInRet
+                                ofWalk: w_i.id
+                                atIndex: 0
+                            withMatch: symMatchInRet
+                        for w_oId in _.difference s.walks_out ? [], walks_out_with_returns
+                            w_o = qgraph.edges[w_oId]
+                            sendMessage: w_o.msgIdWalkingBase
                             to: symNode
                             withPath:
                                 newPathWithNode: symNode
-                            withMatch: symMatchIn
-                        else # s.returns_in.length > 0
-                            for r_iId in s.returns_in
-                                w_o = qgraph.edges[qgraph.edges[r_iId].walk]
-                                sendMessage: w_o.msgIdWalkingBase+0
-                                to: symNode
-                                withPath:
-                                    newPathWithNode: symNode
-                                withMatch: symMatchIn
-        for r in returns
-            # TODO Returned message
-            s = qgraph.nodes[r.source]
-            w = qgraph.edges[r.walk]
-            addAction "Returned(#{w.id}, #{symMatch})", w.msgIdReturned,
-                [ ]
+                            withMatch: symMatchInRet
+                    ]
         # Walking message btwn intermediate steps
         for w in walks
             mId = w.msgIdWalkingBase

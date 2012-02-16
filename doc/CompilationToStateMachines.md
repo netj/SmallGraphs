@@ -231,21 +231,19 @@ messages and take appropriate actions:
     Then,
     for each compatible match `match_i <- n.findCompatibleMatches(s.walks_in, match)`,
 
-    * When this is a terminal step (`s.walks_out.size == 0`),
+    * When there are some incoming return edges (`s.returns_in.size > 0`), then
 
-        * When there are no outgoing return edges (`s.returns_out.size == 0`),
+            for each incoming return edge `r_i <- s.returns_in` and
+            its corresponding outgoing walk `w_o = r_i.walk`,
+                **send message** `Walking(w_o, 0, [n], match_i)` to itself `n`.
+
+    * Otherwise (`s.returns_in.size == 0`),
+
+        * When this is a terminal step (`s.returns_out == 0` and `s.walks_out.size == 0`),
 
             **output** `match_i`.
 
-        * Otherwise (`s.returns_out.size > 0`),
-
-            for each outgoing return edge `r_o <- s.returns_out` and
-            its corresponding incoming walk `w_i = r_o.walk`,
-                **send message** `Returned(w_i, match_i)` **to** `match_i[w_i][0]`.
-
-    * Otherwise, when this step has some outgoing walks (`s.walks_out.size > 0`),
-
-        * When there are no incoming return edges (`s.returns_in.size == 0`), then
+        * When this step has some outgoing walks (`s.walks_out.size > 0`),
 
             **send message** `Walking(s.walks_out[0], 0, [n], match_i)` **to** itself `n`
             to initiate walk on the canonical way.
@@ -254,11 +252,12 @@ messages and take appropriate actions:
             (`s.walks_out.size - 1 <= s.returns_in.size`, thus
             `s.walks_out.size == 1`).
 
-        * Otherwise (`s.returns_in.size > 0`),
+        * Otherwise, this step should initiate the returns (`s.walks_out.size == 0`),
 
-            for each incoming return edge `r_i <- s.returns_in` and
-            its corresponding outgoing walk `w_o = r_i.walk`,
-                **send message** `Walking(w_o, 0, [n], match_i)` to itself `n`.
+            for each outgoing return edge `r_o <- s.returns_out` and
+            its corresponding incoming walk `w_i = r_o.walk`,
+                **send message** `Returned(w_i, match_i)` **to** `match_i[w_i][0]`.
+
 
 4. When `Returned(w, match)` arrives:
 
@@ -278,15 +277,14 @@ messages and take appropriate actions:
 
     Then, for each compatible match `match_ir <- n.findCompatibleMatches(s.walks_in ++ s.returns_in, match)`,
 
-    * When all outgoing walks return (`s.walks_out.size == s.returns_in.size`),
+    * When there are outgoing returns (`s.returns_out.size > 0`),
 
         for each outgoing return edge `r_o <- s.returns_out` and
         its corresponding outgoing walk `w_i = r_o.walk`,
             **send message** `Returned(w_i, match_ir)` **to** `match_ir[w_i][0]`.
     
-    * Otherwise (`s.walks_out.size > s.returns_in.size`),
-        this step is on the canonical walk way, and there is an outgoing walk
-        `w_o` that does not have a return edge.
+    * When there is an outgoing walk without return (`s.walks_out.size > s.returns_in.size`),
+        it means this step is on the canonical walk way.
 
         **send message** `Walking(w_o, 0, [n], match_ir)` **to** itself `n`
         to continue walk on the canonical way,
