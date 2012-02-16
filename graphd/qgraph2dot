@@ -1,0 +1,27 @@
+#!/usr/bin/env coffee
+# qgraph2dot -- a tool for visualizing the query graph used in state machine compilation
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-02-15
+
+fs = require "fs"
+echo = console.log
+
+statemachine = JSON.parse fs.readFileSync "/dev/stdin"
+
+qgraph = statemachine.qgraph
+
+echo "digraph {"
+
+for n in qgraph.nodes
+    echo "s#{n.id} ["
+    echo "  label=\"#{n.id}: #{n.step.objectType}(#{n.name ? ""})"
+    echo " ];"
+for e in qgraph.edges
+    echo "s#{e.source} -> s#{e.target} ["
+    echo "  label=\"#{if e.steps? then "w" else "r"}#{e.id}\""
+    echo "  style=dotted" unless e.steps?
+    echo " ];"
+
+echo "}"
+
+# vim:ft=coffee
