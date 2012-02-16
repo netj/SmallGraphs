@@ -20,7 +20,7 @@ for n in qgraph.nodes
             "$#{n.name} = "
         else
             ""
-    }#{n.step.objectType}"
+    }#{n.step.objectType}\""
     if n.isInitial
         echo "  color=\"#33cc33\", style=bold"
     if n.isTerminal

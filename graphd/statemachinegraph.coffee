@@ -7,11 +7,16 @@ _ = require "underscore"
 class StateMachineGraph extends BaseGraph
     constructor: (@descriptor) ->
         super
-        # TODO
 
     _runQuery: (query, limit, offset, req, res, q) ->
         sm = @constructStateMachine query
-        q.emit 'result', sm
+        # FIXME for debug+development, REMOVEME
+        fs = require "fs"
+        child = require "child_process"
+        fs.writeFileSync "test.sgm", JSON.stringify sm, null, 2
+        console.log "test.sgm"
+        child.spawn "./test-view-sgm.sh", ["test.sgm"]
+        # FIXME end of debug
         @_runStateMachine sm, limit, offset, req, res, q
 
     # XXX override this
