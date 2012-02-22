@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -eu
+
+Self=`readlink -f "$0"`
+Here=`dirname "$Self"`
+
+jars=("$Here"/target/smallgraph-giraph-*-jar-with-dependencies.jar)
+jar=${jars[0]}
+
+java -cp "$jar" \
+    org.apache.hadoop.util.RunJar "$jar" \
+    edu.stanford.ppl.SimpleShortestPathsVertex \
+    -Dgiraph.SplitMasterWorker=false \
+    shortestPathsInputGraph output 1 1 \
+    #
+
