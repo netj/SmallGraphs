@@ -3,7 +3,7 @@ fs = require "fs"
 
 {StateMachineGraph} = require "../statemachinegraph"
 
-class GreenMarlGraph extends StateMachineGraph
+class GiraphGraph extends StateMachineGraph
     constructor: (@descriptor) ->
         super @descriptor
         d = @descriptor
@@ -23,12 +23,13 @@ class GreenMarlGraph extends StateMachineGraph
         @schema.Objects = objects
 
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
-        # TODO generate C++ code from statemachine
-        msgHandlerCode = @generateCodeForMessageHandlerCXX statemachine
-        fs.writeFileSync "test.cc", msgHandlerCode
+        # TODO generate Pregel vertex compute code from statemachine
+        javaCode = @generateJavaCode statemachine
+        javaFile = "SmallGraphGiraphVertex.java"
+        fs.writeFileSync javaFile, javaCode
         
         #  TODO map types, node/edge URIs in query to long long int IDs
-        q.emit 'result', msgHandlerCode; return # FIXME lets construct the correct statemachine for the moment
+        q.emit 'result', javaCode; return # FIXME lets construct the correct statemachine for the moment
 
         # use match.sh to compile, link, and run it
         run = spawn "./match.sh", [cxxPath, @descriptor.graphPath]
@@ -44,7 +45,7 @@ class GreenMarlGraph extends StateMachineGraph
                     # TODO  inverse-map long long int IDs back to types, node/edge URIs
                     result = []
                     q.emit 'result', result
-    generateCodeForMessageHandlerCXX: (statemachine) ->
+    generateJavaCode: (statemachine) ->
         codegenType = (expr) ->
             if expr.targetNodeOf?
                 "Node"
@@ -110,38 +111,55 @@ class GreenMarlGraph extends StateMachineGraph
                 })"
 
             else
-                "/* XXX: unknown expr: #{JSON.stringify expr} */ NULL"
+                "/* XXX: unknown expr: #{JSON.stringify expr} */ null"
 
         codegenAction = (action) ->
             if action instanceof Array
-                "{#{(codegenAction a for a in action).join "\n"}}"
+                """
+                {
+                    #{(codegenAction a for a in action).join "\n"}
+                }
+                """
 
             else if action.foreach?
-                if action.in == 'object'
+                if typeof action.in == 'object'
                     if action.in.outgoingEdgesOf
                         """
                         // XXX: this is hard to mix C++ and Green-Marl :(
-                        Foreach (#{codegenExpr action.foreach} : ) {
+                        for (#{codegenExpr action.foreach} : ) {
                         }
                         """
                     else
                         x = action.foreach
-                        xs = "#{x}s" # TODO generate symbols
                         xtype = codegenType action.in
                         """
-                        #{xtype} #{xs} = #{codegenExpr action.in}
-                        for (#{xtype}::iterator #{x} = #{xs}.begin(); it != #{xs}.end(); #{xs}++) {
+                        for (#{xtype} #{x} : #{codegenExpr action.in}) {
                             #{codegenAction action.do}
                         }
                         """
 
             else if action.sendMessage?
-                "// TODO"
+                """
+                Message msg = new Message(#{codegenExpr action.sendMessage});
+                // TODO withPath
+                // TODO withMatch
+                sendMsg(#{codegenExpr action.to}, msg);
+                """
 
             else if action.whenEdge?
-                "// TODO"
+                """
+                // TODO
+                if (satisfies(#{codegenExpr action.whenEdge}, #{codegenExpr action.satisfies})) {
+                    #{codegenAction action.then}
+                }
+                """
             else if action.whenNode?
-                "// TODO"
+                """
+                // TODO
+                if (satisfies(#{codegenExpr action.whenNode}, #{codegenExpr action.satisfies})) {
+                    #{codegenAction action.then}
+                }
+                """
 
             else if action.rememberMatch?
                 "// TODO"
@@ -157,12 +175,16 @@ class GreenMarlGraph extends StateMachineGraph
                 break;
             """
         """
+        public class SmallGraphGiraphVertex extends BaseSmallGraphGiraphVertex  {
+        @Override
         void handleMessage(int msgId, Path path, Match match) {
             switch (msgId) {
                 #{(codegenCase msg for msg in statemachine.messages).join "\n"}
             }
+            voteToHalt();
+        }
         }
         """
 
 
-exports.GreenMarlGraph = GreenMarlGraph
+exports.GiraphGraph = GiraphGraph

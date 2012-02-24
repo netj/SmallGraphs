@@ -7,3 +7,6 @@
 [submodule "jquery-svg"]
 	path = jquery-svg
 	url = git://github.com/apendleton/jquery-svg.git
+[submodule "graphd/giraph/giraph"]
+	path = graphd/giraph/giraph
+	url = git://git.apache.org/giraph.git

@@ -12,12 +12,15 @@ smallgraph = require "smallgraph"
 
 # factory method
 {MySQLGraph} = require "./mysqlgraph"
+{GiraphGraph} = require "./giraph/giraphgraph"
 {GreenMarlGraph} = require "./green-marl/greenmarlgraph"
 loadGraph = (graphId) ->
     path = "#{_GraphDirectoryPath}/#{graphId}/graphd.json"
     graphDescriptor = JSON.parse fs.readFileSync path
     if graphDescriptor.mysql
         return new MySQLGraph graphDescriptor.mysql
+    else if graphDescriptor.giraph
+        return new GiraphGraph graphDescriptor.giraph
     else if graphDescriptor.greenmarl
         return new GreenMarlGraph graphDescriptor.greenmarl
     else
