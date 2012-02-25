@@ -66,7 +66,7 @@ class StateMachineGraph extends BaseGraph
                 qgraph.nodes[s].step
             else
                 s
-        symNode = "$self"
+        symNode = "$this"
         symPath = "$path"
         symMatch = "$match"
         #  Start message
@@ -190,7 +190,8 @@ class StateMachineGraph extends BaseGraph
                                 to:
                                     targetNodeOf: symEdge
                                 withPath:
-                                    newPathAugmentedWithEdge: symEdge
+                                    newPath: symPath
+                                    augmentedWithEdge: symEdge
                                 withMatch: symMatch
                 mId++
             addAction "Walking(#{w.id}, #{w.steps.length-2}, #{symPath}, #{symMatch})", mId,

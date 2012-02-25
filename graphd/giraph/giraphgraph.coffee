@@ -27,6 +27,16 @@ class GiraphGraph extends StateMachineGraph
         javaCode = @generateJavaCode statemachine
         javaFile = "SmallGraphGiraphVertex.java"
         fs.writeFileSync javaFile, javaCode
+        # indent with Vim
+        spawn "screen", [
+            "-D"
+            "-m"
+            "vim"
+            "+set sw=2 sts=2"
+            "+norm gg=G"
+            "+wq"
+            javaFile
+        ]
         
         #  TODO map types, node/edge URIs in query to long long int IDs
         q.emit 'result', javaCode; return # FIXME lets construct the correct statemachine for the moment
@@ -90,16 +100,21 @@ class GiraphGraph extends StateMachineGraph
                 }]"
 
             else if expr.newPath?
-                "/* TODO */"
-            else if expr.newPathAugmentedWithEdge?
-                "/* TODO */"
+                "new MatchPath(#{
+                    if expr.newPath
+                        "#{codegenExpr expr.newPath}#{
+                            if expr.augmentedWithNode?
+                                ", #{codegenExpr expr.augmentedWithNode}"
+                            else if expr.augmentedWithEdge?
+                                ", #{codegenExpr expr.augmentedWithEdge}"
+                        }"
+                })"
             else if expr.newPathWithNode?
-                "/* TODO */"
+                "new MatchPath(#{codegenExpr expr.newPathWithNode})"
 
             else if expr.findCompatibleMatchesWithMatch?
                 # TODO can we expand this?
-                "findCompatibleMatchesWithMatch(#{
-                    expr.findCompatibleMatchesWithMatch}, #{
+                "findCompatibleMatchesWithMatch(#{codegenExpr expr.findCompatibleMatchesWithMatch}, #{
                         expr.ofWalks.join ", "})"
             else if expr.newMatch?
                 "new Match(#{
@@ -115,11 +130,14 @@ class GiraphGraph extends StateMachineGraph
 
         codegenAction = (action) ->
             if action instanceof Array
-                """
-                {
-                    #{(codegenAction a for a in action).join "\n"}
-                }
-                """
+                if action.length == 1
+                    codegenAction action[0]
+                else
+                    """
+                    {
+                        #{(codegenAction a for a in action).join "\n"}
+                    }
+                    """
 
             else if action.foreach?
                 if typeof action.in == 'object'
@@ -130,39 +148,48 @@ class GiraphGraph extends StateMachineGraph
                         }
                         """
                     else
-                        x = action.foreach
-                        xtype = codegenType action.in
+                        xsty = codegenType action.in
+                        xty = xsty?.list ? "Object"
                         """
-                        for (#{xtype} #{x} : #{codegenExpr action.in}) {
+                        for (#{xty} #{codegenExpr action.foreach} : #{codegenExpr action.in})
                             #{codegenAction action.do}
-                        }
                         """
+
+            else if action.emitMatch?
+                """
+                emitMatch(#{codegenExpr action.emitMatch});
+                """
 
             else if action.sendMessage?
                 """
-                Message msg = new Message(#{codegenExpr action.sendMessage});
-                // TODO withPath
-                // TODO withMatch
-                sendMsg(#{codegenExpr action.to}, msg);
+                sendMsg(#{codegenExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
+                    if action.withPath? then ", " + codegenExpr action.withPath else ""
+                }#{
+                    if action.withMatch? then ", " + codegenExpr action.withMatch else ""
+                }));
                 """
 
             else if action.whenEdge?
                 """
-                // TODO
-                if (satisfies(#{codegenExpr action.whenEdge}, #{codegenExpr action.satisfies})) {
+                if (getVertexValue().get().type == #{codegenExpr action.satisfies.linkType}))
+                    #{
+                    if action.satisfies
+                        satisfies(#{codegenExpr action.whenEdge}, 
+                        )
+                    }
                     #{codegenAction action.then}
-                }
                 """
             else if action.whenNode?
                 """
-                // TODO
-                if (satisfies(#{codegenExpr action.whenNode}, #{codegenExpr action.satisfies})) {
+                if (satisfies(#{codegenExpr action.whenNode}, #{codegenExpr action.satisfies.objectType}))
                     #{codegenAction action.then}
-                }
                 """
 
             else if action.rememberMatch?
-                "// TODO"
+                """
+                #{if action.ofNode != "$this" then "// XXX can't remember match of node: #{action.ofNode}" else ""}
+                rememberMatch(#{codegenExpr action.rememberMatch}, #{codegenExpr action.viaWalk});
+                """
 
             else
                 "// unknown action node: #{JSON.stringify action}"
