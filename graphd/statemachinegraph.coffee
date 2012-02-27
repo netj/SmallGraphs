@@ -84,7 +84,7 @@ class StateMachineGraph extends BaseGraph
                         withPath:
                             newPathWithNode: symNode
                         withMatch:
-                            newMatch: null
+                            newMatch: 0
         # TODO optimize out unnecessary foreach findCompatibleMatchesWithMatch
         # Arrived messages
         symMatchIn = "$match_i"
@@ -125,7 +125,7 @@ class StateMachineGraph extends BaseGraph
                                     nodeInMatch: symMatchIn
                                     ofWalk: w_i.id
                                     atIndex: 0
-                                    withMatch: symMatchIn
+                                withMatch: symMatchIn
                 ]
         # Returned messages
         symMatchInRet = "$match_ir"

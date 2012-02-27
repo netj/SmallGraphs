@@ -58,18 +58,18 @@ class GiraphGraph extends StateMachineGraph
     generateJavaCode: (statemachine) ->
         codegenType = (expr) ->
             if expr.targetNodeOf?
-                "Node"
+                "LongWritable"
             else if expr.nodeInMatch?
-                "Node"
+                "LongWritable"
             else if expr.outgoingEdgesOf?
-                { list: "Edge" }
+                { list: "LongWritable" }
 
             else if expr.newPath?
-                "Path"
+                "MatchPath"
             else if expr.newPathAugmentedWithEdge?
-                "Path"
+                "MatchPath"
             else if expr.newPathWithNode?
-                "Path"
+                "MatchPath"
 
             else if expr.findCompatibleMatchesWithMatch?
                 { list: "Match" }
@@ -78,6 +78,12 @@ class GiraphGraph extends StateMachineGraph
 
             else
                 "/* XXX: unknown expr: #{JSON.stringify expr} */ void"
+
+        codegenNodeExpr = (expr) ->
+            if typeof expr == 'string' and expr == '$this'
+                "#{codegenExpr expr}.getVertexId()"
+            else
+                codegenExpr expr
 
         codegenExpr = (expr) ->
             if typeof expr == 'string'
@@ -89,7 +95,7 @@ class GiraphGraph extends StateMachineGraph
                 expr
 
             else if expr.targetNodeOf?
-                "/* TODO */"
+                codegenExpr expr.targetNodeOf
             else if expr.nodeInMatch?
                 "#{
                     codegenExpr expr.nodeInMatch
@@ -99,18 +105,24 @@ class GiraphGraph extends StateMachineGraph
                     codegenExpr expr.atIndex
                 }]"
 
+            else if expr.outgoingEdgesOf?
+                codegenExpr expr.outgoingEdgesOf
+
             else if expr.newPath?
                 "new MatchPath(#{
                     if expr.newPath
                         "#{codegenExpr expr.newPath}#{
                             if expr.augmentedWithNode?
-                                ", #{codegenExpr expr.augmentedWithNode}"
-                            else if expr.augmentedWithEdge?
-                                ", #{codegenExpr expr.augmentedWithEdge}"
+                                ", #{codegenNodeExpr expr.augmentedWithNode}"
+                                # EdgeListVertex has no ID for edges
+                                # else if expr.augmentedWithEdge?
+                                #     ", #{codegenExpr expr.augmentedWithEdge}"
+                            else
+                                ""
                         }"
                 })"
             else if expr.newPathWithNode?
-                "new MatchPath(#{codegenExpr expr.newPathWithNode})"
+                "new MatchPath(#{codegenNodeExpr expr.newPathWithNode})"
 
             else if expr.findCompatibleMatchesWithMatch?
                 # TODO can we expand this?
@@ -118,15 +130,48 @@ class GiraphGraph extends StateMachineGraph
                         expr.ofWalks.join ", "})"
             else if expr.newMatch?
                 "new Match(#{
-                    codegenExpr expr.newMatch
-                }, #{
-                    codegenExpr expr.forWalk
-                }, #{
-                    codegenExpr expr.joinedWithPath
+                    if expr.newMatch == 0
+                        ""
+                    else
+                        "#{
+                        codegenExpr expr.newMatch
+                        }, #{
+                            codegenExpr expr.forWalk
+                        }, #{
+                            codegenExpr expr.joinedWithPath
+                        }"
                 })"
 
             else
                 "/* XXX: unknown expr: #{JSON.stringify expr} */ null"
+
+        codegenConstraints = (pmap, constraints) ->
+            codegenSingleConstraint = (c) ->
+                [name, rel, value] = c
+                if name?
+                    switch typeof value
+                        when "number"
+                            if value == parseInt value
+                                "#{pmap}.getLong(#{name}) #{rel} #{value}"
+                            else
+                                "#{pmap}.getDouble(#{name}) #{rel} #{value}"
+                        when "string"
+                            "#{pmap}.getString(#{name}) #{rel} \"#{value.replace /"/g, "\\\""}\""
+                        else
+                            "false /* XXX: unable to compile constraint: #{JSON.stringify c} */"
+                else
+                    "#{eV} #{rel} #{value}"
+            if constraints? and constraints.length > 0 and constraints[0]? and constraints[0].length > 0
+                code = "if ("
+                numdisjs = 0
+                for disjunction in constraints
+                    if disjunction.length > 0
+                        code += " && " if numdisjs > 0
+                        code += "(#{disjunction.map(codegenSingleConstraint).join(" || ")})"
+                        numdisjs++
+                code
+            else
+                ""
 
         codegenAction = (action) ->
             if action instanceof Array
@@ -141,19 +186,12 @@ class GiraphGraph extends StateMachineGraph
 
             else if action.foreach?
                 if typeof action.in == 'object'
-                    if action.in.outgoingEdgesOf
-                        """
-                        // XXX: this is hard to mix C++ and Green-Marl :(
-                        for (#{codegenExpr action.foreach} : ) {
-                        }
-                        """
-                    else
-                        xsty = codegenType action.in
-                        xty = xsty?.list ? "Object"
-                        """
-                        for (#{xty} #{codegenExpr action.foreach} : #{codegenExpr action.in})
-                            #{codegenAction action.do}
-                        """
+                    xsty = codegenType action.in
+                    xty = xsty?.list ? "Object"
+                    """
+                    for (#{xty} #{codegenExpr action.foreach} : #{codegenExpr action.in})
+                        #{codegenAction action.do}
+                    """
 
             else if action.emitMatch?
                 """
@@ -162,7 +200,7 @@ class GiraphGraph extends StateMachineGraph
 
             else if action.sendMessage?
                 """
-                sendMsg(#{codegenExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
+                sendMsg(#{codegenNodeExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
                     if action.withPath? then ", " + codegenExpr action.withPath else ""
                 }#{
                     if action.withMatch? then ", " + codegenExpr action.withMatch else ""
@@ -170,18 +208,18 @@ class GiraphGraph extends StateMachineGraph
                 """
 
             else if action.whenEdge?
+                cond = action.satisfies
                 """
-                if (getVertexValue().get().type == #{codegenExpr action.satisfies.linkType}))
-                    #{
-                    if action.satisfies
-                        satisfies(#{codegenExpr action.whenEdge}, 
-                        )
-                    }
+                {
+                PropertyMap eV = getEdgeValue(#{codegenExpr action.whenEdge});
+                if (eV.getType() == #{codegenExpr cond.linkType}) #{codegenConstraints "eV", cond.constraints}
                     #{codegenAction action.then}
+                }
                 """
             else if action.whenNode?
+                cond = action.satisfies
                 """
-                if (satisfies(#{codegenExpr action.whenNode}, #{codegenExpr action.satisfies.objectType}))
+                if (#{codegenExpr action.whenNode}.getType() == #{codegenExpr cond.objectType}) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
                     #{codegenAction action.then}
                 """
 
