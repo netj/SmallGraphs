@@ -39,7 +39,7 @@ class GiraphGraph extends StateMachineGraph
         ]
         
         #  TODO map types, node/edge URIs in query to long long int IDs
-        q.emit 'result', javaCode; return # FIXME lets construct the correct statemachine for the moment
+        q.emit 'result', JSON.stringify javaCode; return # FIXME lets construct the correct statemachine for the moment
 
         # use match.sh to compile, link, and run it
         run = spawn "./match.sh", [cxxPath, @descriptor.graphPath]

@@ -14,7 +14,7 @@ class StateMachineGraph extends BaseGraph
         fs = require "fs"
         child = require "child_process"
         fs.writeFileSync "test.sgm", JSON.stringify sm, null, 2
-        console.log "test.sgm"
+        #console.log "test.sgm"
         child.spawn "./test-view-sgm.sh", ["test.sgm"]
         # FIXME end of debug
         @_runStateMachine sm, limit, offset, req, res, q
@@ -310,19 +310,31 @@ class StateMachineGraph extends BaseGraph
             qgraph.edges.push r
             (qgraph.nodes[sId].returns_out ?= []).push r.id
             (qgraph.nodes[tId].returns_in  ?= []).push r.id
-        # Start visiting from this terminal step node in a breadth first manner,
+        # First, mark step nodes on the canonical way
+        nodesToVisit = [terminalId]
+        while nodesToVisit.length > 0
+            nodeId = nodesToVisit.shift()
+            n = qgraph.nodes[nodeId]
+            n.isCanonical = true
+            nodesToVisit.push qgraph.edges[eId].source for eId in n.walks_in if n.walks_in?
+        # Then, start visiting from this terminal step node in a breadth first manner,
         # add return edge to current node from the target node of each outgoing
         # walk which has not been visited yet.
         # Then, continue visiting source node of each incoming edge, including
         # the newly added return edges.
+        needsReturn = (eId) ->
+            t = qgraph.nodes[qgraph.edges[eId].target]
+            not t.visited and # target node shouldn't be visited yet
+                not t.isCanonical and # nodes on the canonical need no return to other nodes
+                not t.returns_out?.length > 0 # and no redundant returns XXX is it true that only a single return is necessary for all cases?
         nodesToVisit = [terminalId]
         while nodesToVisit.length > 0
             nodeId = nodesToVisit.shift()
             n = qgraph.nodes[nodeId]
             if n.visited then continue else n.visited = true
-            addReturn qgraph.edges[eId].target, nodeId, eId  for eId in n.walks_out when not qgraph.nodes[qgraph.edges[eId].target].visited  if n.walks_out?
-            nodesToVisit.push qgraph.edges[eId].source       for eId in n.walks_in                                                           if n.walks_in?
-            nodesToVisit.push qgraph.edges[eId].source       for eId in n.returns_in                                                         if n.returns_in?
+            addReturn qgraph.edges[eId].target, nodeId, eId  for eId in n.walks_out when needsReturn eId  if n.walks_out?
+            nodesToVisit.push qgraph.edges[eId].source       for eId in n.walks_in                        if n.walks_in?
+            nodesToVisit.push qgraph.edges[eId].source       for eId in n.returns_in                      if n.returns_in?
         # TODO add return edges among disconnected components
         qgraph
 

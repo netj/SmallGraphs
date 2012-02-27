@@ -10,6 +10,6 @@ cd "$Base"
 
 curl -sS --get \
     http://localhost:53411/sgmtest/query \
-    --data-urlencode q="$q" | tee test.sgm
+    --data-urlencode q="$q"
 
 ./test-view-sgm.sh test.sgm
