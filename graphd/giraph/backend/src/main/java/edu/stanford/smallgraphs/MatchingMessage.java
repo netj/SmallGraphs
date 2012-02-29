@@ -9,16 +9,16 @@ import org.apache.hadoop.io.Writable;
 public class MatchingMessage implements Writable {
 
 	private final int msgId;
-	private final Match match;
+	private final Matches match;
 	private final MatchPath path;
 
-	public MatchingMessage(int msgId, Match match, MatchPath path) {
+	public MatchingMessage(int msgId, Matches match, MatchPath path) {
 		this.msgId = msgId;
 		this.match = match;
 		this.path = path;
 	}
 
-	public MatchingMessage(int msgId, Match match) {
+	public MatchingMessage(int msgId, Matches match) {
 		this(msgId, match, null);
 	}
 
@@ -34,7 +34,7 @@ public class MatchingMessage implements Writable {
 		return msgId;
 	}
 
-	public Match getMatch() {
+	public Matches getMatch() {
 		return match;
 	}
 
@@ -43,13 +43,13 @@ public class MatchingMessage implements Writable {
 	}
 
 	@Override
-	public void readFields(DataInput arg0) throws IOException {
+	public void readFields(DataInput in) throws IOException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void write(DataOutput arg0) throws IOException {
+	public void write(DataOutput out) throws IOException {
 		// TODO Auto-generated method stub
 
 	}

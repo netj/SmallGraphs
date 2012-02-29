@@ -209,17 +209,21 @@ class GiraphGraph extends StateMachineGraph
 
             else if action.whenEdge?
                 cond = action.satisfies
+                # TODO edgeTypeId = typeDictionary cond.linkType
+                edgeTypeId = codegenExpr cond.linkType
                 """
                 {
                 PropertyMap eV = getEdgeValue(#{codegenExpr action.whenEdge});
-                if (eV.getType() == #{codegenExpr cond.linkType}) #{codegenConstraints "eV", cond.constraints}
+                if (eV.getType() == #{edgeTypeId}) #{codegenConstraints "eV", cond.constraints}
                     #{codegenAction action.then}
                 }
                 """
             else if action.whenNode?
                 cond = action.satisfies
+                # TODO map to typeId: nodeTypeId = typeDictionary cond.objectType
+                nodeTypeId = codegenExpr cond.objectType
                 """
-                if (#{codegenExpr action.whenNode}.getType() == #{codegenExpr cond.objectType}) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
+                if (#{codegenExpr action.whenNode}.getVertexValue().getType() == #{nodeTypeId}) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
                     #{codegenAction action.then}
                 """
 

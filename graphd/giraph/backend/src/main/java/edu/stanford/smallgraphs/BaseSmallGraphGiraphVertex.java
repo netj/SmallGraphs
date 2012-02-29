@@ -45,6 +45,10 @@ public abstract class BaseSmallGraphGiraphVertex
 
 	protected abstract void handleMessage(MatchingMessage msg);
 
+	protected void rememberMatch(MatchPath path, Matches match, int forWalk) {
+		getVertexValue().getMatches().addMatch(path, match, forWalk);
+	}
+	
 	@Override
 	public void compute(Iterator<MatchingMessage> msgIterator) {
 		if (getSuperstep() == 0) {
@@ -54,7 +58,6 @@ public abstract class BaseSmallGraphGiraphVertex
 		while (msgIterator.hasNext()) {
 			handleMessage(msgIterator.next());
 		}
-
 		// if (LOG.isDebugEnabled()) {
 		// LOG.debug("Vertex " + getVertexId() + " got minDist = " + minDist
 		// + " vertex value = " + getVertexValue());

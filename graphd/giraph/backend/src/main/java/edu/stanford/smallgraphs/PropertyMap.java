@@ -5,19 +5,19 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 public class PropertyMap implements Writable {
 
 	private JSONObject properties;
-	
+
 	public PropertyMap(JSONObject properties) {
 		this.properties = properties;
 	}
-	
+
 	public boolean equals(Object obj) {
 		if (obj instanceof PropertyMap) {
 			PropertyMap prop = (PropertyMap) obj;
@@ -75,20 +75,24 @@ public class PropertyMap implements Writable {
 		return properties.optString(key);
 	}
 
-	public JSONObject put(String key, boolean value) throws JSONException {
-		return properties.put(key, value);
+	public PropertyMap put(String key, boolean value) throws JSONException {
+		properties.put(key, value);
+		return this;
 	}
 
-	public JSONObject put(String key, double value) throws JSONException {
-		return properties.put(key, value);
+	public PropertyMap put(String key, double value) throws JSONException {
+		properties.put(key, value);
+		return this;
 	}
 
-	public JSONObject put(String key, int value) throws JSONException {
-		return properties.put(key, value);
+	public PropertyMap put(String key, int value) throws JSONException {
+		properties.put(key, value);
+		return this;
 	}
 
-	public JSONObject put(String key, long value) throws JSONException {
-		return properties.put(key, value);
+	public PropertyMap put(String key, long value) throws JSONException {
+		properties.put(key, value);
+		return this;
 	}
 
 	public Object remove(String key) {
@@ -99,14 +103,14 @@ public class PropertyMap implements Writable {
 		return properties.toString();
 	}
 
-	public JSONObject getJSONObject() {
+	public JSONObject asJSONObject() {
 		return properties;
 	}
-	
+
 	@Override
 	public void readFields(DataInput in) throws IOException {
 		try {
-			properties = new JSONObject(Text.readString(in));
+			properties = new JSONObject(WritableUtils.readString(in));
 		} catch (JSONException e) {
 			throw new IOException(e);
 		}
@@ -114,7 +118,7 @@ public class PropertyMap implements Writable {
 
 	@Override
 	public void write(DataOutput out) throws IOException {
-		Text.writeString(out, properties.toString());
+		WritableUtils.writeString(out, properties.toString());
 	}
 
 }
