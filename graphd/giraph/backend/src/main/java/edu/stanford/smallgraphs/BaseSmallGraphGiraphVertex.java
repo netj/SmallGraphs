@@ -46,7 +46,7 @@ public abstract class BaseSmallGraphGiraphVertex
 	protected abstract void handleMessage(MatchingMessage msg);
 
 	protected void rememberMatch(MatchPath path, Matches match, int forWalk) {
-		getVertexValue().getMatches().addMatch(path, match, forWalk);
+		getVertexValue().getMatches().addPathWithMatchesArrived(forWalk, path, match);
 	}
 	
 	@Override

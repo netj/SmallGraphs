@@ -8,7 +8,7 @@ import com.google.gson.annotations.SerializedName;
 public class MatchPath extends JSONWritable {
 
 	@SerializedName("")
-	public List<PathElement> elements;
+	public final List<PathElement> elements;
 
 	public static class PathElement extends JSONWritable {
 
@@ -16,8 +16,11 @@ public class MatchPath extends JSONWritable {
 
 		public PropertyMap properties;
 
+		public PathElement(long id) {
+			this.id = id;
+		}
+
 		public PathElement(long id, PropertyMap properties) {
-			super();
 			this.id = id;
 			this.properties = properties;
 		}
@@ -27,6 +30,20 @@ public class MatchPath extends JSONWritable {
 	public MatchPath() {
 		// TODO get hint for initial size from walk
 		elements = new ArrayList<MatchPath.PathElement>();
+	}
+
+	public MatchPath(MatchPath prefix, PathElement last) {
+		this();
+		elements.addAll(prefix.elements);
+		elements.add(last);
+	}
+
+	public MatchPath(MatchPath prefix, long id) {
+		this(prefix, new PathElement(id));
+	}
+
+	public MatchPath(MatchPath prefix, long id, PropertyMap properties) {
+		this(prefix, new PathElement(id, properties));
 	}
 
 	public MatchPath augment(long id) {

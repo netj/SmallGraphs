@@ -32,6 +32,7 @@ class GiraphGraph extends StateMachineGraph
             "-D"
             "-m"
             "vim"
+            "-n"
             "+set sw=2 sts=2"
             "+norm gg=G"
             "+wq"
@@ -59,88 +60,74 @@ class GiraphGraph extends StateMachineGraph
         codegenType = (expr) ->
             if expr.targetNodeOf?
                 "LongWritable"
-            else if expr.nodeInMatch?
+            else if expr.nodeInMatches?
                 "LongWritable"
             else if expr.outgoingEdgesOf?
                 { list: "LongWritable" }
 
             else if expr.newPath?
                 "MatchPath"
-            else if expr.newPathAugmentedWithEdge?
-                "MatchPath"
-            else if expr.newPathWithNode?
-                "MatchPath"
 
-            else if expr.findCompatibleMatchesWithMatch?
-                { list: "Match" }
-            else if expr.newMatch?
-                "Match"
+            else if expr.findCompatibleMatchesWithMatches?
+                { list: "Matches" }
+            else if expr.newMatches?
+                "Matches"
 
             else
-                "/* XXX: unknown expr: #{JSON.stringify expr} */ void"
+                "/* XXX: unknown type for expr: #{JSON.stringify expr} */ void"
 
-        codegenNodeExpr = (expr) ->
+        codegenNodeIdExpr = (expr) ->
             if typeof expr == 'string' and expr == '$this'
                 "#{codegenExpr expr}.getVertexId()"
             else
                 codegenExpr expr
 
         codegenExpr = (expr) ->
-            if typeof expr == 'string'
-                if expr.match /^\$/ # symbol
-                    expr.replace /^\$/, ""
-                else # string literal
-                    "\"#{expr.replace /"/g, "\\\""}\""
-            else if typeof expr == 'number' # number literal
-                expr
-
-            else if expr.targetNodeOf?
+            switch typeof expr
+                when 'string'
+                    if expr.match /^\$/ # symbol
+                        return expr.replace /^\$/, ""
+                    else # string literal
+                        return "\"#{expr.replace /"/g, "\\\""}\""
+                when 'number' # number literal
+                    return expr
+                when 'object'
+                    true
+                else
+                    return "/* XXX: invalid expression of type #{typeof expr}: #{JSON.stringify expr} */ null"
+            if expr.targetNodeOf?
                 codegenExpr expr.targetNodeOf
-            else if expr.nodeInMatch?
+            else if expr.nodesBeforeWalk?
                 "#{
-                    codegenExpr expr.nodeInMatch
-                }[#{
-                    codegenExpr expr.ofWalk
-                }][#{
-                    codegenExpr expr.atIndex
-                }]"
+                    codegenExpr expr.inMatches
+                }.pathWithMatchesByWalk.get(#{
+                    codegenExpr expr.nodesBeforeWalk
+                }).matches.atVertexId"
 
             else if expr.outgoingEdgesOf?
                 codegenExpr expr.outgoingEdgesOf
 
             else if expr.newPath?
-                "new MatchPath(#{
-                    if expr.newPath
-                        "#{codegenExpr expr.newPath}#{
-                            if expr.augmentedWithNode?
-                                ", #{codegenNodeExpr expr.augmentedWithNode}"
-                                # EdgeListVertex has no ID for edges
-                                # else if expr.augmentedWithEdge?
-                                #     ", #{codegenExpr expr.augmentedWithEdge}"
-                            else
-                                ""
-                        }"
-                })"
-            else if expr.newPathWithNode?
-                "new MatchPath(#{codegenNodeExpr expr.newPathWithNode})"
+                if expr.newPath
+                    "new MatchPath(#{codegenExpr expr.newPath}#{
+                        # TODO collect attribute/property values
+                        if expr.augmentedWithNode?
+                            ", #{codegenNodeIdExpr expr.augmentedWithNode}"
+                        else if expr.augmentedWithEdge?
+                            # XXX EdgeListVertex has no ID for edges
+                            ", #{codegenExpr expr.augmentedWithEdge}"
+                        else
+                            ""
+                    })"
+                else
+                    "null" # XXX premature optimization?
 
-            else if expr.findCompatibleMatchesWithMatch?
+            else if expr.findCompatibleMatchesWithMatches?
                 # TODO can we expand this?
-                "findCompatibleMatchesWithMatch(#{codegenExpr expr.findCompatibleMatchesWithMatch}, #{
+                "findCompatibleMatchesWithMatches(#{codegenExpr expr.findCompatibleMatchesWithMatches}, #{
                         expr.ofWalks.join ", "})"
-            else if expr.newMatch?
-                "new Match(#{
-                    if expr.newMatch == 0
-                        ""
-                    else
-                        "#{
-                        codegenExpr expr.newMatch
-                        }, #{
-                            codegenExpr expr.forWalk
-                        }, #{
-                            codegenExpr expr.joinedWithPath
-                        }"
-                })"
+            else if expr.newMatchesAtNode?
+                "new Matches(#{codegenNodeIdExpr expr.newMatchesAtNode})"
 
             else
                 "/* XXX: unknown expr: #{JSON.stringify expr} */ null"
@@ -193,17 +180,17 @@ class GiraphGraph extends StateMachineGraph
                         #{codegenAction action.do}
                     """
 
-            else if action.emitMatch?
+            else if action.emitMatches?
                 """
-                emitMatch(#{codegenExpr action.emitMatch});
+                emitMatches(#{codegenExpr action.emitMatches});
                 """
 
             else if action.sendMessage?
                 """
-                sendMsg(#{codegenNodeExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
+                sendMsg(#{codegenNodeIdExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
                     if action.withPath? then ", " + codegenExpr action.withPath else ""
                 }#{
-                    if action.withMatch? then ", " + codegenExpr action.withMatch else ""
+                    if action.withMatches? then ", " + codegenExpr action.withMatches else ""
                 }));
                 """
 
@@ -227,11 +214,19 @@ class GiraphGraph extends StateMachineGraph
                     #{codegenAction action.then}
                 """
 
-            else if action.rememberMatch?
-                """
-                #{if action.ofNode != "$this" then "// XXX can't remember match of node: #{action.ofNode}" else ""}
-                rememberMatch(#{codegenExpr action.rememberMatch}, #{codegenExpr action.viaWalk});
-                """
+            else if action.rememberMatches?
+                if action.ofNode != "$this"
+                    """
+                    // XXX can't remember matches of node: #{action.ofNode}
+                    """
+                else if action.viaWalk?
+                    """
+                    getVertexValue().getMatches().addPathWithMatchesArrived(#{codegenExpr action.viaWalk}, #{codegenExpr action.withPath}, #{codegenExpr action.rememberMatches});
+                    """
+                else if action.returnedFromWalk?
+                    """
+                    getVertexValue().getMatches().addMatchesReturned(#{codegenExpr action.returnedFromWalk}, #{codegenExpr action.rememberMatches});
+                    """
 
             else
                 "// unknown action node: #{JSON.stringify action}"
@@ -246,7 +241,7 @@ class GiraphGraph extends StateMachineGraph
         """
         public class SmallGraphGiraphVertex extends BaseSmallGraphGiraphVertex  {
         @Override
-        void handleMessage(int msgId, Path path, Match match) {
+        void handleMessage(int msgId, Path path, Matches matches) {
             switch (msgId) {
                 #{(codegenCase msg for msg in statemachine.messages).join "\n"}
             }

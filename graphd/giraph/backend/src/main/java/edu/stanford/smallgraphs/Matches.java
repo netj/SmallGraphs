@@ -40,17 +40,22 @@ public class Matches extends JSONWritable {
 		this.pathWithMatchesByWalk = pathWithMatchesByWalk;
 	}
 
-	public Matches addMatch(MatchPath path, Matches matches, int forWalk) {
+	public Matches addPathWithMatchesArrived(int viaWalk, MatchPath path,
+			Matches matches) {
 		if (pathWithMatchesByWalk == null)
 			pathWithMatchesByWalk = new HashMap<Integer, List<PathWithMatches>>();
 		List<PathWithMatches> matchesForWalk = pathWithMatchesByWalk
-				.get(forWalk);
+				.get(viaWalk);
 		if (matchesForWalk == null) {
 			matchesForWalk = new ArrayList<PathWithMatches>();
-			pathWithMatchesByWalk.put(forWalk, matchesForWalk);
+			pathWithMatchesByWalk.put(viaWalk, matchesForWalk);
 		}
 		matchesForWalk.add(new PathWithMatches(path, matches));
 		return this;
+	}
+
+	public Matches addMatchesReturned(int returnedFromWalk, Matches matches) {
+		return addPathWithMatchesArrived(returnedFromWalk, null, matches);
 	}
 
 	/**
@@ -70,7 +75,9 @@ public class Matches extends JSONWritable {
 		p3b.augment(301L).augment(8L).augment(303L).augment(7L).augment(305L);
 
 		Matches m2 = new Matches(2);
-		m2.addMatch(p1, m1, 1).addMatch(p3a, m3a, 2).addMatch(p3b, m3b, 2);
+		m2.addPathWithMatchesArrived(1, p1, m1)
+				.addPathWithMatchesArrived(2, p3a, m3a)
+				.addPathWithMatchesArrived(2, p3b, m3b);
 
 		// write
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
