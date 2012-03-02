@@ -50,7 +50,6 @@ class StateMachineGraph extends BaseGraph
             if not s.walks_out?.length and not s.returns_out?.length
                 s.isTerminal = true
         # then, generate actions for each messages
-        # TODO reduce number of messages sent to self node
         stateMachine =
             qgraph: qgraph
             messages: []
@@ -66,6 +65,7 @@ class StateMachineGraph extends BaseGraph
             else
                 s
         symNode = "$this"
+        symNode2 = "$node"
         symEdge = "$e"
         symPath = "$path"
         symPath2 = "$path2"
@@ -129,12 +129,14 @@ class StateMachineGraph extends BaseGraph
                             else # or, initiate Returned messages if no outgoing walks
                                 for r_oId in s.returns_out ? []
                                     w_i = qgraph.edges[qgraph.edges[r_oId].walk]
-                                    # TODO foreach
-                                    sendMessage: w_i.msgIdReturned
-                                    to:
+                                    foreach: symNode2
+                                    in:
                                         nodesBeforeWalk: w_i.id
                                         inMatches: symMatchesIn
-                                    withMatches: symMatchesIn
+                                    do:
+                                        sendMessage: w_i.msgIdReturned
+                                        to: symNode2
+                                        withMatches: symMatchesIn
                     ]
                 ]
         # Returned messages
@@ -155,12 +157,14 @@ class StateMachineGraph extends BaseGraph
                     else _.flatten [
                         for r_oId in s.returns_out ? []
                             w_i = qgraph.edges[qgraph.edges[r_oId].walk]
-                            # TODO foreach
-                            sendMessage: w_i.msgIdReturned
-                            to:
+                            foreach: symNode2
+                            in:
                                 nodesBeforeWalk: w_i.id
                                 inMatches: symMatchesInRet
-                            withMatches: symMatchesInRet
+                            do:
+                                sendMessage: w_i.msgIdReturned
+                                to: symNode2
+                                withMatches: symMatchesInRet
                         for w_oId in _.difference s.walks_out ? [], walks_out_with_returns
                             w_o = qgraph.edges[w_oId]
                             actionForWalkingOnEdge w_o, 0, symNode, 0, symMatchesInRet

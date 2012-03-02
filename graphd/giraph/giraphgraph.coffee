@@ -60,8 +60,8 @@ class GiraphGraph extends StateMachineGraph
         codegenType = (expr) ->
             if expr.targetNodeOf?
                 "LongWritable"
-            else if expr.nodeInMatches?
-                "LongWritable"
+            else if expr.nodesBeforeWalk?
+                { list: "LongWritable" }
             else if expr.outgoingEdgesOf?
                 { list: "LongWritable" }
 
@@ -103,12 +103,11 @@ class GiraphGraph extends StateMachineGraph
             if expr.targetNodeOf?
                 codegenExpr expr.targetNodeOf
             else if expr.nodesBeforeWalk?
-                # FIXME: multiple vertex ids
                 "#{
                     codegenExpr expr.inMatches
-                }.pathWithMatchesByWalk.get(#{
+                }.getVertexIdsOfMatchesForWalk(#{
                     codegenExpr expr.nodesBeforeWalk
-                }).matches.atVertexId"
+                })"
 
             else if expr.outgoingEdgesOf?
                 codegenExpr expr.outgoingEdgesOf

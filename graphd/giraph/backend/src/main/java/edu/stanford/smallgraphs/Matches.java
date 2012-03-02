@@ -10,6 +10,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.Transformer;
+import org.apache.hadoop.io.LongWritable;
+
 import com.google.gson.annotations.SerializedName;
 
 public class Matches extends JSONWritable {
@@ -56,6 +60,17 @@ public class Matches extends JSONWritable {
 
 	public Matches addMatchesReturned(int returnedFromWalk, Matches matches) {
 		return addPathWithMatchesArrived(returnedFromWalk, null, matches);
+	}
+
+	@SuppressWarnings("unchecked")
+	public Iterable<LongWritable> getVertexIdsOfMatchesForWalk(int walk) {
+		return CollectionUtils.collect(pathWithMatchesByWalk.get(walk),
+				new Transformer() {
+					@Override
+					public Object transform(Object o) {
+						return ((PathWithMatches) o).matches.vertexId;
+					}
+				});
 	}
 
 	/**
