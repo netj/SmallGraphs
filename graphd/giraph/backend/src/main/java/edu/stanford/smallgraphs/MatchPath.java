@@ -34,6 +34,8 @@ public class MatchPath extends JSONWritable {
 
 	public MatchPath(MatchPath prefix, PathElement last) {
 		this();
+		// TODO instead of copying, sharing prefix paths and making them
+		// immutable could be a good idea
 		elements.addAll(prefix.elements);
 		elements.add(last);
 	}
@@ -44,6 +46,18 @@ public class MatchPath extends JSONWritable {
 
 	public MatchPath(MatchPath prefix, long id, PropertyMap properties) {
 		this(prefix, new PathElement(id, properties));
+	}
+
+	public MatchPath(PathElement first) {
+		this(null, first);
+	}
+
+	public MatchPath(long id) {
+		this(null, new PathElement(id));
+	}
+
+	public MatchPath(long id, PropertyMap properties) {
+		this(null, new PathElement(id, properties));
 	}
 
 	public MatchPath augment(long id) {

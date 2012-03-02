@@ -23,7 +23,7 @@ class GiraphGraph extends StateMachineGraph
         @schema.Objects = objects
 
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
-        # TODO generate Pregel vertex compute code from statemachine
+        # generate Pregel vertex compute code from statemachine
         javaCode = @generateJavaCode statemachine
         javaFile = "SmallGraphGiraphVertex.java"
         fs.writeFileSync javaFile, javaCode
@@ -76,6 +76,10 @@ class GiraphGraph extends StateMachineGraph
             else
                 "/* XXX: unknown type for expr: #{JSON.stringify expr} */ void"
 
+        codegenName = (sym) ->
+            # TODO check and generate unique symbols?
+            codegenExpr sym
+
         codegenNodeIdExpr = (expr) ->
             if typeof expr == 'string' and expr == '$this'
                 "#{codegenExpr expr}.getVertexId()"
@@ -95,9 +99,11 @@ class GiraphGraph extends StateMachineGraph
                     true
                 else
                     return "/* XXX: invalid expression of type #{typeof expr}: #{JSON.stringify expr} */ null"
+
             if expr.targetNodeOf?
                 codegenExpr expr.targetNodeOf
             else if expr.nodesBeforeWalk?
+                # FIXME: multiple vertex ids
                 "#{
                     codegenExpr expr.inMatches
                 }.pathWithMatchesByWalk.get(#{
@@ -108,19 +114,16 @@ class GiraphGraph extends StateMachineGraph
                 codegenExpr expr.outgoingEdgesOf
 
             else if expr.newPath?
+                newPathArgs = []
                 if expr.newPath
-                    "new MatchPath(#{codegenExpr expr.newPath}#{
-                        # TODO collect attribute/property values
-                        if expr.augmentedWithNode?
-                            ", #{codegenNodeIdExpr expr.augmentedWithNode}"
-                        else if expr.augmentedWithEdge?
-                            # XXX EdgeListVertex has no ID for edges
-                            ", #{codegenExpr expr.augmentedWithEdge}"
-                        else
-                            ""
-                    })"
-                else
-                    "null" # XXX premature optimization?
+                    newPathArgs.push codegenExpr expr.newPath
+                if expr.augmentedWithNode?
+                    newPathArgs.push codegenNodeIdExpr expr.augmentedWithNode
+                else if expr.augmentedWithEdge?
+                    # XXX EdgeListVertex has no ID for edges
+                    newPathArgs.push codegenExpr expr.augmentedWithEdge
+                # TODO collect attribute/property values
+                "new MatchPath(#{newPathArgs.join ", "})"
 
             else if expr.findCompatibleMatchesWithMatches?
                 # TODO can we expand this?
@@ -180,6 +183,14 @@ class GiraphGraph extends StateMachineGraph
                         #{codegenAction action.do}
                     """
 
+            else if action.let?
+                """
+                {
+                    #{codegenType action.be} #{codegenName action.let} = #{codegenExpr action.be};
+                    #{codegenAction action.in}
+                }
+                """
+
             else if action.emitMatches?
                 """
                 emitMatches(#{codegenExpr action.emitMatches});
@@ -187,7 +198,7 @@ class GiraphGraph extends StateMachineGraph
 
             else if action.sendMessage?
                 """
-                sendMsg(#{codegenNodeIdExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
+                this.sendMsg(#{codegenNodeIdExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
                     if action.withPath? then ", " + codegenExpr action.withPath else ""
                 }#{
                     if action.withMatches? then ", " + codegenExpr action.withMatches else ""
@@ -200,7 +211,7 @@ class GiraphGraph extends StateMachineGraph
                 edgeTypeId = codegenExpr cond.linkType
                 """
                 {
-                PropertyMap eV = getEdgeValue(#{codegenExpr action.whenEdge});
+                PropertyMap eV = this.getEdgeValue(#{codegenExpr action.whenEdge});
                 if (eV.getType() == #{edgeTypeId}) #{codegenConstraints "eV", cond.constraints}
                     #{codegenAction action.then}
                 }
@@ -221,11 +232,11 @@ class GiraphGraph extends StateMachineGraph
                     """
                 else if action.viaWalk?
                     """
-                    getVertexValue().getMatches().addPathWithMatchesArrived(#{codegenExpr action.viaWalk}, #{codegenExpr action.withPath}, #{codegenExpr action.rememberMatches});
+                    this.getVertexValue().getMatches().addPathWithMatchesArrived(#{codegenExpr action.viaWalk}, #{codegenExpr action.withPath}, #{codegenExpr action.rememberMatches});
                     """
                 else if action.returnedFromWalk?
                     """
-                    getVertexValue().getMatches().addMatchesReturned(#{codegenExpr action.returnedFromWalk}, #{codegenExpr action.rememberMatches});
+                    this.getVertexValue().getMatches().addMatchesReturned(#{codegenExpr action.returnedFromWalk}, #{codegenExpr action.rememberMatches});
                     """
 
             else

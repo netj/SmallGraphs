@@ -33,7 +33,7 @@ for e in qgraph.edges
     echo "  label=\"#{
         if e.msgIdArrived?
             "#{e.msgIdArrived}=#{e.msgIdWalkingBase}..#{
-                e.msgIdWalkingBase+e.steps.length-2} (w#{e.id})"
+                e.msgIdWalkingBase+(e.steps.length-1)/2-1} (w#{e.id})"
         else if e.msgIdReturned?
             "#{e.msgIdReturned} (w#{e.walk})"
     }\""

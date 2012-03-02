@@ -27,7 +27,6 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
-import org.apache.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
@@ -39,16 +38,13 @@ public abstract class BaseSmallGraphGiraphVertex
 		EdgeListVertex<LongWritable, VertexMatchingState, PropertyMap, MatchingMessage>
 		implements Tool {
 
-	/** Class logger */
-	private static final Logger LOG = Logger
-			.getLogger(BaseSmallGraphGiraphVertex.class);
-
 	protected abstract void handleMessage(MatchingMessage msg);
 
 	protected void rememberMatch(MatchPath path, Matches match, int forWalk) {
-		getVertexValue().getMatches().addPathWithMatchesArrived(forWalk, path, match);
+		getVertexValue().getMatches().addPathWithMatchesArrived(forWalk, path,
+				match);
 	}
-	
+
 	@Override
 	public void compute(Iterator<MatchingMessage> msgIterator) {
 		if (getSuperstep() == 0) {
