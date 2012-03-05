@@ -73,6 +73,11 @@ public class Matches extends JSONWritable {
 				});
 	}
 
+	public Iterable<Matches> getAllConsistentMatches(Matches m, int... walks) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 	/**
 	 * test for Writable and Gson
 	 */
@@ -109,4 +114,5 @@ public class Matches extends JSONWritable {
 		// compare
 		System.out.println(m2.equals(m2readwrite));
 	}
+
 }

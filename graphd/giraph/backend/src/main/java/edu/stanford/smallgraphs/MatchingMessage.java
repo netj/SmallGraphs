@@ -9,12 +9,12 @@ import org.apache.hadoop.io.Writable;
 public class MatchingMessage implements Writable {
 
 	private final int msgId;
-	private final Matches match;
+	private final Matches matches;
 	private final MatchPath path;
 
 	public MatchingMessage(int msgId, Matches match, MatchPath path) {
 		this.msgId = msgId;
-		this.match = match;
+		this.matches = match;
 		this.path = path;
 	}
 
@@ -34,8 +34,8 @@ public class MatchingMessage implements Writable {
 		return msgId;
 	}
 
-	public Matches getMatch() {
-		return match;
+	public Matches getMatches() {
+		return matches;
 	}
 
 	public MatchPath getPath() {

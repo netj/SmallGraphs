@@ -53,8 +53,8 @@ class StateMachineGraph extends BaseGraph
         stateMachine =
             qgraph: qgraph
             messages: []
-        addAction = (desc, msgId, actions...) ->
-            stateMachine.messages[msgId] =
+        addAction = (pass, msgId, desc, actions...) ->
+            (stateMachine.messages[pass] ?= [])[msgId] =
                 msgId: msgId
                 description: desc
                 action: actions
@@ -88,7 +88,7 @@ class StateMachineGraph extends BaseGraph
                         augmentedWithEdge: symEdge
                     withMatches: matches
         #  Start message
-        addAction "Start", msgIdStart,
+        addAction 1, msgIdStart, "Start",
             for s in qgraph.nodes when s.isInitial
                 null # XXX don't remove this line, or you'll break CoffeeScript's parser
                 # TODO group initial nodes with same constraints
@@ -99,16 +99,21 @@ class StateMachineGraph extends BaseGraph
                         w_init = qgraph.edges[w_initId]
                         # TODO unless it has a corresponding return edge
                         actionForWalkingOnEdge w_init, 0, symNode, 0, { newMatchesAtNode: symNode }
-        # TODO optimize out unnecessary foreach findCompatibleMatchesWithMatches
+        # TODO optimize out unnecessary foreach CompatibleMatchesWithMatches
         # Arrived messages
         symMatchesIn = "$matches_i"
         for w in walks
+            # TODO merge the same arrived messages for each walk to the same step node
             s = qgraph.nodes[w.target]
-            addAction "Arrived(#{w.id}, #{symPath}, #{symMatches})", w.msgIdArrived,
+            addAction 0, w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
                 whenNode: symNode
                 satisfies: genConstraints w.steps[w.steps.length-1]
-                then: [
+                then:
                     { rememberMatches: symMatches, ofNode: symNode, viaWalk: w.id, withPath: symPath }
+            addAction 1, w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
+                whenNode: symNode
+                satisfies: genConstraints w.steps[w.steps.length-1]
+                then:
                     foreach: symMatchesIn
                     in:
                         findCompatibleMatchesWithMatches: symMatches
@@ -138,15 +143,15 @@ class StateMachineGraph extends BaseGraph
                                         to: symNode2
                                         withMatches: symMatchesIn
                     ]
-                ]
         # Returned messages
         symMatchesInRet = "$matches_ir"
         for r in returns
             w = qgraph.edges[r.walk]
             s = qgraph.nodes[w.source]
             walks_out_with_returns = (qgraph.edges[r].walk for r in s.returns_in)
-            addAction "Returned(#{w.id}, #{symMatches})", w.msgIdReturned,
+            addAction 0, w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
                 { rememberMatches: symMatches, ofNode: symNode, returnedFromWalk: w.id }
+            addAction 1, w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
                 foreach: symMatchesInRet
                 in:
                     findCompatibleMatchesWithMatches: symMatches
@@ -173,7 +178,7 @@ class StateMachineGraph extends BaseGraph
         for w in walks
             numEdges = (parseInt (w.steps.length-1))/2
             for i in [1 ... numEdges] by 1
-                addAction "Walking(#{w.id}, #{2*i}, #{symPath}, #{symMatches})", w.msgIdWalkingBase + i-1,
+                addAction 1, w.msgIdWalkingBase + i-1, "Walking(#{w.id}, #{2*i}, #{symPath}, #{symMatches})",
                     # node step
                     whenNode: symNode
                     satisfies: genConstraints w.steps[2*i]

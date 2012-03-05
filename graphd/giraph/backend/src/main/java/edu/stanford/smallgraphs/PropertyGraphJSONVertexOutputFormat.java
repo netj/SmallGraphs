@@ -28,6 +28,7 @@ public class PropertyGraphJSONVertexOutputFormat extends
 			public void writeVertex(
 					BasicVertex<LongWritable, VertexMatchingState, PropertyMap, ?> vertex)
 					throws IOException, InterruptedException {
+				// TODO output only those vertices with final matches
 				JSONArray jsonVertex = new JSONArray();
 				jsonVertex.put(vertex.getVertexId().get());
 				jsonVertex.put(vertex.getVertexValue().asJSONObject());

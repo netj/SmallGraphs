@@ -121,4 +121,8 @@ public class PropertyMap implements Writable {
 		WritableUtils.writeString(out, properties.toString());
 	}
 
+	public String getType() {
+		return getString(""); // TODO
+	}
+
 }

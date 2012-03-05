@@ -20,6 +20,7 @@ package edu.stanford.smallgraphs;
 
 import java.util.Iterator;
 
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.giraph.graph.EdgeListVertex;
 import org.apache.giraph.graph.GiraphJob;
 import org.apache.hadoop.fs.Path;
@@ -38,39 +39,27 @@ public abstract class BaseSmallGraphGiraphVertex
 		EdgeListVertex<LongWritable, VertexMatchingState, PropertyMap, MatchingMessage>
 		implements Tool {
 
-	protected abstract void handleMessage(MatchingMessage msg);
+	protected abstract void handleMessages(Iterator<MatchingMessage> msgIterator);
 
-	protected void rememberMatch(MatchPath path, Matches match, int forWalk) {
-		getVertexValue().getMatches().addPathWithMatchesArrived(forWalk, path,
-				match);
+	protected void emitMatches(Matches m) {
+		getVertexValue().addFinalMatches(m);
 	}
 
+	protected Iterable<Matches> getAllConsistentMatches(Matches m, int... walks) {
+		return getVertexValue().getMatches()
+				.getAllConsistentMatches(m, walks);
+	}
+
+	@SuppressWarnings("unchecked")
 	@Override
 	public void compute(Iterator<MatchingMessage> msgIterator) {
-		if (getSuperstep() == 0) {
-			// Start message
-			handleMessage(new MatchingMessage(0));
-		}
-		while (msgIterator.hasNext()) {
-			handleMessage(msgIterator.next());
-		}
-		// if (LOG.isDebugEnabled()) {
-		// LOG.debug("Vertex " + getVertexId() + " got minDist = " + minDist
-		// + " vertex value = " + getVertexValue());
-		// }
-		// if (minDist < getVertexValue().get()) {
-		// setVertexValue(new PropertiesWritable(minDist));
-		// for (LongWritable targetVertexId : this) {
-		// PropertiesWritable edgeValue = getEdgeValue(targetVertexId);
-		// if (LOG.isDebugEnabled()) {
-		// LOG.debug("Vertex " + getVertexId() + " sent to "
-		// + targetVertexId + " = "
-		// + (minDist + edgeValue.get()));
-		// }
-		// sendMsg(targetVertexId,
-		// new PropertiesWritable(minDist + edgeValue.get()));
-		// }
-		// }
+		if (getSuperstep() == 0)
+			// send Start message to each vertex at the beginning
+			handleMessages(IteratorUtils.singletonIterator(new MatchingMessage(
+					0)));
+		// handle messages
+		handleMessages(msgIterator);
+
 		voteToHalt();
 	}
 

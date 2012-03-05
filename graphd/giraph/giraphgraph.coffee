@@ -25,7 +25,7 @@ class GiraphGraph extends StateMachineGraph
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
         # generate Pregel vertex compute code from statemachine
         javaCode = @generateJavaCode statemachine
-        javaFile = "SmallGraphGiraphVertex.java"
+        javaFile = "giraph/backend/src/main/java/SmallGraphGiraphVertex.java"
         fs.writeFileSync javaFile, javaCode
         # indent with Vim
         spawn "screen", [
@@ -82,7 +82,13 @@ class GiraphGraph extends StateMachineGraph
 
         codegenNodeIdExpr = (expr) ->
             if typeof expr == 'string' and expr == '$this'
-                "#{codegenExpr expr}.getVertexId()"
+                "#{codegenExpr expr}.getVertexId().get()"
+            else
+                codegenExpr expr
+
+        codegenEdgeIdExpr = (expr) ->
+            if typeof expr == 'string' and expr == '$e'
+                "#{codegenExpr expr}.get()"
             else
                 codegenExpr expr
 
@@ -120,13 +126,13 @@ class GiraphGraph extends StateMachineGraph
                     newPathArgs.push codegenNodeIdExpr expr.augmentedWithNode
                 else if expr.augmentedWithEdge?
                     # XXX EdgeListVertex has no ID for edges
-                    newPathArgs.push codegenExpr expr.augmentedWithEdge
+                    newPathArgs.push codegenEdgeIdExpr expr.augmentedWithEdge
                 # TODO collect attribute/property values
                 "new MatchPath(#{newPathArgs.join ", "})"
 
             else if expr.findCompatibleMatchesWithMatches?
                 # TODO can we expand this?
-                "findCompatibleMatchesWithMatches(#{codegenExpr expr.findCompatibleMatchesWithMatches}, #{
+                "getAllConsistentMatches(#{codegenExpr expr.findCompatibleMatchesWithMatches}, #{
                         expr.ofWalks.join ", "})"
             else if expr.newMatchesAtNode?
                 "new Matches(#{codegenNodeIdExpr expr.newMatchesAtNode})"
@@ -181,6 +187,10 @@ class GiraphGraph extends StateMachineGraph
                     for (#{xty} #{codegenExpr action.foreach} : #{codegenExpr action.in})
                         #{codegenAction action.do}
                     """
+                else
+                    """
+                    // XXX unknown iteration target for foreach: #{JSON.stringify action}
+                    """
 
             else if action.let?
                 """
@@ -197,10 +207,10 @@ class GiraphGraph extends StateMachineGraph
 
             else if action.sendMessage?
                 """
-                this.sendMsg(#{codegenNodeIdExpr action.to}, new Message(#{codegenExpr action.sendMessage}#{
-                    if action.withPath? then ", " + codegenExpr action.withPath else ""
-                }#{
+                this.sendMsg(#{codegenNodeIdExpr action.to}, new MatchingMessage(#{codegenExpr action.sendMessage}#{
                     if action.withMatches? then ", " + codegenExpr action.withMatches else ""
+                }#{
+                    if action.withPath? then ", " + codegenExpr action.withPath else ""
                 }));
                 """
 
@@ -211,7 +221,7 @@ class GiraphGraph extends StateMachineGraph
                 """
                 {
                 PropertyMap eV = this.getEdgeValue(#{codegenExpr action.whenEdge});
-                if (eV.getType() == #{edgeTypeId}) #{codegenConstraints "eV", cond.constraints}
+                if (#{edgeTypeId}.equals(eV.getType())) #{codegenConstraints "eV", cond.constraints}
                     #{codegenAction action.then}
                 }
                 """
@@ -220,7 +230,7 @@ class GiraphGraph extends StateMachineGraph
                 # TODO map to typeId: nodeTypeId = typeDictionary cond.objectType
                 nodeTypeId = codegenExpr cond.objectType
                 """
-                if (#{codegenExpr action.whenNode}.getVertexValue().getType() == #{nodeTypeId}) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
+                if (#{nodeTypeId}.equals(#{codegenExpr action.whenNode}.getVertexValue().getType())) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
                     #{codegenAction action.then}
                 """
 
@@ -241,22 +251,53 @@ class GiraphGraph extends StateMachineGraph
             else
                 "// unknown action node: #{JSON.stringify action}"
 
-        codegenCase = (msg) ->
+        codegenSingleHandler = (msg) ->
             a = """
             case #{msg.msgId}:
                 // #{msg.description}
                 #{codegenAction msg.action}
                 break;
             """
-        """
-        public class SmallGraphGiraphVertex extends BaseSmallGraphGiraphVertex  {
-        @Override
-        void handleMessage(int msgId, Path path, Matches matches) {
-            switch (msgId) {
-                #{(codegenCase msg for msg in statemachine.messages).join "\n"}
+        pass = 0
+        codegenHandlers = (msgs) ->
+            """
+            void handleMessage#{pass++}(int msgId, MatchPath path, Matches matches) {
+                switch (msgId) {
+                    #{msgs.map(codegenSingleHandler).join "\n"}
+                }
             }
-            voteToHalt();
+
+            """
+
+        codegenComputeLoop = (msgs) ->
+            (
+                for i in [0 .. pass-1] by 1
+                    """
+                    for (MatchingMessage msg : this.getMessages())
+                        handleMessage#{i}(msg.getMessageId(), msg.getPath(), msg.getMatches());
+                    """
+            ).join "\n"
+
+        """
+        import java.util.Iterator;
+
+        import org.apache.hadoop.io.LongWritable;
+
+        import edu.stanford.smallgraphs.BaseSmallGraphGiraphVertex;
+        import edu.stanford.smallgraphs.MatchPath;
+        import edu.stanford.smallgraphs.Matches;
+        import edu.stanford.smallgraphs.MatchingMessage;
+        import edu.stanford.smallgraphs.PropertyMap;
+
+        public class SmallGraphGiraphVertex extends BaseSmallGraphGiraphVertex  {
+
+        #{statemachine.messages.map(codegenHandlers).join "\n"}
+
+        @Override
+	public void handleMessages(Iterator<MatchingMessage> msgIterator) {
+            #{codegenComputeLoop statemachine.messages}
         }
+
         }
         """
 
