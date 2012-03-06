@@ -4,6 +4,7 @@ _GraphDirectoryPath = "graphs"
 
 
 {_} = require "underscore"
+path = require "path"
 http = require "http"
 url = require "url"
 fs = require "fs"
@@ -15,14 +16,15 @@ smallgraph = require "smallgraph"
 {GiraphGraph} = require "./giraph/giraphgraph"
 {GreenMarlGraph} = require "./green-marl/greenmarlgraph"
 loadGraph = (graphId) ->
-    path = "#{_GraphDirectoryPath}/#{graphId}/graphd.json"
-    graphDescriptor = JSON.parse fs.readFileSync path
-    if graphDescriptor.mysql
-        return new MySQLGraph graphDescriptor.mysql
-    else if graphDescriptor.giraph
-        return new GiraphGraph graphDescriptor.giraph
-    else if graphDescriptor.greenmarl
-        return new GreenMarlGraph graphDescriptor.greenmarl
+    graphdPath = "#{_GraphDirectoryPath}/#{graphId}/graphd.json"
+    basepath = path.dirname graphdPath
+    graphDescriptor = JSON.parse fs.readFileSync graphdPath
+    if graphDescriptor.mysql?
+        return new MySQLGraph graphDescriptor.mysql, basepath
+    else if graphDescriptor.giraph?
+        return new GiraphGraph graphDescriptor.giraph, basepath
+    else if graphDescriptor.greenmarl?
+        return new GreenMarlGraph graphDescriptor.greenmarl, basepath
     else
         throw new Error "unknown graph type"
 
@@ -42,7 +44,7 @@ http.createServer (req,res) ->
                     "Content-Type": "text/plain" # "application/json"
                 }, hdrs
         sendError = (err) ->
-            console.error "<< #{new Date()}: " + err
+            console.error "<< #{new Date()}: " + err.stack
             sendHeaders 500,
                 "Content-Type": "application/json"
             res.end JSON.stringify err+""

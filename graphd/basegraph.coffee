@@ -3,7 +3,7 @@ smallgraph = require "smallgraph"
 
 
 class BaseGraph
-    constructor: () ->
+    constructor: (@basepath) ->
         # skeleton schema
         @schema =
             Namespaces:

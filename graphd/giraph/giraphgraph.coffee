@@ -1,11 +1,12 @@
 fs = require "fs"
+path = require "path"
 {spawn} = require "child_process"
 
 {StateMachineGraph} = require "../statemachinegraph"
 
 class GiraphGraph extends StateMachineGraph
-    constructor: (@descriptor) ->
-        super @descriptor
+    constructor: (@descriptor, @basepath) ->
+        super @descriptor, @basepath
         d = @descriptor
         unless d.graphPath?
             throw new Error "graphPath, ... are required for the graph descriptor"
@@ -23,9 +24,10 @@ class GiraphGraph extends StateMachineGraph
         @schema.Objects = objects
 
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
-        # generate Pregel vertex compute code from statemachine
+        # generate Pregel vertex code from statemachine
         javaCode = @generateJavaCode statemachine
-        javaFile = "giraph/backend/src/main/java/SmallGraphGiraphVertex.java"
+        # FIXME for debug
+        javaFile = "test.java"
         fs.writeFileSync javaFile, javaCode
         # indent with Vim
         spawn "screen", [
@@ -38,24 +40,30 @@ class GiraphGraph extends StateMachineGraph
             "+wq"
             javaFile
         ]
-        
+        # FIXME end of debug
         #  TODO map types, node/edge URIs in query to long long int IDs
-        q.emit 'result', JSON.stringify javaCode; return # FIXME lets construct the correct statemachine for the moment
-
-        # use match.sh to compile, link, and run it
-        run = spawn "./match.sh", [cxxPath, @descriptor.graphPath]
+        run = spawn "./giraph/run-smallgraph-on-giraph", [
+            "SmallGraphGiraphVertex"
+            path.join @basepath, @descriptor.graphPath
+        ]
         rawResults = ""
-        run.on 'data', (data) ->
+        run.stderr.setEncoding 'utf-8'
+        run.stderr.pipe process.stderr, { end: false }
+        run.stdout.setEncoding 'utf-8'
+        run.stdout.on 'data', (chunk) ->
             # collect raw matches
-            rawResults += data
-        run.on 'exit', (code) ->
+            rawResults += chunk
+        run.on 'exit', (code, signal) ->
             switch code
                 when 0
                     # TODO collect results
-                    rawResults
+                    result = [rawResults]
                     # TODO  inverse-map long long int IDs back to types, node/edge URIs
-                    result = []
                     q.emit 'result', result
+                else
+                    q.emit 'error', new Error "run-smallgraph-on-giraph ended with #{code}:\n" +
+                        "#{rawResults.split(/\n/).map((l) -> "    "+l).join("\n")}"
+        run.stdin.end javaCode, 'utf-8'
     generateJavaCode: (statemachine) ->
         codegenType = (expr) ->
             if expr.targetNodeOf?

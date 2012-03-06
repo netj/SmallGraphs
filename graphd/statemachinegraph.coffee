@@ -5,8 +5,8 @@ _ = require "underscore"
 
 
 class StateMachineGraph extends BaseGraph
-    constructor: (@descriptor) ->
-        super
+    constructor: (@descriptor, @basepath) ->
+        super @basepath
 
     _runQuery: (query, limit, offset, req, res, q) ->
         sm = @constructStateMachine query

@@ -16,39 +16,44 @@ jars=("$Here"/target/giraph.backend-*-jar-with-dependencies.jar)
 GIRAPH_BACKEND_JAR=${jars[0]}
 
 # process arguments
-[ $# -eq 3 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
-VertexJavaCode=$1; shift
+[ $# -eq 2 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
+VertexClass=$1; shift
 InputGraphPath=$1; shift
-OutputPath=$1; shift
+#OutputPath=$1; shift
 
 # prepare stuff
-vertexClass=${VertexJavaCode##*/}
-vertexClass=${vertexClass%.java}
-tmp=`mktemp -d /tmp/smallgiraph.XXXXXX`
-trap "rm -rf $tmp" EXIT
+tmp=/tmp/smallgiraph.XXXXXX; rm -rf $tmp; mkdir -p $tmp
+# FIXME tmp=`mktemp -d /tmp/smallgiraph.XXXXXX`
+# FIXME trap "rm -rf $tmp" EXIT
+InputGraphPath=`readlink -f "$InputGraphPath"`
+cd $tmp
 
 
-# compile Java code
+# compile Java code given over stdin
+cat >"$VertexClass".java
 javac -cp $GIRAPH_BACKEND_JAR \
-    -d $tmp \
-    "$VertexJavaCode" \
+    -d . \
+    "$VertexClass".java \
     #
 
 # create a jar
-jar=$tmp/smallgiraph.jar
-jar cf $jar $tmp/"$vertexClass".class
+jar=smallgiraph.jar
+jar cf $jar "$VertexClass".class
 
 # and run it
-cd $tmp
 java -cp "$GIRAPH_BACKEND_JAR" \
     org.apache.hadoop.util.RunJar "$jar" org.apache.giraph.GiraphRunner \
     -Dgiraph.SplitMasterWorker=false \
-    "$vertexClass" \
+    "$VertexClass" \
     -w 1 \
     -if edu.stanford.smallgraphs.PropertyGraphJSONVertexInputFormat \
     -of edu.stanford.smallgraphs.PropertyGraphJSONVertexOutputFormat \
     -ip "$InputGraphPath" \
-    -op "$OutputPath" \
-    -q \
+    -op output \
+    -q >&2 \
     #
+
+
+# TODO combine resulting matches and output them
+cat output/*
 
