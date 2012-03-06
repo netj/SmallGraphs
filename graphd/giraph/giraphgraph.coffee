@@ -273,14 +273,12 @@ class GiraphGraph extends StateMachineGraph
             (
                 for i in [0 .. pass-1] by 1
                     """
-                    for (MatchingMessage msg : this.getMessages())
+                    for (MatchingMessage msg : messages)
                         handleMessage#{i}(msg.getMessageId(), msg.getPath(), msg.getMatches());
                     """
             ).join "\n"
 
         """
-        import java.util.Iterator;
-
         import org.apache.hadoop.io.LongWritable;
 
         import edu.stanford.smallgraphs.BaseSmallGraphGiraphVertex;
@@ -294,7 +292,7 @@ class GiraphGraph extends StateMachineGraph
         #{statemachine.messages.map(codegenHandlers).join "\n"}
 
         @Override
-	public void handleMessages(Iterator<MatchingMessage> msgIterator) {
+	public void handleMessages(Iterable<MatchingMessage> messages) {
             #{codegenComputeLoop statemachine.messages}
         }
 

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# run-smallgraph-on-giraph
+# Usage: run-smallgraph-on-giraph STATEMACHINEQUERYJAVACODE INPUTGRAPH OUTPUT
+# 
+# Run a SmallGraph query compiled into state machine java code that extends
+# BaseSmallGraphGiraphVertex on the INPUTGRAPH.
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-03-05
+set -eu
+
+Self=`readlink -f "$0"`
+Here=`dirname "$Self"`
+
+jars=("$Here"/target/giraph.backend-*-jar-with-dependencies.jar)
+GIRAPH_BACKEND_JAR=${jars[0]}
+
+# process arguments
+[ $# -eq 3 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
+VertexJavaCode=$1; shift
+InputGraphPath=$1; shift
+OutputPath=$1; shift
+
+# prepare stuff
+vertexClass=${VertexJavaCode##*/}
+vertexClass=${vertexClass%.java}
+tmp=`mktemp -d /tmp/smallgiraph.XXXXXX`
+trap "rm -rf $tmp" EXIT
+
+
+# compile Java code
+javac -cp $GIRAPH_BACKEND_JAR \
+    -d $tmp \
+    "$VertexJavaCode" \
+    #
+
+# create a jar
+jar=$tmp/smallgiraph.jar
+jar cf $jar $tmp/"$vertexClass".class
+
+# and run it
+cd $tmp
+java -cp "$GIRAPH_BACKEND_JAR" \
+    org.apache.hadoop.util.RunJar "$jar" org.apache.giraph.GiraphRunner \
+    -Dgiraph.SplitMasterWorker=false \
+    "$vertexClass" \
+    -w 1 \
+    -if edu.stanford.smallgraphs.PropertyGraphJSONVertexInputFormat \
+    -of edu.stanford.smallgraphs.PropertyGraphJSONVertexOutputFormat \
+    -ip "$InputGraphPath" \
+    -op "$OutputPath" \
+    -q \
+    #
+

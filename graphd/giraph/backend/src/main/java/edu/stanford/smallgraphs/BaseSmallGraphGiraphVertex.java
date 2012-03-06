@@ -18,9 +18,9 @@
 
 package edu.stanford.smallgraphs;
 
+import java.util.Collections;
 import java.util.Iterator;
 
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.giraph.graph.EdgeListVertex;
 import org.apache.giraph.graph.GiraphJob;
 import org.apache.hadoop.fs.Path;
@@ -39,35 +39,32 @@ public abstract class BaseSmallGraphGiraphVertex
 		EdgeListVertex<LongWritable, VertexMatchingState, PropertyMap, MatchingMessage>
 		implements Tool {
 
-	protected abstract void handleMessages(Iterator<MatchingMessage> msgIterator);
+	protected abstract void handleMessages(Iterable<MatchingMessage> iterable);
 
 	protected void emitMatches(Matches m) {
 		getVertexValue().addFinalMatches(m);
 	}
 
 	protected Iterable<Matches> getAllConsistentMatches(Matches m, int... walks) {
-		return getVertexValue().getMatches()
-				.getAllConsistentMatches(m, walks);
+		return getVertexValue().getMatches().getAllConsistentMatches(m, walks);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public void compute(Iterator<MatchingMessage> msgIterator) {
 		if (getSuperstep() == 0)
 			// send Start message to each vertex at the beginning
-			handleMessages(IteratorUtils.singletonIterator(new MatchingMessage(
-					0)));
+			handleMessages(Collections.singleton(new MatchingMessage(0)));
 		// handle messages
-		handleMessages(msgIterator);
+		handleMessages(getMessages());
 
 		voteToHalt();
 	}
 
 	@Override
 	public int run(String[] args) throws Exception {
-		Preconditions.checkArgument(args.length == 4,
+		Preconditions.checkArgument(args.length == 3,
 				"run: Must have 4 arguments <input path> <output path> "
-						+ "<source vertex id> <# of workers>");
+						+ "<# of workers>");
 
 		GiraphJob job = new GiraphJob(getConf(), getClass().getName());
 		job.setVertexClass(getClass());
@@ -77,8 +74,8 @@ public abstract class BaseSmallGraphGiraphVertex
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		// job.getConfiguration().setLong(BaseSmallGraphGiraphVertex.SOURCE_ID,
 		// Long.parseLong(argArray[2]));
-		// job.setWorkerConfiguration(Integer.parseInt(argArray[3]),
-		// Integer.parseInt(argArray[3]), 100.0f);
+		job.setWorkerConfiguration(Integer.parseInt(args[2]),
+				Integer.parseInt(args[2]), 100.0f);
 
 		return job.run(true) ? 0 : -1;
 	}
