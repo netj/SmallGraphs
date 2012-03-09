@@ -6,11 +6,13 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.Predicate;
 import org.apache.commons.collections.Transformer;
 import org.apache.hadoop.io.LongWritable;
 
@@ -21,7 +23,7 @@ public class Matches extends JSONWritable {
 	@SerializedName("v")
 	public long vertexId;
 	@SerializedName("w")
-	public Map<Integer, List<PathWithMatches>> pathWithMatchesByWalk;
+	public Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk;
 
 	public static class PathWithMatches extends JSONWritable {
 		public MatchPath path;
@@ -39,7 +41,7 @@ public class Matches extends JSONWritable {
 	}
 
 	public Matches(long vertexId,
-			Map<Integer, List<PathWithMatches>> pathWithMatchesByWalk) {
+			Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk) {
 		this.vertexId = vertexId;
 		this.pathWithMatchesByWalk = pathWithMatchesByWalk;
 	}
@@ -47,8 +49,8 @@ public class Matches extends JSONWritable {
 	public Matches addPathWithMatchesArrived(int viaWalk, MatchPath path,
 			Matches matches) {
 		if (pathWithMatchesByWalk == null)
-			pathWithMatchesByWalk = new HashMap<Integer, List<PathWithMatches>>();
-		List<PathWithMatches> matchesForWalk = pathWithMatchesByWalk
+			pathWithMatchesByWalk = new HashMap<Integer, Collection<PathWithMatches>>();
+		Collection<PathWithMatches> matchesForWalk = pathWithMatchesByWalk
 				.get(viaWalk);
 		if (matchesForWalk == null) {
 			matchesForWalk = new ArrayList<PathWithMatches>();
@@ -73,9 +75,105 @@ public class Matches extends JSONWritable {
 				});
 	}
 
-	public Iterable<Matches> getAllConsistentMatches(Matches m, int... walks) {
-		// TODO Auto-generated method stub
-		return null;
+	public Iterable<Matches> getAllConsistentMatches(Matches mInput,
+			int[]... walkIndices) {
+		List<Matches> ms = new ArrayList<Matches>();
+		if (walkIndices.length > 1)
+			// XXX is this OK instead of mInput?
+			// pick matches at the end of first path
+			for (Matches m0 : getInitialMatchesForWalkIndices(this,
+					walkIndices[0])) {
+				Matches m = this;
+				// and try refining this matches with each walk path
+				for (int[] wi : walkIndices) {
+					m = getCoincidingMatchesWith(m0, wi, 0, m);
+					if (m == null)
+						break;
+				}
+				// null means there were no coinciding matches for a walk path
+				if (m != null)
+					ms.add(m);
+			}
+		else
+			// XXX is this OK instead of mInput?
+			ms.add(this);
+		return ms;
+	}
+
+	private Matches getCoincidingMatchesWith(final Matches m,
+			int[] walkIndices, int offset, Matches cursor) {
+		int w = walkIndices[offset];
+		Collection<PathWithMatches> pms = cursor.pathWithMatchesByWalk.get(w);
+		if (offset + 1 == walkIndices.length) {
+			// TODO maybe we can defer collection creation if we check predicate
+			// first, then create if necessary
+			@SuppressWarnings("unchecked")
+			Collection<PathWithMatches> pms2 = CollectionUtils.select(pms,
+					new Predicate() {
+						@Override
+						public boolean evaluate(Object o) {
+							return ((PathWithMatches) o).matches == m;
+						}
+					});
+			if (pms2.size() == 0)
+				return null;
+			else if (pms2.size() != pms.size())
+				return createSlightlyDifferentMatches(cursor, w, pms2);
+			else
+				return cursor;
+		} else {
+			// TODO can we defer list creation until we really need it?
+			List<PathWithMatches> pms2 = new ArrayList<Matches.PathWithMatches>();
+			boolean diff = false;
+			for (PathWithMatches pm : pms) {
+				Matches newMatches = getCoincidingMatchesWith(m, walkIndices,
+						offset + 1, pm.matches);
+				if (newMatches == null)
+					diff = true;
+				else if (newMatches == pm.matches)
+					pms2.add(pm);
+				else {
+					pms2.add(new PathWithMatches(pm.path, newMatches));
+					diff = true;
+				}
+			}
+			if (pms2.size() == 0)
+				return null;
+			else if (diff)
+				return createSlightlyDifferentMatches(cursor, w, pms2);
+			else
+				return cursor;
+		}
+	}
+
+	private Matches createSlightlyDifferentMatches(Matches m, int w,
+			Collection<PathWithMatches> pms) {
+		// TODO avoid copying the whole map, since we only need to differ by one
+		// entry
+		Map<Integer, Collection<PathWithMatches>> newPathWithMatchesByWalk = new HashMap<Integer, Collection<PathWithMatches>>(
+				m.pathWithMatchesByWalk);
+		newPathWithMatchesByWalk.put(w, pms);
+		return new Matches(m.vertexId, newPathWithMatchesByWalk);
+	}
+
+	private List<Matches> getInitialMatchesForWalkIndices(Matches root,
+			int... walkIndices) {
+		List<Matches> ms = new ArrayList<Matches>();
+		getInitialMatchesForWalkIndices(root, walkIndices, 0, ms);
+		return ms;
+	}
+
+	private void getInitialMatchesForWalkIndices(Matches cursor,
+			int[] walkIndices, int offset, List<Matches> allInitialMatches) {
+		int w = walkIndices[offset];
+		if (offset - 1 == walkIndices.length) {
+			for (PathWithMatches pm : cursor.pathWithMatchesByWalk.get(w))
+				getInitialMatchesForWalkIndices(pm.matches, walkIndices,
+						offset + 1, allInitialMatches);
+		} else {
+			for (PathWithMatches pm : cursor.pathWithMatchesByWalk.get(w))
+				allInitialMatches.add(pm.matches);
+		}
 	}
 
 	/**
@@ -98,6 +196,9 @@ public class Matches extends JSONWritable {
 		m2.addPathWithMatchesArrived(1, p1, m1)
 				.addPathWithMatchesArrived(2, p3a, m3a)
 				.addPathWithMatchesArrived(2, p3b, m3b);
+
+		// Map fixedSizeMap = new HashMap(m2.pathWithMatchesByWalk);
+		// fixedSizeMap.put(2, null);
 
 		// write
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();

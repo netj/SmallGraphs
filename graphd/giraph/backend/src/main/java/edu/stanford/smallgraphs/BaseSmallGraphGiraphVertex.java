@@ -45,7 +45,7 @@ public abstract class BaseSmallGraphGiraphVertex
 		getVertexValue().addFinalMatches(m);
 	}
 
-	protected Iterable<Matches> getAllConsistentMatches(Matches m, int... walks) {
+	protected Iterable<Matches> getAllConsistentMatches(Matches m, int[]... walks) {
 		return getVertexValue().getMatches().getAllConsistentMatches(m, walks);
 	}
 
