@@ -70,9 +70,9 @@ class StateMachineGraph extends BaseGraph
         # then, generate actions for each messages
         stateMachine =
             qgraph: qgraph
-            messages: []
+            actionByMessages: {}
         addAction = (pass, msgId, desc, actions...) ->
-            (stateMachine.messages[pass] ?= [])[msgId] =
+            (stateMachine.actionByMessages[pass] ?= [])[msgId] =
                 msgId: msgId
                 description: desc
                 action: actions
@@ -106,7 +106,7 @@ class StateMachineGraph extends BaseGraph
                         augmentedWithEdge: symEdge
                     withMatches: matches
         #  Start message
-        addAction 1, msgIdStart, "Start",
+        addAction "individual", msgIdStart, "Start",
             for s in qgraph.nodes when s.isInitial
                 null # XXX don't remove this line, or you'll break CoffeeScript's parser
                 # TODO group initial nodes with same constraints
@@ -123,12 +123,12 @@ class StateMachineGraph extends BaseGraph
         for w in walks
             # TODO merge the same arrived messages for each walk to the same step node
             s = qgraph.nodes[w.target]
-            addAction 0, w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
+            addAction "individual", w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
                 whenNode: symNode
                 satisfies: genConstraints w.steps[w.steps.length-1]
                 then:
                     { rememberMatches: symMatches, ofNode: symNode, viaWalk: w.id, withPath: symPath }
-            addAction 1, w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
+            addAction "aggregated", w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
                 whenNode: symNode
                 satisfies: genConstraints w.steps[w.steps.length-1]
                 then:
@@ -167,9 +167,9 @@ class StateMachineGraph extends BaseGraph
             w = qgraph.edges[r.walk]
             s = qgraph.nodes[w.source]
             walks_out_with_returns = (qgraph.edges[r].walk for r in s.returns_in)
-            addAction 0, w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
+            addAction "individual", w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
                 { rememberMatches: symMatches, ofNode: symNode, returnedFromWalk: w.id }
-            addAction 1, w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
+            addAction "aggregated", w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
                 foreach: symMatchesInRet
                 in:
                     findAllConsistentMatches: s.joiningPaths ? 0
@@ -196,7 +196,7 @@ class StateMachineGraph extends BaseGraph
         for w in walks
             numEdges = (parseInt (w.steps.length-1))/2
             for i in [1 ... numEdges] by 1
-                addAction 1, w.msgIdWalkingBase + i-1, "Walking(#{w.id}, #{2*i}, #{symPath}, #{symMatches})",
+                addAction "individual", w.msgIdWalkingBase + i-1, "Walking(#{w.id}, #{2*i}, #{symPath}, #{symMatches})",
                     # node step
                     whenNode: symNode
                     satisfies: genConstraints w.steps[2*i]

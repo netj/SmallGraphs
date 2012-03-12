@@ -162,7 +162,7 @@ class GiraphGraph extends StateMachineGraph
                         }}"
                 # make pathsetCode a constant field and use it
                 if pathsetCode != "null"
-                    pathsetCode = codegenConstant "int[][][]", "PATH", pathsetCode
+                    pathsetCode = codegenConstant "int[][][]", "PATHSET", pathsetCode
                 "this.getAllConsistentMatches(#{pathsetCode}, #{expr.ofWalks.join ","})"
             else if expr.newMatchesAtNode?
                 "new Matches(#{codegenNodeIdExpr expr.newMatchesAtNode})"
@@ -288,25 +288,10 @@ class GiraphGraph extends StateMachineGraph
                 #{codegenAction msg.action}
                 break;
             """
-        pass = 0
-        codegenHandlers = (msgs) ->
-            """
-            void handleMessage#{pass++}(int msgId, MatchPath path, Matches matches) {
-                switch (msgId) {
-                    #{msgs.map(codegenSingleHandler).join "\n"}
-                }
-            }
 
-            """
-
-        codegenComputeLoop = (msgs) ->
-            (
-                for i in [0 .. pass-1] by 1
-                    """
-                    for (MatchingMessage msg : messages)
-                        handleMessage#{i}(msg.getMessageId(), msg.getPath(), msg.getMatches());
-                    """
-            ).join "\n"
+        maxMsgId = 0
+        for step,msgs of statemachine.actionByMessages
+            maxMsgId = Math.max maxMsgId, msgs.length
 
         """
         import org.apache.hadoop.io.LongWritable;
@@ -319,11 +304,26 @@ class GiraphGraph extends StateMachineGraph
 
         public class SmallGraphGiraphVertex extends BaseSmallGraphGiraphVertex  {
 
-        #{statemachine.messages.map(codegenHandlers).join "\n"}
-
         @Override
 	public void handleMessages(Iterable<MatchingMessage> messages) {
-            #{codegenComputeLoop statemachine.messages}
+            boolean[] messageHasArrived = new boolean[#{maxMsgId}];
+            for (MatchingMessage msg : messages) {
+                messageHasArrived[msg.getMessageId()] = true;
+                handleMessage(msg.getMessageId(), msg.getPath(), msg.getMatches());
+            }
+            for (int i=0; i<messageHasArrived.length; i++)
+                if (messageHasArrived[i])
+                    handleAggregatedMessage(i);
+        }
+
+        private void handleMessage(int msgId, MatchPath path, Matches matches) {
+            switch (msgId) {#{statemachine.actionByMessages.individual.map(codegenSingleHandler).join "\n"}
+            }
+        }
+
+        private void handleAggregatedMessage(int msgId) {
+            switch (msgId) {#{statemachine.actionByMessages.aggregated.map(codegenSingleHandler).join "\n"}
+            }
         }
 
         #{

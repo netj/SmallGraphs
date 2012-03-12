@@ -8,7 +8,7 @@ import org.apache.hadoop.io.Writable;
 
 public class MatchingMessage implements Writable {
 
-	private final int msgId;
+	private int msgId;
 	private final Matches matches;
 	private final MatchPath path;
 
@@ -44,14 +44,16 @@ public class MatchingMessage implements Writable {
 
 	@Override
 	public void readFields(DataInput in) throws IOException {
-		// TODO Auto-generated method stub
-
+		msgId = in.readInt();
+		matches.readFields(in);
+		path.readFields(in);
 	}
 
 	@Override
 	public void write(DataOutput out) throws IOException {
-		// TODO Auto-generated method stub
-
+		out.writeInt(msgId);
+		matches.write(out);
+		path.write(out);
 	}
 
 }
