@@ -49,6 +49,24 @@ class StateMachineGraph extends BaseGraph
                 s.isInitial = true
             if not s.walks_out?.length and not s.returns_out?.length
                 s.isTerminal = true
+        # find converging paths
+        pathsBySource = (targetNode) ->
+            paths = {}
+            traverseBackwards = (nodeId, path) ->
+                (paths[nodeId] ?= []).push path
+                # avoid generating every combination of paths and infinite loops with cycles
+                if paths[nodeId].length == 1
+                    node = qgraph.nodes[nodeId]
+                    traverseBackwards qgraph.edges[wId].source, (path.concat [wId])  for wId in node.walks_in  if node.walks_in?
+            traverseBackwards targetNode.id, []
+            paths
+        for t in qgraph.nodes when not t.isInitial
+            pathset = pathsBySource t
+            # mark joining paths (more than two) only when prefixes differ
+            for s,paths of pathset
+                if paths.length == 1 or (paths.every (p) -> paths[0][0] == p[0])
+                    delete pathset[s]
+            t.joiningPaths = pathset unless _.isEmpty pathset
         # then, generate actions for each messages
         stateMachine =
             qgraph: qgraph
@@ -116,8 +134,8 @@ class StateMachineGraph extends BaseGraph
                 then:
                     foreach: symMatchesIn
                     in:
-                        findCompatibleMatchesWithMatches: symMatches
-                        ofWalks: s.walks_in # TODO find out more points of join
+                        findAllConsistentMatches: s.joiningPaths ? 0
+                        ofWalks: s.walks_in
                     do: _.flatten [
                         if s.returns_in?.length
                             # initiate walks that we expect to return
@@ -154,8 +172,8 @@ class StateMachineGraph extends BaseGraph
             addAction 1, w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
                 foreach: symMatchesInRet
                 in:
-                    findCompatibleMatchesWithMatches: symMatches
-                    ofWalks: _.union s.walks_in ? [], walks_out_with_returns # TODO find out more points of join
+                    findAllConsistentMatches: s.joiningPaths ? 0
+                    ofWalks: _.union s.walks_in ? [], walks_out_with_returns
                 do:
                     if s.isTerminal # we can emit once we get back all the Returned matches
                         emitMatches: symMatchesInRet
@@ -290,6 +308,7 @@ class StateMachineGraph extends BaseGraph
                 source: sId
                 target: tId
                 walk: wId
+            qgraph.edges[wId].return = r.id
             qgraph.edges.push r
             (qgraph.nodes[sId].returns_out ?= []).push r.id
             (qgraph.nodes[tId].returns_in  ?= []).push r.id

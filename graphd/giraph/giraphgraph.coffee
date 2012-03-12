@@ -76,7 +76,7 @@ class GiraphGraph extends StateMachineGraph
             else if expr.newPath?
                 "MatchPath"
 
-            else if expr.findCompatibleMatchesWithMatches?
+            else if expr.findAllConsistentMatches?
                 { list: "Matches" }
             else if expr.newMatches?
                 "Matches"
@@ -87,6 +87,17 @@ class GiraphGraph extends StateMachineGraph
         codegenName = (sym) ->
             # TODO check and generate unique symbols?
             codegenExpr sym
+
+        constants = {}
+        constantSymCount = 0
+        codegenConstant = (type, namePrefix, exprCode) ->
+            c = constants[exprCode]
+            unless c?
+                c =
+                    type: type
+                    name: "#{namePrefix}_#{constantSymCount++}"
+                constants[exprCode] = c
+            c.name
 
         codegenNodeIdExpr = (expr) ->
             if typeof expr == 'string' and expr == '$this'
@@ -138,10 +149,21 @@ class GiraphGraph extends StateMachineGraph
                 # TODO collect attribute/property values
                 "new MatchPath(#{newPathArgs.join ", "})"
 
-            else if expr.findCompatibleMatchesWithMatches?
-                # TODO can we expand this?
-                "getAllConsistentMatches(#{codegenExpr expr.findCompatibleMatchesWithMatches}, #{
-                        expr.ofWalks.join ", "})"
+            else if expr.findAllConsistentMatches?
+                # TODO can we generate more explicit code for this?
+                codegenPath = (path) -> "new int[]{#{path.join ","}}"
+                codegenPaths = (paths) -> "new int[][]{#{paths.map(codegenPath).join(", ")}}"
+                pathsetCode =
+                    if expr.findAllConsistentMatches == 0
+                        "null"
+                    else
+                        "new int[][][]{#{
+                            (codegenPaths paths for s,paths of expr.findAllConsistentMatches).join ", "
+                        }}"
+                # make pathsetCode a constant field and use it
+                if pathsetCode != "null"
+                    pathsetCode = codegenConstant "int[][][]", "PATH", pathsetCode
+                "this.getAllConsistentMatches(#{pathsetCode}, #{expr.ofWalks.join ","})"
             else if expr.newMatchesAtNode?
                 "new Matches(#{codegenNodeIdExpr expr.newMatchesAtNode})"
 
@@ -302,6 +324,11 @@ class GiraphGraph extends StateMachineGraph
         @Override
 	public void handleMessages(Iterable<MatchingMessage> messages) {
             #{codegenComputeLoop statemachine.messages}
+        }
+
+        #{
+            ("private static final #{c.type} #{c.name} = #{code};" for code,c of constants
+            ).join "\n"
         }
 
         }

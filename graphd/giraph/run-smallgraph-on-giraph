@@ -31,6 +31,7 @@ cd $tmp
 
 # compile Java code given over stdin
 cat >"$VertexClass".java
+exit 1 # FIXME
 javac -cp $GIRAPH_BACKEND_JAR \
     -d . \
     "$VertexClass".java \

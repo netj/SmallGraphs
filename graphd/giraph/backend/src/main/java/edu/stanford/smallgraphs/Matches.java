@@ -7,6 +7,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,32 +76,54 @@ public class Matches extends JSONWritable {
 				});
 	}
 
-	public Iterable<Matches> getAllConsistentMatches(Matches mInput,
-			int[]... walkIndices) {
-		List<Matches> ms = new ArrayList<Matches>();
-		if (walkIndices.length > 1)
-			// XXX is this OK instead of mInput?
-			// pick matches at the end of first path
-			for (Matches m0 : getInitialMatchesForWalkIndices(this,
-					walkIndices[0])) {
-				Matches m = this;
-				// and try refining this matches with each walk path
-				for (int[] wi : walkIndices) {
-					m = getCoincidingMatchesWith(m0, wi, 0, m);
-					if (m == null)
-						break;
-				}
-				// null means there were no coinciding matches for a walk path
-				if (m != null)
-					ms.add(m);
-			}
-		else
-			// XXX is this OK instead of mInput?
-			ms.add(this);
-		return ms;
+	public Iterable<Matches> getAllConsistentMatches(int[][][] pathset,
+			int... walkIndices) {
+		return getAllConsistentMatches(this, pathset, walkIndices);
 	}
 
-	private Matches getCoincidingMatchesWith(final Matches m,
+	public static Iterable<Matches> getAllConsistentMatches(Matches mInput,
+			int[][][] pathset, int... walkIndices) {
+		// first check if matches have all the necessary walks
+		for (int w : walkIndices) {
+			Collection<PathWithMatches> pms = mInput.pathWithMatchesByWalk
+					.get(w);
+			if (pms == null || pms.size() == 0)
+				return Collections.emptyList();
+		}
+		// then try to find consistent matches
+		if (pathset != null && pathset.length > 1) {
+			Collection<Matches> ms = Collections.singleton(mInput);
+			// distribute outermost conjunctions to innermost disjunctions
+			for (int[][] paths : pathset) {
+				List<Matches> matchesRefinedSoFar = new ArrayList<Matches>();
+				// start refining from each disjunctive matches refined by
+				// previous paths
+				for (Matches mRefinedSoFar : ms) {
+					// pick matches at the end of first path
+					for (Matches mTarget : getInitialMatchesForWalkIndices(
+							mRefinedSoFar, paths[0])) {
+						Matches m = mRefinedSoFar;
+						// and try refining this matches with each walk path
+						for (int[] wi : paths) {
+							m = getCoincidingMatchesWith(mTarget, wi, 0, m);
+							if (m == null)
+								break;
+						}
+						// null means no coinciding matches for a walk path
+						if (m != null)
+							matchesRefinedSoFar.add(m);
+					}
+				}
+				ms = matchesRefinedSoFar;
+				if (ms.size() == 0)
+					break;
+			}
+			return ms;
+		} else
+			return Collections.singleton(mInput);
+	}
+
+	private static Matches getCoincidingMatchesWith(final Matches m,
 			int[] walkIndices, int offset, Matches cursor) {
 		int w = walkIndices[offset];
 		Collection<PathWithMatches> pms = cursor.pathWithMatchesByWalk.get(w);
@@ -146,7 +169,7 @@ public class Matches extends JSONWritable {
 		}
 	}
 
-	private Matches createSlightlyDifferentMatches(Matches m, int w,
+	private static Matches createSlightlyDifferentMatches(Matches m, int w,
 			Collection<PathWithMatches> pms) {
 		// TODO avoid copying the whole map, since we only need to differ by one
 		// entry
@@ -156,14 +179,14 @@ public class Matches extends JSONWritable {
 		return new Matches(m.vertexId, newPathWithMatchesByWalk);
 	}
 
-	private List<Matches> getInitialMatchesForWalkIndices(Matches root,
+	private static List<Matches> getInitialMatchesForWalkIndices(Matches root,
 			int... walkIndices) {
 		List<Matches> ms = new ArrayList<Matches>();
 		getInitialMatchesForWalkIndices(root, walkIndices, 0, ms);
 		return ms;
 	}
 
-	private void getInitialMatchesForWalkIndices(Matches cursor,
+	private static void getInitialMatchesForWalkIndices(Matches cursor,
 			int[] walkIndices, int offset, List<Matches> allInitialMatches) {
 		int w = walkIndices[offset];
 		if (offset - 1 == walkIndices.length) {
