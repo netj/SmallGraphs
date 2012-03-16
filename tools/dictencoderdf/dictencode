@@ -1,0 +1,46 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+use DB_File;
+use RDFStore::Parser::NTriples;
+use RDFStore::NodeFactory;
+
+tie our %dict,     'DB_File', "dict.uri2id.db"; #, O_CREAT|O_RDWR, 0644, $DB_BTREE;
+tie our %dict_inv, 'DB_File', "dict.id2uri.db"; #, O_CREAT|O_RDWR, 0644, $DB_BTREE;
+
+my $counter = $dict{""} || 0;
+
+sub assignId {
+    my $o = shift;
+    if (ref($o) eq "RDFStore::Resource") {
+        my $uri = $o->toString();
+        my $id = $dict{$uri};
+        unless (defined $id) {
+            $id = $dict{$uri} = $counter++;
+            $dict_inv{$id} = $uri;
+        }
+        '<'. $id .'>'
+    } else { # RDFStore::Literal
+        '"'. $o->toString() .'"'
+    }
+}
+
+my $p = new RDFStore::Parser::NTriples(
+        Handlers        => {
+            #Init    => sub { print "INIT\n"; },
+            #Final   => sub { print "FINAL\n"; },
+            Assert  => sub {
+                my $stmt = $_[1];
+                return if $stmt->subject()->isAnonymous();
+                printf "%s %s %s .\n",
+                assignId($stmt->subject()),
+                assignId($stmt->predicate()),
+                assignId($stmt->object()),
+                ;
+            }
+        },
+        NodeFactory     => new RDFStore::NodeFactory()
+    );
+
+$p->parse(\*STDIN);
