@@ -62,5 +62,10 @@
     	<artifactId>slf4j-nop</artifactId>
     	<version>1.5.10</version>
     </dependency>
+    <dependency>
+    	<groupId>edu.stanford.smallgraphs</groupId>
+    	<artifactId>giraph.backend.base</artifactId>
+    	<version>0.1-SNAPSHOT</version>
+    </dependency>
   </dependencies>
 </project>
