@@ -245,11 +245,11 @@ public class RDFDictionaryCodec {
 
 	}
 
-	public void encode(InputStream input, RDFFormat format, String baseURI,
-			OutputStream output) throws RDFParseException, RDFHandlerException,
+	public void encode(InputStream input, RDFFormat inputFormat, String baseURI,
+			OutputStream output, RDFFormat outputFormat) throws RDFParseException, RDFHandlerException,
 			FileNotFoundException, IOException {
-		RDFParser rdfParser = Rio.createParser(format);
-		final RDFWriter rdfWriter = Rio.createWriter(format, output);
+		RDFParser rdfParser = Rio.createParser(inputFormat);
+		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);
 		final MutableStatement mutableStmt = new MutableStatement();
 		rdfParser.setRDFHandler(new RDFHandlerBase() {
 			@Override
@@ -269,10 +269,10 @@ public class RDFDictionaryCodec {
 		dictionaryUriToId.sync();
 	}
 
-	public void decode(InputStream input, RDFFormat format, OutputStream output)
+	public void decode(InputStream input, RDFFormat inputFormat, OutputStream output, RDFFormat outputFormat)
 			throws RDFHandlerException, RDFParseException, IOException {
-		RDFParser rdfParser = Rio.createParser(format);
-		final RDFWriter rdfWriter = Rio.createWriter(format, output);
+		RDFParser rdfParser = Rio.createParser(inputFormat);
+		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);
 		final MutableStatement mutableStmt = new MutableStatement();
 		rdfParser.setRDFHandler(new RDFHandlerBase() {
 			@Override
@@ -290,15 +290,21 @@ public class RDFDictionaryCodec {
 		rdfWriter.endRDF();
 	}
 
-	public static void main(String[] args) throws ParseException, IOException {
+	public static void main(String[] args) {
 		// command line options
 		Options options = new Options();
 		options.addOption("d", true, "Path to the dictionary");
 		options.addOption("o", true, "Path to output file");
 		options.addOption("u", true, "Base URI");
-		options.addOption("f", true, "Format of the files: "
-				+ RDFFormat.values().toString());
-		CommandLine parsedArgs = new GnuParser().parse(options, args, false);
+		options.addOption("f", true, "FORMAT of the RDF files; encoded is always N-Triples");
+		CommandLine parsedArgs;
+		try {
+			parsedArgs = new GnuParser().parse(options, args, false);
+		} catch (ParseException e) {
+			printUsage(options);
+			System.exit(1);
+			return;
+		}
 
 		// process arguments
 		String dictPath = parsedArgs.getOptionValue("d", "rdfDict");
@@ -327,10 +333,11 @@ public class RDFDictionaryCodec {
 			if (command.equals("encode")) {
 				for (String filename : arguments)
 					codec.encode(new FileInputStream(filename), format,
-							baseURI, out);
+							baseURI, out, RDFFormat.NTRIPLES);
 			} else if (command.equals("decode")) {
 				for (String filename : arguments)
-					codec.decode(new FileInputStream(filename), format, out);
+					codec.decode(new FileInputStream(filename),
+							RDFFormat.NTRIPLES, out, format);
 			} else if (command.equals("encode-uri")) {
 				for (String uri : arguments)
 					printer.println(codec.encode(uri));
@@ -341,17 +348,23 @@ public class RDFDictionaryCodec {
 				for (String id : arguments)
 					printer.println(codec.decode(Long.valueOf(id)));
 			} else {
-				HelpFormatter formatter = new HelpFormatter();
-				formatter.printHelp(
-						"RDFDictionaryCodec [OPTIONS] COMMAND [ARG...]",
-						options);
-				System.out.println();
-				System.out
-						.println(" COMMAND is one from: encode, decode, encode-uri, encode-register-uri, decode-uri");
+				printUsage(options);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+
+	private static void printUsage(Options options) {
+		HelpFormatter formatter = new HelpFormatter();
+		formatter.printHelp("RDFDictionaryCodec [OPTIONS] COMMAND [ARG...]",
+				options);
+		System.out.println();
+		System.out
+				.println(" COMMAND is one from: encode, decode, encode-uri, encode-register-uri, decode-uri");
+		System.out.println();
+		System.out.println("FORMAT is one from:\n"
+				+ RDFFormat.values().toString());
 	}
 
 }
