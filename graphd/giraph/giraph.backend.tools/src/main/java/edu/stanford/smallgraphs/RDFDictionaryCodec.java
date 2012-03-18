@@ -138,19 +138,26 @@ public class RDFDictionaryCodec {
 	@SuppressWarnings("serial")
 	private class MutableStatement implements Statement {
 
-		private class EncodedURI implements URI {
+		private class MutableURI implements URI {
 
 			private String s;
+			private Long id;
 
 			public String stringValue() {
 				return s;
 			}
 
+			public Long getId() {
+				return id;
+			}
+
 			void setId(long id) {
+				this.id = id;
 				this.s = ":" + Long.toString(id);
 			}
 
 			void setURI(String uri) {
+				this.id = null;
 				this.s = uri;
 			}
 
@@ -168,8 +175,8 @@ public class RDFDictionaryCodec {
 			}
 		}
 
-		EncodedURI sEnc = new EncodedURI(), pEnc = new EncodedURI(),
-				oEnc = new EncodedURI();
+		MutableURI sURI = new MutableURI(), pURI = new MutableURI(),
+				oURI = new MutableURI();
 		Resource s;
 		Value o;
 
@@ -180,21 +187,21 @@ public class RDFDictionaryCodec {
 		private void encodeSubject(Resource subject) {
 			if (subject instanceof URI) {
 				URI uri = (URI) subject;
-				sEnc.setId(encodeURI(uri));
-				s = sEnc;
+				sURI.setId(encodeURI(uri));
+				s = sURI;
 			} else
 				s = subject;
 		}
 
 		private void encodePredicate(URI uri) {
-			pEnc.setId(encodeURI(uri));
+			pURI.setId(encodeURI(uri));
 		}
 
 		private void encodeObject(Value value) {
 			if (value instanceof URI) {
 				URI uri = (URI) value;
-				oEnc.setId(encodeURI(uri));
-				o = oEnc;
+				oURI.setId(encodeURI(uri));
+				o = oURI;
 			} else {
 				o = value;
 			}
@@ -207,21 +214,21 @@ public class RDFDictionaryCodec {
 		private void decodeSubject(Resource subject) {
 			if (subject instanceof URI) {
 				URI uri = (URI) subject;
-				sEnc.setURI(decodeId(uri));
-				s = sEnc;
+				sURI.setURI(decodeId(uri));
+				s = sURI;
 			} else
 				s = subject;
 		}
 
 		private void decodePredicate(URI uri) {
-			pEnc.setURI(decodeId(uri));
+			pURI.setURI(decodeId(uri));
 		}
 
 		private void decodeObject(Value value) {
 			if (value instanceof URI) {
 				URI uri = (URI) value;
-				oEnc.setURI(decodeId(uri));
-				o = oEnc;
+				oURI.setURI(decodeId(uri));
+				o = oURI;
 			} else {
 				o = value;
 			}
@@ -232,7 +239,7 @@ public class RDFDictionaryCodec {
 		}
 
 		public URI getPredicate() {
-			return pEnc;
+			return pURI;
 		}
 
 		public Value getObject() {
