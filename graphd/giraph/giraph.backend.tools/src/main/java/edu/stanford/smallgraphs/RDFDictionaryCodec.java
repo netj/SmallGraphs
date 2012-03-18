@@ -39,6 +39,9 @@ import com.sleepycat.je.OperationStatus;
 
 public class RDFDictionaryCodec {
 
+	public static final String RDF_LABEL_PREDICATE_URI = "http://www.w3.org/2000/01/rdf-schema#label";
+	public static final String RDF_TYPE_PREDICATE_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+
 	private Database dictionaryUriToId;
 	private Database dictionaryIdToUri;
 
@@ -65,18 +68,6 @@ public class RDFDictionaryCodec {
 		dictionaryUriToId.close();
 	}
 
-	private Long lookupLong(Database db, String key, long defaultValue) {
-		Long value = lookupLong(db, key);
-		if (value != null)
-			return value;
-		else
-			return defaultValue;
-	}
-
-	private DatabaseEntry dbEntry = new DatabaseEntry();
-	private DatabaseEntry dbEntry2 = new DatabaseEntry();
-	private DatabaseEntry longDBEntry = new DatabaseEntry(new byte[8]);
-
 	public Long encode(String uri) {
 		return lookupLong(dictionaryUriToId, uri);
 	}
@@ -97,6 +88,18 @@ public class RDFDictionaryCodec {
 
 	public String decode(Long id) {
 		return lookupString(dictionaryIdToUri, id);
+	}
+
+	private DatabaseEntry dbEntry = new DatabaseEntry();
+	private DatabaseEntry dbEntry2 = new DatabaseEntry();
+	private DatabaseEntry longDBEntry = new DatabaseEntry(new byte[8]);
+
+	private Long lookupLong(Database db, String key, long defaultValue) {
+		Long value = lookupLong(db, key);
+		if (value != null)
+			return value;
+		else
+			return defaultValue;
 	}
 
 	private Long lookupLong(Database db, String key) {
@@ -259,6 +262,7 @@ public class RDFDictionaryCodec {
 		RDFParser rdfParser = Rio.createParser(inputFormat);
 		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);
 		final MutableStatement mutableStmt = new MutableStatement();
+		final long rdfTypePredicateId = encodeOrRegister(RDF_TYPE_PREDICATE_URI);
 		rdfParser.setRDFHandler(new RDFHandlerBase() {
 			@Override
 			public void handleStatement(Statement st)
@@ -268,6 +272,17 @@ public class RDFDictionaryCodec {
 				mutableStmt.encodePredicate(st.getPredicate());
 				mutableStmt.encodeObject(st.getObject());
 				rdfWriter.handleStatement(mutableStmt);
+				// // collect types of nodes, edges and properties
+				// Long pId = mutableStmt.pURI.getId();
+				// if (rdfTypePredicateId == pId) {
+				// countResourceType(mutableStmt.o);
+				// } else {
+				// if (mutableStmt.o instanceof MutableStatement.MutableURI) {
+				// MutableStatement.MutableURI oURI =
+				// (MutableStatement.MutableURI) mutableStmt.o;
+				// countPredicateType(pId);
+				// }
+				// }
 			}
 		});
 		rdfWriter.startRDF();
