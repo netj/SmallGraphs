@@ -12,7 +12,7 @@
   
     <groupId>edu.stanford.smallgraphs</groupId>
   <artifactId>giraph.backend.tools</artifactId>
-  <name>Giraph Backend Tools</name>
+  <name>SmallGraph Giraph Backend Tools</name>
     <version>0.1-SNAPSHOT</version>
   
   <properties>
@@ -43,11 +43,6 @@
     	<version>2.3.2</version>
     </dependency>
     <dependency>
-    	<groupId>org.apache.hadoop</groupId>
-    	<artifactId>hadoop-core</artifactId>
-    	<version>1.0.0</version>
-    </dependency>
-    <dependency>
     	<groupId>com.sleepycat</groupId>
     	<artifactId>je</artifactId>
     	<version>5.0.34</version>
@@ -63,9 +58,9 @@
     	<version>1.5.10</version>
     </dependency>
     <dependency>
-    	<groupId>edu.stanford.smallgraphs</groupId>
-    	<artifactId>giraph.backend.base</artifactId>
-    	<version>0.1-SNAPSHOT</version>
+    	<groupId>org.json</groupId>
+    	<artifactId>json</artifactId>
+    	<version>20090211</version>
     </dependency>
   </dependencies>
 </project>

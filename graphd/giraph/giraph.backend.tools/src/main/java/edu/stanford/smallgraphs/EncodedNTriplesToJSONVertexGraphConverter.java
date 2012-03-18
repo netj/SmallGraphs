@@ -65,9 +65,10 @@ public class EncodedNTriplesToJSONVertexGraphConverter {
 	DatabaseEntry edgeDBEntry = new DatabaseEntry(new byte[2 * 8]);
 
 	protected void addEdge(URI sURI, URI pURI, URI oURI) {
-		Long sId = Long.valueOf(sURI.stringValue().substring(1));
-		Long pId = Long.valueOf(pURI.stringValue().substring(1));
-		Long oId = Long.valueOf(oURI.stringValue().substring(1));
+		// long encoded URIs have form of: ":1234"
+		long sId = Long.valueOf(sURI.stringValue().substring(1));
+		long pId = Long.valueOf(pURI.stringValue().substring(1));
+		long oId = Long.valueOf(oURI.stringValue().substring(1));
 		// System.err.println("+ " + sId + "-" + pId + "->" + oId);
 		ByteArrayUtil.putLong(sId, vertexIdDBEntry.getData(), 0);
 		byte[] edgeData = edgeDBEntry.getData();
@@ -81,8 +82,9 @@ public class EncodedNTriplesToJSONVertexGraphConverter {
 
 	protected void addProperty(URI sURI, URI pURI, Literal oLiteral)
 			throws IOException, JSONException {
-		Long sId = Long.valueOf(sURI.stringValue().substring(1));
-		Long pId = Long.valueOf(pURI.stringValue().substring(1));
+		// long encoded URIs have form of: ":1234"
+		long sId = Long.valueOf(sURI.stringValue().substring(1));
+		long pId = Long.valueOf(pURI.stringValue().substring(1));
 		// System.err.println("+ " + sId + "@" + pId);
 		ByteArrayUtil.putLong(sId, vertexIdDBEntry.getData(), 0);
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -133,63 +135,115 @@ public class EncodedNTriplesToJSONVertexGraphConverter {
 		});
 		parser.parse(input, "");
 		// from the maps, output vertex-grouped graph in multiple lines of JSON
+		writeVerticesInJSON(output);
+	}
+
+	private void writeVerticesInJSON(OutputStream output) throws JSONException,
+			IOException {
 		OutputStreamWriter outputStreamWriter = new OutputStreamWriter(output);
 		CursorConfig cursorConfig = new CursorConfig();
-		Cursor cursor = edgeListByVertex.openCursor(null, cursorConfig);
-		OperationStatus status;
+		Cursor edgeCursor = edgeListByVertex.openCursor(null, cursorConfig);
+		Cursor propertiesCursor = propertyMapByVertex.openCursor(null,
+				cursorConfig);
 		DatabaseEntry vertexEntry = new DatabaseEntry();
 		DatabaseEntry edgeEntry = new DatabaseEntry();
-		status = cursor.getFirst(vertexEntry, edgeEntry, LockMode.DEFAULT);
+		DatabaseEntry propertyEntry = new DatabaseEntry();
+		OperationStatus status = edgeCursor.getFirst(vertexEntry, edgeEntry,
+				LockMode.DEFAULT);
 		while (status == OperationStatus.SUCCESS) {
 			JSONWriter jsonWriter = new JSONWriter(outputStreamWriter);
 			jsonWriter.array();
-			// source vertex id
-			long sId = ByteArrayUtil.getLong(vertexEntry.getData(), 0);
-			jsonWriter.value(sId);
-			// edge list
-			jsonWriter.array();
-			do {
-				byte[] edgeData = edgeEntry.getData();
-				long pId = ByteArrayUtil.getLong(edgeData, 0);
-				long oId = ByteArrayUtil.getLong(edgeData, 8);
-				// System.err.println("= " + sId + "-" + pId + "->" + oId);
-				// target vertex id
-				jsonWriter.value(oId);
-				// edge properties
-				jsonWriter.object();
-				// type
-				jsonWriter.key("");
-				jsonWriter.value(pId);
-				// TODO more edge properties
-				jsonWriter.endObject();
-				status = cursor.getNextDup(vertexEntry, edgeEntry,
-						LockMode.DEFAULT);
-			} while (status == OperationStatus.SUCCESS);
-			jsonWriter.endArray();
-			// node properties
-			jsonWriter.object();
-			// TODO
-			Cursor propertiesCursor = propertyMapByVertex.openCursor(null,
-					cursorConfig);
-			DatabaseEntry propertyEntry = new DatabaseEntry();
-			status = propertiesCursor.getSearchKey(vertexEntry, propertyEntry,
-					LockMode.DEFAULT);
-			while (status == OperationStatus.SUCCESS) {
-				byte[] propertyIdValue = propertyEntry.getData();
-				jsonWriter.key(Long.toString(ByteArrayUtil.getLong(
-						propertyIdValue, 0)));
-				jsonWriter.value(new String(propertyIdValue, 8,
-						propertyIdValue.length - 8));
-				status = propertiesCursor.getNextDup(vertexEntry,
-						propertyEntry, LockMode.DEFAULT);
+			{
+				// source vertex id
+				long sId = ByteArrayUtil.getLong(vertexEntry.getData(), 0);
+				jsonWriter.value(sId);
+				// edge list
+				writeVertexEdgesInJSON(jsonWriter, edgeCursor,
+						propertiesCursor, vertexEntry, edgeEntry, propertyEntry);
+				// node properties
+				writeVertexPropertiesInJSON(jsonWriter, propertiesCursor,
+						vertexEntry, propertyEntry);
 			}
-			jsonWriter.endObject();
 			jsonWriter.endArray();
 			outputStreamWriter.flush();
 			output.write('\n');
-			status = cursor.getNextNoDup(vertexEntry, edgeEntry,
+			status = edgeCursor.getNextNoDup(vertexEntry, edgeEntry,
 					LockMode.DEFAULT);
 		}
+	}
+
+	private void writeVertexEdgesInJSON(JSONWriter jsonWriter,
+			Cursor edgeCursor, Cursor propertiesCursor,
+			DatabaseEntry vertexEntry, DatabaseEntry edgeEntry,
+			DatabaseEntry propertyEntry) throws JSONException {
+		OperationStatus status;
+		jsonWriter.array();
+		do {
+			byte[] edgeData = edgeEntry.getData();
+			long pId = ByteArrayUtil.getLong(edgeData, 0);
+			long oId = ByteArrayUtil.getLong(edgeData, 8);
+			// System.err.println("= " + sId + "-" + pId + "->" + oId);
+			// target vertex id
+			jsonWriter.value(oId);
+			// edge properties
+			jsonWriter.object();
+			// type
+			jsonWriter.key("");
+			jsonWriter.value(pId);
+			// TODO more edge properties
+			jsonWriter.endObject();
+			status = edgeCursor.getNextDup(vertexEntry, edgeEntry,
+					LockMode.DEFAULT);
+		} while (status == OperationStatus.SUCCESS);
+		jsonWriter.endArray();
+	}
+
+	private void writeVertexPropertiesInJSON(JSONWriter jsonWriter,
+			Cursor propertiesCursor, DatabaseEntry vertexEntry,
+			DatabaseEntry propertyEntry) throws JSONException {
+		jsonWriter.object();
+		{
+			OperationStatus status = propertiesCursor.getSearchKey(vertexEntry,
+					propertyEntry, LockMode.DEFAULT);
+			Long prevPropertyId = null;
+			String prevPropertyValue = null;
+			boolean hasMultipleProperties = false;
+			while (status == OperationStatus.SUCCESS) {
+				byte[] propertyIdValue = propertyEntry.getData();
+				long propertyId = ByteArrayUtil.getLong(propertyIdValue, 0);
+				if (prevPropertyId == null || propertyId != prevPropertyId) {
+					// for a new property id, write the end of the array or
+					// previous value and start a new key
+					if (prevPropertyValue != null)
+						jsonWriter.value(prevPropertyValue);
+					if (hasMultipleProperties) {
+						jsonWriter.endArray();
+						hasMultipleProperties = false;
+					}
+					jsonWriter.key(Long.toString(propertyId));
+					prevPropertyId = propertyId;
+				} else {
+					// put in an array if node has multiple values for the same
+					// property
+					if (!hasMultipleProperties) {
+						jsonWriter.array();
+						hasMultipleProperties = true;
+					}
+					jsonWriter.value(prevPropertyValue);
+				}
+				prevPropertyValue = new String(propertyIdValue, 8,
+						propertyIdValue.length - 8);
+				status = propertiesCursor.getNextDup(vertexEntry,
+						propertyEntry, LockMode.DEFAULT);
+			}
+			if (prevPropertyValue != null) {
+				// just make sure we write the last value and close the array
+				jsonWriter.value(prevPropertyValue);
+				if (hasMultipleProperties)
+					jsonWriter.endArray();
+			}
+		}
+		jsonWriter.endObject();
 	}
 
 	public static void main(String[] args) {
