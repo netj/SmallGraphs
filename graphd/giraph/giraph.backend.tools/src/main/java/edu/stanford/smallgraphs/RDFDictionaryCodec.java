@@ -39,6 +39,7 @@ import com.sleepycat.je.OperationStatus;
 
 public class RDFDictionaryCodec {
 
+	static final String DEFAULT_DICTIONARY_PATH = "rdfDict";
 	public static final String RDF_LABEL_PREDICATE_URI = "http://www.w3.org/2000/01/rdf-schema#label";
 	public static final String RDF_TYPE_PREDICATE_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 
@@ -259,10 +260,13 @@ public class RDFDictionaryCodec {
 			String baseURI, OutputStream output, RDFFormat outputFormat)
 			throws RDFParseException, RDFHandlerException,
 			FileNotFoundException, IOException {
+		// register important URIs
+		final long typePredicateId = encodeOrRegister(RDF_TYPE_PREDICATE_URI);
+		final long labelPredicateId = encodeOrRegister(RDF_LABEL_PREDICATE_URI);
+		// parse RDF input
 		RDFParser rdfParser = Rio.createParser(inputFormat);
 		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);
 		final MutableStatement mutableStmt = new MutableStatement();
-		final long rdfTypePredicateId = encodeOrRegister(RDF_TYPE_PREDICATE_URI);
 		rdfParser.setRDFHandler(new RDFHandlerBase() {
 			@Override
 			public void handleStatement(Statement st)
@@ -317,7 +321,8 @@ public class RDFDictionaryCodec {
 	public static void main(String[] args) {
 		// command line options
 		Options options = new Options();
-		options.addOption("d", true, "Path to the dictionary");
+		options.addOption("d", true, "Path to the dictionary (defaults to ./"
+				+ DEFAULT_DICTIONARY_PATH + "/");
 		options.addOption("o", true, "Path to output file");
 		options.addOption("u", true, "Base URI");
 		options.addOption("f", true,
@@ -332,7 +337,8 @@ public class RDFDictionaryCodec {
 		}
 
 		// process arguments
-		String dictPath = parsedArgs.getOptionValue("d", "rdfDict");
+		String dictPath = parsedArgs.getOptionValue("d",
+				DEFAULT_DICTIONARY_PATH);
 		String baseURI = parsedArgs.getOptionValue("u", "");
 		String outputPath = parsedArgs.getOptionValue("o");
 		String formatName = parsedArgs.getOptionValue("f",

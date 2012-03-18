@@ -49,14 +49,30 @@ import com.sleepycat.je.OperationStatus;
 
 public class RDFGraphTransformer {
 
+	private static final String DEFAULT_GRAPH_PATH = "graph";
+
+	private final File graphDir;
+	private final RDFDictionaryCodec dictionaryCodec;
+	private long typePredicateId;
+	private long labelPredicateId;
+
 	private Database edgeListByVertex;
 	private Database propertyMapByVertex;
 
-	public RDFGraphTransformer(File outputDir) {
+	public RDFGraphTransformer(File graphDir, File dictDir) {
+		this.graphDir = graphDir;
+
+		// open dictionary
+		dictionaryCodec = new RDFDictionaryCodec(dictDir);
+		typePredicateId = dictionaryCodec
+				.encode(RDFDictionaryCodec.RDF_TYPE_PREDICATE_URI);
+		labelPredicateId = dictionaryCodec
+				.encode(RDFDictionaryCodec.RDF_LABEL_PREDICATE_URI);
+
 		// initialize BerkeleyDB
 		EnvironmentConfig envConfig = new EnvironmentConfig();
 		envConfig.setAllowCreate(true);
-		Environment myDbEnvironment = new Environment(outputDir, envConfig);
+		Environment myDbEnvironment = new Environment(graphDir, envConfig);
 		DatabaseConfig dbConfig = new DatabaseConfig();
 		dbConfig.setAllowCreate(true);
 		dbConfig.setDeferredWrite(true);
@@ -65,12 +81,6 @@ public class RDFGraphTransformer {
 				dbConfig);
 		propertyMapByVertex = myDbEnvironment.openDatabase(null, "properties",
 				dbConfig);
-	}
-
-	private long typePredicateId;
-
-	public void setTypeEdgeId(long typePredicateId) {
-		this.typePredicateId = typePredicateId;
 	}
 
 	DatabaseEntry vertexIdDBEntry = new DatabaseEntry(new byte[8]);
@@ -345,6 +355,8 @@ public class RDFGraphTransformer {
 		}
 
 		// now, output schema
+		// TODO come up with a better format for encoded graphs or RDF graphs
+		//  maps with node/edge type <-> id, compact domain/range representation, ...
 		OutputStreamWriter outputStreamWriter = new OutputStreamWriter(output);
 		JSONWriter jsonWriter = new JSONWriter(outputStreamWriter);
 		jsonWriter.object();
@@ -352,6 +364,9 @@ public class RDFGraphTransformer {
 			jsonWriter.key(vType.toString());
 			jsonWriter.object();
 			{
+				// name
+				jsonWriter.key("Name");
+				jsonWriter.value(dictionaryCodec.decode(vType));
 				// edges
 				jsonWriter.key("Links");
 				jsonWriter.object();
@@ -424,7 +439,11 @@ public class RDFGraphTransformer {
 		// command line options
 		Options options = new Options();
 		options.addOption("d", true,
-				"Path to working directory for manipulating the graph (Defaults to ./graph/)");
+				"Path to the dictionary for encoding the graph (defaults to ./"
+						+ RDFDictionaryCodec.DEFAULT_DICTIONARY_PATH + "/)");
+		options.addOption("g", true,
+				"Path to working directory for manipulating the graph (defaults to ./"
+						+ DEFAULT_GRAPH_PATH + "/)");
 		options.addOption("t", true, "Edge ID for "
 				+ RDFDictionaryCodec.RDF_TYPE_PREDICATE_URI);
 		options.addOption("i", true, "Load N-Triples in given file");
@@ -441,9 +460,9 @@ public class RDFGraphTransformer {
 		}
 
 		// process arguments
-		String workDirPath = parsedArgs.getOptionValue("d", "graph");
-		long typePredicateId = Long
-				.valueOf(parsedArgs.getOptionValue("t", "0"));
+		String dictDirPath = parsedArgs.getOptionValue("d",
+				RDFDictionaryCodec.DEFAULT_DICTIONARY_PATH);
+		String workDirPath = parsedArgs.getOptionValue("g", DEFAULT_GRAPH_PATH);
 		String inputNTriplesPath = parsedArgs.getOptionValue("i");
 		String outputDirPath = parsedArgs.getOptionValue("o");
 		String schemaPath = parsedArgs.getOptionValue("s", "-");
@@ -459,8 +478,7 @@ public class RDFGraphTransformer {
 			File workDir = new File(workDirPath);
 			workDir.mkdirs();
 			RDFGraphTransformer graphTransformer = new RDFGraphTransformer(
-					workDir);
-			graphTransformer.setTypeEdgeId(typePredicateId);
+					workDir, new File(dictDirPath));
 			if (inputNTriplesPath != null) {
 				String filename = inputNTriplesPath;
 				InputStream input = filename.equals("-") ? System.in
@@ -468,7 +486,7 @@ public class RDFGraphTransformer {
 				graphTransformer.loadNTriples(input);
 			}
 			if (outputDirPath != null) {
-				// TODO split into multiple parts
+				// TODO spread into multiple parts
 				graphTransformer
 						.writeVertexOrientedGraphInJSON(new FileOutputStream(
 								new File(outputDirPath, "part-m-00001")));
