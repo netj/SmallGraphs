@@ -5,12 +5,13 @@ import info.aduna.io.ByteArrayUtil;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -52,12 +53,12 @@ public class RDFGraphTransformer {
 	private static final String DEFAULT_GRAPH_PATH = "graph";
 
 	private final File graphDir;
+	private Database edgeListByVertex;
+	private Database propertyMapByVertex;
+
 	private final RDFDictionaryCodec dictionaryCodec;
 	private long typePredicateId;
 	private long labelPredicateId;
-
-	private Database edgeListByVertex;
-	private Database propertyMapByVertex;
 
 	public RDFGraphTransformer(File graphDir, File dictDir) {
 		this.graphDir = graphDir;
@@ -70,8 +71,8 @@ public class RDFGraphTransformer {
 				.encode(RDFDictionaryCodec.RDF_LABEL_PREDICATE_URI);
 
 		// initialize BerkeleyDB
-		EnvironmentConfig envConfig = new EnvironmentConfig();
-		envConfig.setAllowCreate(true);
+		EnvironmentConfig envConfig = new EnvironmentConfig().setAllowCreate(
+				true).setLocking(true);
 		Environment myDbEnvironment = new Environment(graphDir, envConfig);
 		DatabaseConfig dbConfig = new DatabaseConfig();
 		dbConfig.setAllowCreate(true);
@@ -81,6 +82,10 @@ public class RDFGraphTransformer {
 				dbConfig);
 		propertyMapByVertex = myDbEnvironment.openDatabase(null, "properties",
 				dbConfig);
+	}
+
+	public RDFDictionaryCodec getDictionaryCodec() {
+		return dictionaryCodec;
 	}
 
 	DatabaseEntry vertexIdDBEntry = new DatabaseEntry(new byte[8]);
@@ -191,6 +196,8 @@ public class RDFGraphTransformer {
 			status = edgeCursor.getNextNoDup(vertexEntry, edgeEntry,
 					LockMode.DEFAULT);
 		}
+		edgeCursor.close();
+		propertiesCursor.close();
 	}
 
 	private Long writeVertexEdgesInJSON(JSONWriter jsonWriter,
@@ -356,7 +363,8 @@ public class RDFGraphTransformer {
 
 		// now, output schema
 		// TODO come up with a better format for encoded graphs or RDF graphs
-		//  maps with node/edge type <-> id, compact domain/range representation, ...
+		// maps with node/edge type <-> id, compact domain/range representation,
+		// ...
 		OutputStreamWriter outputStreamWriter = new OutputStreamWriter(output);
 		JSONWriter jsonWriter = new JSONWriter(outputStreamWriter);
 		jsonWriter.object();
@@ -435,6 +443,9 @@ public class RDFGraphTransformer {
 		return null;
 	}
 
+	private static int exitCode;
+	private static Exception exc;
+
 	public static void main(String[] args) {
 		// command line options
 		Options options = new Options();
@@ -444,9 +455,9 @@ public class RDFGraphTransformer {
 		options.addOption("g", true,
 				"Path to working directory for manipulating the graph (defaults to ./"
 						+ DEFAULT_GRAPH_PATH + "/)");
-		options.addOption("t", true, "Edge ID for "
-				+ RDFDictionaryCodec.RDF_TYPE_PREDICATE_URI);
-		options.addOption("i", true, "Load N-Triples in given file");
+		options.addOption("id", true, "Load decoded N-Triples in given file");
+		options.addOption("i", true,
+				"Load encoded N-Triples in given file by encoding them");
 		options.addOption("o", true,
 				"Output Giraph JSON graph to given directory");
 		options.addOption("s", true, "Derive encoded schema to given file");
@@ -463,11 +474,12 @@ public class RDFGraphTransformer {
 		String dictDirPath = parsedArgs.getOptionValue("d",
 				RDFDictionaryCodec.DEFAULT_DICTIONARY_PATH);
 		String workDirPath = parsedArgs.getOptionValue("g", DEFAULT_GRAPH_PATH);
-		String inputNTriplesPath = parsedArgs.getOptionValue("i");
+		String inputUnencodedNTriplesPath = parsedArgs.getOptionValue("id");
+		String inputEncodedNTriplesPath = parsedArgs.getOptionValue("i");
 		String outputDirPath = parsedArgs.getOptionValue("o");
-		String schemaPath = parsedArgs.getOptionValue("s", "-");
+		String schemaPath = parsedArgs.getOptionValue("s");
 		String[] optionalArgs = parsedArgs.getArgs();
-		if (inputNTriplesPath == null && outputDirPath == null
+		if (inputEncodedNTriplesPath == null && outputDirPath == null
 				&& schemaPath == null) {
 			printUsage(options);
 			System.exit(1);
@@ -477,52 +489,87 @@ public class RDFGraphTransformer {
 		try {
 			File workDir = new File(workDirPath);
 			workDir.mkdirs();
-			RDFGraphTransformer graphTransformer = new RDFGraphTransformer(
+			final RDFGraphTransformer graphTransformer = new RDFGraphTransformer(
 					workDir, new File(dictDirPath));
-			if (inputNTriplesPath != null) {
-				String filename = inputNTriplesPath;
+			if (inputUnencodedNTriplesPath != null) {
+				System.err.println("reading raw N-Triples from: "
+						+ inputUnencodedNTriplesPath);
+				// dictionary encode and load it
+				final InputStream input = inputUnencodedNTriplesPath
+						.equals("-") ? System.in : new FileInputStream(
+						inputUnencodedNTriplesPath);
+				final PipedOutputStream pipedOutput = new PipedOutputStream();
+				// prepare the dictionary encoding thread
+				Thread encodeThread = new Thread(new Runnable() {
+					public void run() {
+						try {
+							graphTransformer
+									.getDictionaryCodec()
+									.reopen(false)
+									.encode(input, RDFFormat.NTRIPLES, "",
+											pipedOutput, RDFFormat.NTRIPLES);
+						} catch (Exception e) {
+							exc = e;
+						}
+					}
+				});
+				// and another thread to load the encoded ntriples
+				Thread loadThread = new Thread(new Runnable() {
+					public void run() {
+						try {
+							PipedInputStream pipedInput = new PipedInputStream(
+									pipedOutput);
+							graphTransformer.loadNTriples(pipedInput);
+						} catch (Exception e) {
+							exc = e;
+						}
+					}
+				});
+				loadThread.start();
+				encodeThread.start();
+				loadThread.join();
+				encodeThread.join();
+				if (exitCode != 0)
+					throw exc;
+			} else if (inputEncodedNTriplesPath != null) {
+				System.err.println("reading encoded N-Triples from: "
+						+ inputEncodedNTriplesPath);
+				String filename = inputEncodedNTriplesPath;
 				InputStream input = filename.equals("-") ? System.in
 						: new FileInputStream(filename);
 				graphTransformer.loadNTriples(input);
 			}
 			if (outputDirPath != null) {
+				System.err
+						.println("writing graph as a JSON line for each vertex: "
+								+ outputDirPath);
 				// TODO spread into multiple parts
 				graphTransformer
 						.writeVertexOrientedGraphInJSON(new FileOutputStream(
 								new File(outputDirPath, "part-m-00001")));
 			}
 			if (schemaPath != null) {
+				System.err.println("deriving graph schema to: " + schemaPath);
 				OutputStream output = schemaPath.equals("-") ? System.out
 						: new FileOutputStream(schemaPath);
 				graphTransformer.deriveSchema(output);
 			}
-		} catch (RDFParseException e) {
-			// TODO Auto-generated catch block
+		} catch (Exception e) {
 			e.printStackTrace();
-		} catch (RDFHandlerException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (JSONException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			exitCode = 2;
 		}
+		System.exit(exitCode);
 	}
 
 	private static void printUsage(Options options) {
 		HelpFormatter formatter = new HelpFormatter();
-		formatter
-				.printHelp(
-						"EncodedNTriplesToJSONVertexGraphConverter [OPTIONS] ENCODED_RDF_FILE...",
-						options);
+		formatter.printHelp(RDFGraphTransformer.class.getName()
+				+ " [OPTIONS] ENCODED_RDF_FILE...", options);
 		System.out.println();
-		System.out.println("FORMAT is one from:\n"
-				+ RDFFormat.values().toString());
+		System.out
+				.println("Use - for file name to read from STDIN or write to STDOUT.");
+		// System.out.println("FORMAT is one from:\n"
+		// + RDFFormat.values().toString());
 	}
 
 }

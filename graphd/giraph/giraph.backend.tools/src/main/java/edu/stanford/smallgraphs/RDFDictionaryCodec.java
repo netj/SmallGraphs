@@ -43,25 +43,37 @@ public class RDFDictionaryCodec {
 	public static final String RDF_LABEL_PREDICATE_URI = "http://www.w3.org/2000/01/rdf-schema#label";
 	public static final String RDF_TYPE_PREDICATE_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 
+	private final File dictDir;
 	private Database dictionaryUriToId;
 	private Database dictionaryIdToUri;
-
 	private long counter;
 
 	public RDFDictionaryCodec(File dictDir) {
-		EnvironmentConfig envConfig = new EnvironmentConfig();
-		envConfig.setAllowCreate(true);
-		Environment myDbEnvironment = new Environment(dictDir, envConfig);
-		DatabaseConfig dbConfig = new DatabaseConfig();
-		dbConfig.setAllowCreate(true);
-		dbConfig.setDeferredWrite(true);
-		dictionaryUriToId = myDbEnvironment.openDatabase(null, "uri2id",
-				dbConfig);
-		dictionaryIdToUri = myDbEnvironment.openDatabase(null, "id2uri",
-				dbConfig);
+		this(dictDir, true);
+	}
 
+	public RDFDictionaryCodec(File dictDir, boolean isReadOnly) {
+		this.dictDir = dictDir;
+		reopen(isReadOnly);
+	}
+
+	public RDFDictionaryCodec reopen(boolean isReadOnly) {
+		if (dictionaryUriToId != null)
+			dictionaryUriToId.close();
+		if (dictionaryIdToUri != null)
+			dictionaryIdToUri.close();
+		if (dbEnv != null)
+			dbEnv.close();
+		EnvironmentConfig envConfig = new EnvironmentConfig().setReadOnly(
+				isReadOnly).setAllowCreate(true);
+		dbEnv = new Environment(dictDir, envConfig);
+		DatabaseConfig dbConfig = new DatabaseConfig().setAllowCreate(true)
+				.setDeferredWrite(true).setReadOnly(isReadOnly);
+		dictionaryUriToId = dbEnv.openDatabase(null, "uri2id", dbConfig);
+		dictionaryIdToUri = dbEnv.openDatabase(null, "id2uri", dbConfig);
 		counter = lookupLong(dictionaryUriToId, "", 0);
 
+		return this;
 	}
 
 	protected void finalize() throws Throwable {
@@ -94,6 +106,7 @@ public class RDFDictionaryCodec {
 	private DatabaseEntry dbEntry = new DatabaseEntry();
 	private DatabaseEntry dbEntry2 = new DatabaseEntry();
 	private DatabaseEntry longDBEntry = new DatabaseEntry(new byte[8]);
+	private Environment dbEnv;
 
 	private Long lookupLong(Database db, String key, long defaultValue) {
 		Long value = lookupLong(db, key);
@@ -359,7 +372,7 @@ public class RDFDictionaryCodec {
 			PrintStream printer = new PrintStream(out);
 			File dictDir = new File(dictPath);
 			dictDir.mkdirs();
-			RDFDictionaryCodec codec = new RDFDictionaryCodec(dictDir);
+			RDFDictionaryCodec codec = new RDFDictionaryCodec(dictDir, false);
 			// and run given command
 			if (command.equals("encode")) {
 				for (String filename : arguments) {
