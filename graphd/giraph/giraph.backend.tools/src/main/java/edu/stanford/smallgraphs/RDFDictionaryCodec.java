@@ -245,8 +245,9 @@ public class RDFDictionaryCodec {
 
 	}
 
-	public void encode(InputStream input, RDFFormat inputFormat, String baseURI,
-			OutputStream output, RDFFormat outputFormat) throws RDFParseException, RDFHandlerException,
+	public void encode(InputStream input, RDFFormat inputFormat,
+			String baseURI, OutputStream output, RDFFormat outputFormat)
+			throws RDFParseException, RDFHandlerException,
 			FileNotFoundException, IOException {
 		RDFParser rdfParser = Rio.createParser(inputFormat);
 		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);
@@ -269,7 +270,8 @@ public class RDFDictionaryCodec {
 		dictionaryUriToId.sync();
 	}
 
-	public void decode(InputStream input, RDFFormat inputFormat, OutputStream output, RDFFormat outputFormat)
+	public void decode(InputStream input, RDFFormat inputFormat,
+			OutputStream output, RDFFormat outputFormat)
 			throws RDFHandlerException, RDFParseException, IOException {
 		RDFParser rdfParser = Rio.createParser(inputFormat);
 		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);
@@ -296,7 +298,8 @@ public class RDFDictionaryCodec {
 		options.addOption("d", true, "Path to the dictionary");
 		options.addOption("o", true, "Path to output file");
 		options.addOption("u", true, "Base URI");
-		options.addOption("f", true, "FORMAT of the RDF files; encoded is always N-Triples");
+		options.addOption("f", true,
+				"FORMAT of the RDF files; encoded is always N-Triples");
 		CommandLine parsedArgs;
 		try {
 			parsedArgs = new GnuParser().parse(options, args, false);
@@ -331,9 +334,12 @@ public class RDFDictionaryCodec {
 			RDFDictionaryCodec codec = new RDFDictionaryCodec(dictDir);
 			// and run given command
 			if (command.equals("encode")) {
-				for (String filename : arguments)
-					codec.encode(new FileInputStream(filename), format,
-							baseURI, out, RDFFormat.NTRIPLES);
+				for (String filename : arguments) {
+					InputStream input = filename.equals("-") ? System.in
+							: new FileInputStream(filename);
+					codec.encode(input, format, baseURI, out,
+							RDFFormat.NTRIPLES);
+				}
 			} else if (command.equals("decode")) {
 				for (String filename : arguments)
 					codec.decode(new FileInputStream(filename),
