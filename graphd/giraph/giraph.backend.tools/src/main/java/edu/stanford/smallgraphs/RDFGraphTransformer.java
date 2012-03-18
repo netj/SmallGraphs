@@ -12,10 +12,10 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.commons.cli.CommandLine;
@@ -23,6 +23,7 @@ import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.collections.CollectionUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONWriter;
@@ -73,7 +74,7 @@ public class RDFGraphTransformer {
 		// initialize BerkeleyDB
 		EnvironmentConfig envConfig = new EnvironmentConfig().setAllowCreate(
 				true).setLocking(true);
-		Environment myDbEnvironment = new Environment(graphDir, envConfig);
+		Environment myDbEnvironment = new Environment(this.graphDir, envConfig);
 		DatabaseConfig dbConfig = new DatabaseConfig();
 		dbConfig.setAllowCreate(true);
 		dbConfig.setDeferredWrite(true);
@@ -82,6 +83,10 @@ public class RDFGraphTransformer {
 				dbConfig);
 		propertyMapByVertex = myDbEnvironment.openDatabase(null, "properties",
 				dbConfig);
+
+		objectIdLookupCursor = edgeListByVertex.openCursor(null, cursorConfig);
+		propertyValueLookupCursor = propertyMapByVertex.openCursor(null,
+				cursorConfig);
 	}
 
 	public RDFDictionaryCodec getDictionaryCodec() {
@@ -302,7 +307,6 @@ public class RDFGraphTransformer {
 		Cursor edgeCursor = edgeListByVertex.openCursor(null, cursorConfig);
 		Cursor propertiesCursor = propertyMapByVertex.openCursor(null,
 				cursorConfig);
-		typeLookupCursor = edgeListByVertex.openCursor(null, cursorConfig);
 		DatabaseEntry vertexEntry = new DatabaseEntry();
 		DatabaseEntry edgeEntry = new DatabaseEntry();
 		DatabaseEntry propertyEntry = new DatabaseEntry();
@@ -361,58 +365,96 @@ public class RDFGraphTransformer {
 					LockMode.DEFAULT);
 		}
 
-		// now, output schema
-		// TODO come up with a better format for encoded graphs or RDF graphs
-		// maps with node/edge type <-> id, compact domain/range representation,
-		// ...
+		// now, output schema which contains:
+		// - maps with node/edge type/uri <-> id
+		// - compact domain/range representation
 		OutputStreamWriter outputStreamWriter = new OutputStreamWriter(output);
 		JSONWriter jsonWriter = new JSONWriter(outputStreamWriter);
 		jsonWriter.object();
-		for (Long vType : vertexTypes) {
-			jsonWriter.key(vType.toString());
+		jsonWriter.key("Objects");
+		{
 			jsonWriter.object();
-			{
-				// name
-				jsonWriter.key("Name");
-				jsonWriter.value(dictionaryCodec.decode(vType));
-				// edges
-				jsonWriter.key("Links");
-				jsonWriter.object();
+			for (Long vType : vertexTypes) {
+				jsonWriter.key(vType.toString());
 				{
-					Set<Long> edgeTypesFromVType = new HashSet<Long>();
-					for (Entry<Long, Set<Long>> eTypeDomain : domainByEdge
-							.entrySet()) {
-						if (eTypeDomain.getValue().contains(vType)) {
-							edgeTypesFromVType.add(eTypeDomain.getKey());
-						}
-					}
-					for (Long eType : edgeTypesFromVType) {
-						jsonWriter.key(eType.toString());
-						jsonWriter.array();
-						{
-							for (Long targetVType : rangeByEdge.get(eType))
-								jsonWriter.value(targetVType);
-						}
-						jsonWriter.endArray();
-					}
+					jsonWriter.object();
+					jsonWriter.key("Name");
+					jsonWriter.value(getTypeName(vType));
+					jsonWriter.key("Properties");
+					writeSetAsJSONArray(jsonWriter,
+							propertiesByVertex.get(vType));
+					jsonWriter.endObject();
 				}
-				jsonWriter.endObject();
-				// properties
-				jsonWriter.key("Properties");
-				jsonWriter.object();
+			}
+			jsonWriter.endObject();
+		}
+		jsonWriter.key("Links");
+		{
+			jsonWriter.object();
+			for (Long eType : domainByEdge.keySet()) {
+				jsonWriter.key(eType.toString());
 				{
-					Set<Long> vTypeProperties = propertiesByVertex.get(vType);
-					for (Long propertyId : vTypeProperties) {
-						jsonWriter.key(propertyId.toString());
-						jsonWriter.value(dataTypeByProperty.get(propertyId));
-					}
+					jsonWriter.object();
+					jsonWriter.key("Name");
+					jsonWriter.value(getTypeName(eType));
+					jsonWriter.key("Domain");
+					writeSetAsJSONArray(jsonWriter, domainByEdge.get(eType));
+					jsonWriter.key("Range");
+					writeSetAsJSONArray(jsonWriter, rangeByEdge.get(eType));
+					jsonWriter.endObject();
 				}
-				jsonWriter.endObject();
+			}
+			jsonWriter.endObject();
+		}
+		jsonWriter.key("Properties");
+		{
+			jsonWriter.object();
+			for (Long propertyId : dataTypeByProperty.keySet()) {
+				jsonWriter.key(propertyId.toString());
+				{
+					jsonWriter.object();
+					jsonWriter.key("Name");
+					jsonWriter.value(getTypeName(propertyId));
+					jsonWriter.key("DataType");
+					jsonWriter.value(dataTypeByProperty.get(propertyId));
+					jsonWriter.endObject();
+				}
+			}
+			jsonWriter.endObject();
+		}
+		jsonWriter.key("URIs");
+		{
+			jsonWriter.object();
+			@SuppressWarnings("unchecked")
+			Collection<Long> ids = CollectionUtils.union(vertexTypes,
+					CollectionUtils.union(domainByEdge.keySet(),
+							dataTypeByProperty.keySet()));
+			for (Long id : ids) {
+				jsonWriter.key(id.toString());
+				jsonWriter.value(dictionaryCodec.decode(id));
 			}
 			jsonWriter.endObject();
 		}
 		jsonWriter.endObject();
 		outputStreamWriter.flush();
+	}
+
+	private String getTypeName(Long typeId) {
+		String label = lookupFirstPropertyValue(typeId, labelPredicateId);
+		if (label != null)
+			return label;
+		else {
+			String uri = dictionaryCodec.decode(typeId);
+			return uri.replaceFirst(".*[/#]", "");
+		}
+	}
+
+	private void writeSetAsJSONArray(JSONWriter jsonWriter, Set<Long> set)
+			throws JSONException {
+		jsonWriter.array();
+		for (Long id : set)
+			jsonWriter.value(id);
+		jsonWriter.endArray();
 	}
 
 	private Set<Long> getSet(Map<Long, Set<Long>> domainByEdge, long pId) {
@@ -424,21 +466,52 @@ public class RDFGraphTransformer {
 		return domain;
 	}
 
-	private Cursor typeLookupCursor;
-	private DatabaseEntry typeLookupVertexEntry = new DatabaseEntry(new byte[8]);
-	private DatabaseEntry typeLookupEdgeEntry = new DatabaseEntry();
+	private Cursor objectIdLookupCursor;
+	private DatabaseEntry objectIdLookupVertexEntry = new DatabaseEntry(
+			new byte[8]);
+	private DatabaseEntry objectIdLookupEdgeEntry = new DatabaseEntry();
 
 	private Long lookupType(long sId) {
-		ByteArrayUtil.putLong(sId, typeLookupVertexEntry.getData(), 0);
-		OperationStatus status = typeLookupCursor.getSearchKey(
-				typeLookupVertexEntry, typeLookupEdgeEntry, LockMode.DEFAULT);
+		return lookupFirstObjectId(sId, typePredicateId);
+	}
+
+	private Long lookupFirstObjectId(long subjectId, long predicateId) {
+		ByteArrayUtil
+				.putLong(subjectId, objectIdLookupVertexEntry.getData(), 0);
+		OperationStatus status = objectIdLookupCursor.getSearchKey(
+				objectIdLookupVertexEntry, objectIdLookupEdgeEntry,
+				LockMode.DEFAULT);
 		while (status == OperationStatus.SUCCESS) {
-			byte[] edgeData = typeLookupEdgeEntry.getData();
+			byte[] edgeData = objectIdLookupEdgeEntry.getData();
 			long pId = ByteArrayUtil.getLong(edgeData, 0);
-			if (pId == typePredicateId)
+			if (pId == predicateId)
 				return ByteArrayUtil.getLong(edgeData, 8);
-			status = typeLookupCursor.getNextDup(typeLookupVertexEntry,
-					typeLookupEdgeEntry, LockMode.DEFAULT);
+			status = objectIdLookupCursor.getNextDup(objectIdLookupVertexEntry,
+					objectIdLookupEdgeEntry, LockMode.DEFAULT);
+		}
+		return null;
+	}
+
+	private Cursor propertyValueLookupCursor;
+	private DatabaseEntry propertyValueLookupVertexEntry = new DatabaseEntry(
+			new byte[8]);
+	DatabaseEntry propertyValueLookupValueEntry = new DatabaseEntry();
+
+	private String lookupFirstPropertyValue(long subjectId, long predicateId) {
+		ByteArrayUtil.putLong(subjectId,
+				propertyValueLookupVertexEntry.getData(), 0);
+		OperationStatus status = propertyValueLookupCursor.getSearchKey(
+				propertyValueLookupVertexEntry, propertyValueLookupValueEntry,
+				LockMode.DEFAULT);
+		while (status == OperationStatus.SUCCESS) {
+			byte[] propertyValueData = propertyValueLookupValueEntry.getData();
+			long pId = ByteArrayUtil.getLong(propertyValueData, 0);
+			if (pId == predicateId)
+				return new String(propertyValueData, 8,
+						propertyValueData.length - 8);
+			status = propertyValueLookupCursor.getNextDup(
+					propertyValueLookupVertexEntry,
+					propertyValueLookupValueEntry, LockMode.DEFAULT);
 		}
 		return null;
 	}
@@ -492,9 +565,9 @@ public class RDFGraphTransformer {
 			final RDFGraphTransformer graphTransformer = new RDFGraphTransformer(
 					workDir, new File(dictDirPath));
 			if (inputUnencodedNTriplesPath != null) {
+				// dictionary encode given n-triples and load it
 				System.err.println("reading raw N-Triples from: "
 						+ inputUnencodedNTriplesPath);
-				// dictionary encode and load it
 				final InputStream input = inputUnencodedNTriplesPath
 						.equals("-") ? System.in : new FileInputStream(
 						inputUnencodedNTriplesPath);
@@ -529,9 +602,10 @@ public class RDFGraphTransformer {
 				encodeThread.start();
 				loadThread.join();
 				encodeThread.join();
-				if (exitCode != 0)
+				if (exc != null)
 					throw exc;
 			} else if (inputEncodedNTriplesPath != null) {
+				// load given encoded n-triples
 				System.err.println("reading encoded N-Triples from: "
 						+ inputEncodedNTriplesPath);
 				String filename = inputEncodedNTriplesPath;
@@ -540,6 +614,7 @@ public class RDFGraphTransformer {
 				graphTransformer.loadNTriples(input);
 			}
 			if (outputDirPath != null) {
+				// output JSON graph for Giraph
 				System.err
 						.println("writing graph as a JSON line for each vertex: "
 								+ outputDirPath);
@@ -549,6 +624,7 @@ public class RDFGraphTransformer {
 								new File(outputDirPath, "part-m-00001")));
 			}
 			if (schemaPath != null) {
+				// derive and output schema
 				System.err.println("deriving graph schema to: " + schemaPath);
 				OutputStream output = schemaPath.equals("-") ? System.out
 						: new FileOutputStream(schemaPath);
