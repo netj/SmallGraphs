@@ -48,13 +48,14 @@ public class PropertyGraphJSONVertexInputFormat
 					LongWritable vertexId = new LongWritable(
 							jsonVertex.getLong(0));
 					VertexMatchingState vertexValue = new VertexMatchingState(
-							vertexId.get(), jsonVertex.getJSONObject(1));
+							vertexId.get(), jsonVertex.getJSONObject(2));
 					Map<LongWritable, PropertyMap> edges = Maps.newHashMap();
-					JSONArray jsonEdgeArray = jsonVertex.getJSONArray(2);
-					for (int i = 0; i < jsonEdgeArray.length(); ++i) {
-						JSONArray jsonEdge = jsonEdgeArray.getJSONArray(i);
-						edges.put(new LongWritable(jsonEdge.getLong(0)),
-								new PropertyMap(jsonEdge.getJSONObject(1)));
+					JSONArray jsonEdgeArray = jsonVertex.getJSONArray(1);
+					for (int i = 0; i < jsonEdgeArray.length(); i += 2) {
+						edges.put(
+								new LongWritable(jsonEdgeArray.getLong(i)),
+								new PropertyMap(jsonEdgeArray
+										.getJSONObject(i + 1)));
 					}
 					vertex.initialize(vertexId, vertexValue, edges, null);
 				} catch (JSONException e) {

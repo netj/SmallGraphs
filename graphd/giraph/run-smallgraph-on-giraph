@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run-smallgraph-on-giraph
-# Usage: run-smallgraph-on-giraph STATEMACHINEQUERYJAVACODE INPUTGRAPH OUTPUT
+# Usage: run-smallgraph-on-giraph GIRAPH_VERTEX_CLASSNAME <JAVACODE INPUTGRAPH
 # 
 # Run a SmallGraph query compiled into state machine java code that extends
 # BaseSmallGraphGiraphVertex on the INPUTGRAPH.

@@ -14,6 +14,9 @@ public class PropertyMap implements Writable {
 
 	private JSONObject properties;
 
+	public PropertyMap() {
+	}
+
 	public PropertyMap(JSONObject properties) {
 		this.properties = properties;
 	}
@@ -121,8 +124,8 @@ public class PropertyMap implements Writable {
 		WritableUtils.writeString(out, properties.toString());
 	}
 
-	public Long getType() {
-		return getLong("");
+	public long getType() {
+		return getLong("", -1);
 	}
 
 }

@@ -10,8 +10,12 @@ import org.json.JSONObject;
 
 public class VertexMatchingState extends PropertyMap {
 
-	private final Matches matches;
+	private Matches matches;
 	private List<Matches> allFinalMatches = null;
+
+	public VertexMatchingState() {
+		this(0L, null);
+	}
 
 	public VertexMatchingState(Long vertexId, JSONObject properties) {
 		super(properties);

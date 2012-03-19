@@ -71,7 +71,9 @@ public class Matches extends JSONWritable {
 				new Transformer() {
 					@Override
 					public Object transform(Object o) {
-						return ((PathWithMatches) o).matches.vertexId;
+						// FIXME can we make vertexId LongWritable instead?
+						return new LongWritable(
+								((PathWithMatches) o).matches.vertexId);
 					}
 				});
 	}

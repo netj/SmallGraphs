@@ -36,7 +36,8 @@ public class MatchPath extends JSONWritable {
 		this();
 		// TODO instead of copying, sharing prefix paths and making them
 		// immutable could be a good idea
-		elements.addAll(prefix.elements);
+		if (prefix != null)
+			elements.addAll(prefix.elements);
 		elements.add(last);
 	}
 
