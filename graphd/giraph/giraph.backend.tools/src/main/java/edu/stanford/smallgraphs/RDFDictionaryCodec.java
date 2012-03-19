@@ -54,7 +54,13 @@ public class RDFDictionaryCodec {
 
 	public RDFDictionaryCodec(File dictDir, boolean isReadOnly) {
 		this.dictDir = dictDir;
-		reopen(isReadOnly);
+		reopen(false);
+		// register important URIs
+		encodeOrRegister(RDF_TYPE_PREDICATE_URI);
+		encodeOrRegister(RDF_LABEL_PREDICATE_URI);
+		// reopen read-only if necessary
+		if (isReadOnly)
+			reopen(isReadOnly);
 	}
 
 	public RDFDictionaryCodec reopen(boolean isReadOnly) {
@@ -79,6 +85,7 @@ public class RDFDictionaryCodec {
 	protected void finalize() throws Throwable {
 		dictionaryIdToUri.close();
 		dictionaryUriToId.close();
+		dbEnv.close();
 	}
 
 	public Long encode(String uri) {
@@ -273,9 +280,6 @@ public class RDFDictionaryCodec {
 			String baseURI, OutputStream output, RDFFormat outputFormat)
 			throws RDFParseException, RDFHandlerException,
 			FileNotFoundException, IOException {
-		// register important URIs
-		final long typePredicateId = encodeOrRegister(RDF_TYPE_PREDICATE_URI);
-		final long labelPredicateId = encodeOrRegister(RDF_LABEL_PREDICATE_URI);
 		// parse RDF input
 		RDFParser rdfParser = Rio.createParser(inputFormat);
 		final RDFWriter rdfWriter = Rio.createWriter(outputFormat, output);

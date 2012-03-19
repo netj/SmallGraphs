@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# import-rdf
+# Usage: import-rdf GRAPHDIR RDFFILE
+# 
+# Import RDF files to the given GRAPHDIR.
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-03-18
+set -eu
+
+Self=`readlink -f "$0"`
+Here=`dirname "$Self"`
+
+jars=("$Here"/target/giraph.backend-*-jar-with-dependencies.jar)
+GIRAPH_BACKEND_JAR=${jars[0]}
+
+
+# process arguments
+[ $# -ge 2 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
+GraphBase=$1; shift
+RDFNTriplesFile=$1; shift
+
+graphData="$GraphBase"/data
+mkdir -p "$graphData"
+
+# uncompress input if needed
+case $RDFNTriplesFile in
+    *.gz)   gunzip ;;
+    *.bz2)  bunzip2 ;;
+    *)      cat ;;
+esac <"$RDFNTriplesFile" |
+{
+    cd "$GraphBase"
+
+    # encode/load RDF N-Triples and transform it to vertex-wise JSON graph and derive a decoding schema
+    java -cp "$GIRAPH_BACKEND_JAR" edu.stanford.smallgraphs.RDFGraphTransformer \
+        -g data -d rdfDict \
+        -importUnencodedNTriples - \
+        -outputJSONVertexGraph graph \
+        -deriveSchema codingSchema.json
+        #
+
+    # create a graph descriptor
+    if ! [ -e graphd.json ]; then
+        cat >graphd.json <<-EOF
+	{
+	  "giraph": {
+	    "dataPath": "data",
+	    "codingSchemaPath": "codingSchema.json"
+	  }
+	}
+	EOF
+    fi
+
+    # format JSONs
+    coffee -e '
+    fs = require("fs")
+    for f in "codingSchema.json".split /\s+/
+        fs.writeFileSync f, (JSON.stringify (JSON.parse fs.readFileSync f), null, 2)
+    '
+}

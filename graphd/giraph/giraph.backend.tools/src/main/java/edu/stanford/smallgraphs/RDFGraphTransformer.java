@@ -51,9 +51,17 @@ import com.sleepycat.je.OperationStatus;
 
 public class RDFGraphTransformer {
 
-	private static final String DEFAULT_GRAPH_PATH = "graph";
+	private static final String OPTION_GRAPHDATA_PATH = "g";
+	private static final String OPTION_DICTIONARY_PATH = "d";
+	private static final String OPTION_IMPORT_ENCODED_NTRIPLES = "importEncodedNTriples";
+	private static final String OPTION_IMPORT_UNENCODED_NTRIPLES = "importUnencodedNTriples";
+	private static final String OPTION_OUTPUT_JSON_VERTEX_GRAPH = "outputJSONVertexGraph";
+	private static final String OPTION_DERIVE_SCHEMA = "deriveSchema";
+
+	private static final String DEFAULT_GRAPHDATA_PATH = "graph";
 
 	private final File graphDir;
+	private Environment dbEnv;
 	private Database edgeListByVertex;
 	private Database propertyMapByVertex;
 
@@ -65,7 +73,7 @@ public class RDFGraphTransformer {
 		this.graphDir = graphDir;
 
 		// open dictionary
-		dictionaryCodec = new RDFDictionaryCodec(dictDir);
+		dictionaryCodec = new RDFDictionaryCodec(dictDir, false);
 		typePredicateId = dictionaryCodec
 				.encode(RDFDictionaryCodec.RDF_TYPE_PREDICATE_URI);
 		labelPredicateId = dictionaryCodec
@@ -74,19 +82,22 @@ public class RDFGraphTransformer {
 		// initialize BerkeleyDB
 		EnvironmentConfig envConfig = new EnvironmentConfig().setAllowCreate(
 				true).setLocking(true);
-		Environment myDbEnvironment = new Environment(this.graphDir, envConfig);
-		DatabaseConfig dbConfig = new DatabaseConfig();
-		dbConfig.setAllowCreate(true);
-		dbConfig.setDeferredWrite(true);
-		dbConfig.setSortedDuplicates(true);
-		edgeListByVertex = myDbEnvironment.openDatabase(null, "vertices",
-				dbConfig);
-		propertyMapByVertex = myDbEnvironment.openDatabase(null, "properties",
-				dbConfig);
+		dbEnv = new Environment(this.graphDir, envConfig);
+		DatabaseConfig dbConfig = new DatabaseConfig().setAllowCreate(true)
+				.setDeferredWrite(true).setSortedDuplicates(true);
+		edgeListByVertex = dbEnv.openDatabase(null, "vertices", dbConfig);
+		propertyMapByVertex = dbEnv.openDatabase(null, "properties", dbConfig);
 
 		objectIdLookupCursor = edgeListByVertex.openCursor(null, cursorConfig);
 		propertyValueLookupCursor = propertyMapByVertex.openCursor(null,
 				cursorConfig);
+	}
+
+	@Override
+	protected void finalize() throws Throwable {
+		edgeListByVertex.close();
+		propertyMapByVertex.close();
+		dbEnv.close();
 	}
 
 	public RDFDictionaryCodec getDictionaryCodec() {
@@ -522,18 +533,20 @@ public class RDFGraphTransformer {
 	public static void main(String[] args) {
 		// command line options
 		Options options = new Options();
-		options.addOption("d", true,
+		options.addOption(OPTION_DICTIONARY_PATH, true,
 				"Path to the dictionary for encoding the graph (defaults to ./"
 						+ RDFDictionaryCodec.DEFAULT_DICTIONARY_PATH + "/)");
-		options.addOption("g", true,
+		options.addOption(OPTION_GRAPHDATA_PATH, true,
 				"Path to working directory for manipulating the graph (defaults to ./"
-						+ DEFAULT_GRAPH_PATH + "/)");
-		options.addOption("id", true, "Load decoded N-Triples in given file");
-		options.addOption("i", true,
+						+ DEFAULT_GRAPHDATA_PATH + "/)");
+		options.addOption(OPTION_IMPORT_UNENCODED_NTRIPLES, true,
+				"Load decoded N-Triples in given file");
+		options.addOption(OPTION_IMPORT_ENCODED_NTRIPLES, true,
 				"Load encoded N-Triples in given file by encoding them");
-		options.addOption("o", true,
+		options.addOption(OPTION_OUTPUT_JSON_VERTEX_GRAPH, true,
 				"Output Giraph JSON graph to given directory");
-		options.addOption("s", true, "Derive encoded schema to given file");
+		options.addOption(OPTION_DERIVE_SCHEMA, true,
+				"Derive encoded schema to given file");
 		CommandLine parsedArgs;
 		try {
 			parsedArgs = new GnuParser().parse(options, args, false);
@@ -544,13 +557,17 @@ public class RDFGraphTransformer {
 		}
 
 		// process arguments
-		String dictDirPath = parsedArgs.getOptionValue("d",
+		String dictDirPath = parsedArgs.getOptionValue(OPTION_DICTIONARY_PATH,
 				RDFDictionaryCodec.DEFAULT_DICTIONARY_PATH);
-		String workDirPath = parsedArgs.getOptionValue("g", DEFAULT_GRAPH_PATH);
-		String inputUnencodedNTriplesPath = parsedArgs.getOptionValue("id");
-		String inputEncodedNTriplesPath = parsedArgs.getOptionValue("i");
-		String outputDirPath = parsedArgs.getOptionValue("o");
-		String schemaPath = parsedArgs.getOptionValue("s");
+		String workDirPath = parsedArgs.getOptionValue(OPTION_GRAPHDATA_PATH,
+				DEFAULT_GRAPHDATA_PATH);
+		String inputUnencodedNTriplesPath = parsedArgs
+				.getOptionValue(OPTION_IMPORT_UNENCODED_NTRIPLES);
+		String inputEncodedNTriplesPath = parsedArgs
+				.getOptionValue(OPTION_IMPORT_ENCODED_NTRIPLES);
+		String outputDirPath = parsedArgs
+				.getOptionValue(OPTION_OUTPUT_JSON_VERTEX_GRAPH);
+		String schemaPath = parsedArgs.getOptionValue(OPTION_DERIVE_SCHEMA);
 		String[] optionalArgs = parsedArgs.getArgs();
 		if (inputEncodedNTriplesPath == null && outputDirPath == null
 				&& schemaPath == null) {
@@ -562,8 +579,10 @@ public class RDFGraphTransformer {
 		try {
 			File workDir = new File(workDirPath);
 			workDir.mkdirs();
+			File dictDir = new File(dictDirPath);
+			dictDir.mkdirs();
 			final RDFGraphTransformer graphTransformer = new RDFGraphTransformer(
-					workDir, new File(dictDirPath));
+					workDir, dictDir);
 			if (inputUnencodedNTriplesPath != null) {
 				// dictionary encode given n-triples and load it
 				System.err.println("reading raw N-Triples from: "
@@ -581,6 +600,7 @@ public class RDFGraphTransformer {
 									.reopen(false)
 									.encode(input, RDFFormat.NTRIPLES, "",
 											pipedOutput, RDFFormat.NTRIPLES);
+							pipedOutput.close();
 						} catch (Exception e) {
 							exc = e;
 						}
@@ -618,10 +638,12 @@ public class RDFGraphTransformer {
 				System.err
 						.println("writing graph as a JSON line for each vertex: "
 								+ outputDirPath);
+				File outputDir = new File(outputDirPath);
+				outputDir.mkdirs();
 				// TODO spread into multiple parts
 				graphTransformer
 						.writeVertexOrientedGraphInJSON(new FileOutputStream(
-								new File(outputDirPath, "part-m-00001")));
+								new File(outputDir, "part-m-00001")));
 			}
 			if (schemaPath != null) {
 				// derive and output schema
