@@ -8,20 +8,39 @@ class GiraphGraph extends StateMachineGraph
     constructor: (@descriptor, @basepath) ->
         super @descriptor, @basepath
         d = @descriptor
-        unless d.graphPath?
-            throw new Error "graphPath, ... are required for the graph descriptor"
+        unless d.dataPath? and d.codingSchemaPath?
+            throw new Error "dataPath, codingSchemaPath, ... are required for the graph descriptor"
+        @codingSchema = JSON.parse (fs.readFileSync "#{@basepath}/#{d.codingSchemaPath}")
+        attributesSchemaForProperties = (properties) =>
+            if properties?
+                attrs = {}
+                for propId in properties
+                    prop = @codingSchema.properties[propId]
+                    attrs[prop.name] = prop.dataType
+                attrs
+            else
+                null
         # populate schema from descriptor
-        objects = {}
-        for nodeTypeId,nodeType of d.nodes
-            o = objects[nodeType.type] =
-                Attributes: nodeType.props
-                Label: nodeType.label
+        @schema.Objects = objects = {}
+        for nodeTypeId,nodeType of @codingSchema.nodeTypes
+            console.log nodeType
+            o = objects[nodeType.name] =
+                Attributes: attributesSchemaForProperties nodeType.properties
+                Label: @codingSchema.properties[nodeType.labelProperty]?.name
+            # TODO use centralized domain/range instead
             o.Links = {}
             nodeTypeId = parseInt nodeTypeId
-            for edgeTypeId,edgeType of d.edges when nodeTypeId in edgeType.domain
-                l = o.Links[edgeType.type] ?= []
-                l.push d.nodes[rangeNodeTypeId].type for rangeNodeTypeId in edgeType.range
-        @schema.Objects = objects
+            for edgeTypeId,edgeType of @codingSchema.edgeTypes when nodeTypeId in edgeType.domain
+                l = o.Links[edgeType.name] ?= []
+                l.push @codingSchema.nodeTypes[rangeNodeTypeId].name for rangeNodeTypeId in edgeType.range
+        # @schema.Links = links = {}
+        # for edgeTypeId,edgeType of @codingSchema.edgeTypes
+        #     console.log edgeType
+        #     links[edgeType.name] =
+        #         Attributes: attributesSchemaForProperties edgeType.properties
+        #         Label: @codingSchema.properties[edgeType.labelProperty]?.name
+        #         Domain: edgeType.domain.map (nodeType) => @codingSchema.nodeTypes[nodeType].name
+        #         Range : edgeType.range .map (nodeType) => @codingSchema.nodeTypes[nodeType].name
 
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
         # generate Pregel vertex code from statemachine
@@ -44,7 +63,7 @@ class GiraphGraph extends StateMachineGraph
         #  TODO map types, node/edge URIs in query to long long int IDs
         run = spawn "./giraph/run-smallgraph-on-giraph", [
             "SmallGraphGiraphVertex"
-            path.join @basepath, @descriptor.graphPath
+            path.join @basepath, @descriptor.dataPath
         ]
         rawResults = ""
         run.stderr.setEncoding 'utf-8'

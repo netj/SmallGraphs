@@ -382,58 +382,60 @@ public class RDFGraphTransformer {
 		OutputStreamWriter outputStreamWriter = new OutputStreamWriter(output);
 		JSONWriter jsonWriter = new JSONWriter(outputStreamWriter);
 		jsonWriter.object();
-		jsonWriter.key("Objects");
+		jsonWriter.key("nodeTypes");
 		{
 			jsonWriter.object();
 			for (Long vType : vertexTypes) {
 				jsonWriter.key(vType.toString());
 				{
 					jsonWriter.object();
-					jsonWriter.key("Name");
+					jsonWriter.key("name");
 					jsonWriter.value(getTypeName(vType));
-					jsonWriter.key("Properties");
+					jsonWriter.key("properties");
 					writeSetAsJSONArray(jsonWriter,
 							propertiesByVertex.get(vType));
+					jsonWriter.key("labelProperty");
+					jsonWriter.value(labelPredicateId);
 					jsonWriter.endObject();
 				}
 			}
 			jsonWriter.endObject();
 		}
-		jsonWriter.key("Links");
+		jsonWriter.key("edgeTypes");
 		{
 			jsonWriter.object();
 			for (Long eType : domainByEdge.keySet()) {
 				jsonWriter.key(eType.toString());
 				{
 					jsonWriter.object();
-					jsonWriter.key("Name");
+					jsonWriter.key("name");
 					jsonWriter.value(getTypeName(eType));
-					jsonWriter.key("Domain");
+					jsonWriter.key("domain");
 					writeSetAsJSONArray(jsonWriter, domainByEdge.get(eType));
-					jsonWriter.key("Range");
+					jsonWriter.key("range");
 					writeSetAsJSONArray(jsonWriter, rangeByEdge.get(eType));
 					jsonWriter.endObject();
 				}
 			}
 			jsonWriter.endObject();
 		}
-		jsonWriter.key("Properties");
+		jsonWriter.key("properties");
 		{
 			jsonWriter.object();
 			for (Long propertyId : dataTypeByProperty.keySet()) {
 				jsonWriter.key(propertyId.toString());
 				{
 					jsonWriter.object();
-					jsonWriter.key("Name");
+					jsonWriter.key("name");
 					jsonWriter.value(getTypeName(propertyId));
-					jsonWriter.key("DataType");
+					jsonWriter.key("dataType");
 					jsonWriter.value(dataTypeByProperty.get(propertyId));
 					jsonWriter.endObject();
 				}
 			}
 			jsonWriter.endObject();
 		}
-		jsonWriter.key("URIs");
+		jsonWriter.key("uris");
 		{
 			jsonWriter.object();
 			@SuppressWarnings("unchecked")
