@@ -8,8 +8,10 @@ class GiraphGraph extends StateMachineGraph
     constructor: (@descriptor, @basepath) ->
         super @descriptor, @basepath
         d = @descriptor
-        unless d.dataPath? and d.codingSchemaPath?
-            throw new Error "dataPath, codingSchemaPath, ... are required for the graph descriptor"
+        unless d.graphPath? and d.codingSchemaPath?
+            throw new Error "graphPath, codingSchemaPath, ... are required for the graph descriptor"
+
+        # populate schema from codingSchema
         @codingSchema = JSON.parse (fs.readFileSync "#{@basepath}/#{d.codingSchemaPath}")
         attributesSchemaForProperties = (properties) =>
             if properties?
@@ -20,27 +22,39 @@ class GiraphGraph extends StateMachineGraph
                 attrs
             else
                 null
-        # populate schema from descriptor
         @schema.Objects = objects = {}
         for nodeTypeId,nodeType of @codingSchema.nodeTypes
-            console.log nodeType
+            nodeTypeId = parseInt nodeTypeId
             o = objects[nodeType.name] =
                 Attributes: attributesSchemaForProperties nodeType.properties
                 Label: @codingSchema.properties[nodeType.labelProperty]?.name
             # TODO use centralized domain/range instead
             o.Links = {}
-            nodeTypeId = parseInt nodeTypeId
             for edgeTypeId,edgeType of @codingSchema.edgeTypes when nodeTypeId in edgeType.domain
                 l = o.Links[edgeType.name] ?= []
                 l.push @codingSchema.nodeTypes[rangeNodeTypeId].name for rangeNodeTypeId in edgeType.range
         # @schema.Links = links = {}
         # for edgeTypeId,edgeType of @codingSchema.edgeTypes
-        #     console.log edgeType
         #     links[edgeType.name] =
         #         Attributes: attributesSchemaForProperties edgeType.properties
         #         Label: @codingSchema.properties[edgeType.labelProperty]?.name
         #         Domain: edgeType.domain.map (nodeType) => @codingSchema.nodeTypes[nodeType].name
         #         Range : edgeType.range .map (nodeType) => @codingSchema.nodeTypes[nodeType].name
+
+        # prepare a map for encoding
+        @encodingMap = enc = {}
+        enc.nodeTypes = {}
+        for nodeTypeId,nodeType of @codingSchema.nodeTypes
+            nodeTypeId = parseInt nodeTypeId
+            enc.nodeTypes[nodeType.name] = nodeTypeId
+        enc.edgeTypes = {}
+        for edgeTypeId,edgeType of @codingSchema.edgeTypes
+            edgeTypeId = parseInt edgeTypeId
+            enc.edgeTypes[edgeType.name] = edgeTypeId
+        enc.properties = {}
+        for propId,prop of @codingSchema.properties
+            propId = parseInt propId
+            enc.properties[prop.name] = propId
 
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
         # generate Pregel vertex code from statemachine
@@ -63,7 +77,7 @@ class GiraphGraph extends StateMachineGraph
         #  TODO map types, node/edge URIs in query to long long int IDs
         run = spawn "./giraph/run-smallgraph-on-giraph", [
             "SmallGraphGiraphVertex"
-            path.join @basepath, @descriptor.dataPath
+            path.join @basepath, @descriptor.graphPath
         ]
         rawResults = ""
         run.stderr.setEncoding 'utf-8'
@@ -103,13 +117,13 @@ class GiraphGraph extends StateMachineGraph
             else
                 "/* XXX: unknown type for expr: #{JSON.stringify expr} */ void"
 
-        codegenName = (sym) ->
+        codegenName = (sym) =>
             # TODO check and generate unique symbols?
             codegenExpr sym
 
         constants = {}
         constantSymCount = 0
-        codegenConstant = (type, namePrefix, exprCode) ->
+        codegenConstant = (type, namePrefix, exprCode) =>
             c = constants[exprCode]
             unless c?
                 c =
@@ -118,19 +132,19 @@ class GiraphGraph extends StateMachineGraph
                 constants[exprCode] = c
             c.name
 
-        codegenNodeIdExpr = (expr) ->
+        codegenNodeIdExpr = (expr) =>
             if typeof expr == 'string' and expr == '$this'
                 "#{codegenExpr expr}.getVertexId().get()"
             else
                 codegenExpr expr
 
-        codegenEdgeIdExpr = (expr) ->
+        codegenEdgeIdExpr = (expr) =>
             if typeof expr == 'string' and expr == '$e'
                 "#{codegenExpr expr}.get()"
             else
                 codegenExpr expr
 
-        codegenExpr = (expr) ->
+        codegenExpr = (expr) =>
             switch typeof expr
                 when 'string'
                     if expr.match /^\$/ # symbol
@@ -170,8 +184,8 @@ class GiraphGraph extends StateMachineGraph
 
             else if expr.findAllConsistentMatches?
                 # TODO can we generate more explicit code for this?
-                codegenPath = (path) -> "new int[]{#{path.join ","}}"
-                codegenPaths = (paths) -> "new int[][]{#{paths.map(codegenPath).join(", ")}}"
+                codegenPath = (path) => "new int[]{#{path.join ","}}"
+                codegenPaths = (paths) => "new int[][]{#{paths.map(codegenPath).join(", ")}}"
                 pathsetCode =
                     if expr.findAllConsistentMatches == 0
                         "null"
@@ -189,8 +203,8 @@ class GiraphGraph extends StateMachineGraph
             else
                 "/* XXX: unknown expr: #{JSON.stringify expr} */ null"
 
-        codegenConstraints = (pmap, constraints) ->
-            codegenSingleConstraint = (c) ->
+        codegenConstraints = (pmap, constraints) =>
+            codegenSingleConstraint = (c) =>
                 [name, rel, value] = c
                 if name?
                     switch typeof value
@@ -217,7 +231,7 @@ class GiraphGraph extends StateMachineGraph
             else
                 ""
 
-        codegenAction = (action) ->
+        codegenAction = (action) =>
             if action instanceof Array
                 if action.length == 1
                     codegenAction action[0]
@@ -265,21 +279,19 @@ class GiraphGraph extends StateMachineGraph
 
             else if action.whenEdge?
                 cond = action.satisfies
-                # TODO edgeTypeId = typeDictionary cond.linkType
-                edgeTypeId = codegenExpr cond.linkType
+                edgeTypeId = @encodingMap.edgeTypes[cond.linkType]
                 """
                 {
                 PropertyMap eV = this.getEdgeValue(#{codegenExpr action.whenEdge});
-                if (#{edgeTypeId}.equals(eV.getType())) #{codegenConstraints "eV", cond.constraints}
+                if (#{codegenExpr edgeTypeId} == eV.getType()) #{codegenConstraints "eV", cond.constraints}
                     #{codegenAction action.then}
                 }
                 """
             else if action.whenNode?
                 cond = action.satisfies
-                # TODO map to typeId: nodeTypeId = typeDictionary cond.objectType
-                nodeTypeId = codegenExpr cond.objectType
+                nodeTypeId = @encodingMap.nodeTypes[cond.objectType]
                 """
-                if (#{nodeTypeId}.equals(#{codegenExpr action.whenNode}.getVertexValue().getType())) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
+                if (#{codegenExpr nodeTypeId} == #{codegenExpr action.whenNode}.getVertexValue().getType()) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
                     #{codegenAction action.then}
                 """
 
@@ -300,7 +312,7 @@ class GiraphGraph extends StateMachineGraph
             else
                 "// unknown action node: #{JSON.stringify action}"
 
-        codegenSingleHandler = (msg) ->
+        codegenSingleHandler = (msg) =>
             a = """
             case #{msg.msgId}:
                 // #{msg.description}

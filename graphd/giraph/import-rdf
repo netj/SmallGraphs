@@ -45,7 +45,7 @@ esac <"$RDFNTriplesFile" |
         cat >graphd.json <<-EOF
 	{
 	  "giraph": {
-	    "dataPath": "data",
+	    "graphPath": "graph",
 	    "codingSchemaPath": "codingSchema.json"
 	  }
 	}
