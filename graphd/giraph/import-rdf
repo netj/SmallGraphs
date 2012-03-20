@@ -11,8 +11,8 @@ set -eu
 Self=`readlink -f "$0"`
 Here=`dirname "$Self"`
 
-jars=("$Here"/target/giraph.backend-*-jar-with-dependencies.jar)
-GIRAPH_BACKEND_JAR=${jars[0]}
+jars=("$Here"/../../tools/rdfutil/target/smallgraphs-rdfutil-*-jar-with-dependencies.jar)
+RDFUtilJar=${jars[0]}
 
 
 # process arguments
@@ -20,8 +20,8 @@ GIRAPH_BACKEND_JAR=${jars[0]}
 GraphBase=$1; shift
 RDFNTriplesFile=$1; shift
 
-graphData="$GraphBase"/data
-mkdir -p "$graphData"
+graphName=`basename "$GraphBase"`
+
 
 # uncompress input if needed
 case $RDFNTriplesFile in
@@ -30,13 +30,14 @@ case $RDFNTriplesFile in
     *)      cat ;;
 esac <"$RDFNTriplesFile" |
 {
+    mkdir -p "$GraphBase"/map
     cd "$GraphBase"
 
     # encode/load RDF N-Triples and transform it to vertex-wise JSON graph and derive a decoding schema
-    java -cp "$GIRAPH_BACKEND_JAR" edu.stanford.smallgraphs.RDFGraphTransformer \
-        -g data -d rdfDict \
+    java -cp "$RDFUtilJar" edu.stanford.smallgraphs.util.RDFGraphTransformer \
+        -g map -d dict \
         -importUnencodedNTriples - \
-        -outputJSONVertexGraph graph \
+        -outputJSONVertexGraph jsonVertices \
         -deriveSchema codingSchema.json
         #
 
@@ -45,7 +46,7 @@ esac <"$RDFNTriplesFile" |
         cat >graphd.json <<-EOF
 	{
 	  "giraph": {
-	    "graphPath": "graph",
+	    "hdfsPath": "graphs/$graphName",
 	    "codingSchemaPath": "codingSchema.json"
 	  }
 	}

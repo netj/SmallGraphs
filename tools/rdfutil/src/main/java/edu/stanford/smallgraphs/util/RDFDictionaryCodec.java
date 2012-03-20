@@ -1,4 +1,4 @@
-package edu.stanford.smallgraphs;
+package edu.stanford.smallgraphs.util;
 
 import info.aduna.io.ByteArrayUtil;
 
@@ -39,7 +39,7 @@ import com.sleepycat.je.OperationStatus;
 
 public class RDFDictionaryCodec {
 
-	static final String DEFAULT_DICTIONARY_PATH = "rdfDict";
+	static final String DEFAULT_DICTIONARY_PATH = "dict";
 	public static final String RDF_LABEL_PREDICATE_URI = "http://www.w3.org/2000/01/rdf-schema#label";
 	public static final String RDF_TYPE_PREDICATE_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 

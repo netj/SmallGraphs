@@ -1,4 +1,4 @@
-package edu.stanford.smallgraphs;
+package edu.stanford.smallgraphs.util;
 
 import info.aduna.io.ByteArrayUtil;
 
@@ -58,7 +58,7 @@ public class RDFGraphTransformer {
 	private static final String OPTION_OUTPUT_JSON_VERTEX_GRAPH = "outputJSONVertexGraph";
 	private static final String OPTION_DERIVE_SCHEMA = "deriveSchema";
 
-	private static final String DEFAULT_GRAPHDATA_PATH = "graph";
+	private static final String DEFAULT_GRAPHDATA_PATH = "map";
 
 	private final File graphDir;
 	private Environment dbEnv;

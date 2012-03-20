@@ -8,8 +8,8 @@ class GiraphGraph extends StateMachineGraph
     constructor: (@descriptor, @basepath) ->
         super @descriptor, @basepath
         d = @descriptor
-        unless d.graphPath? and d.codingSchemaPath?
-            throw new Error "graphPath, codingSchemaPath, ... are required for the graph descriptor"
+        unless d.hdfsPath? and d.codingSchemaPath?
+            throw new Error "hdfsPath, codingSchemaPath, ... are required for the graph descriptor"
 
         # populate schema from codingSchema
         @codingSchema = JSON.parse (fs.readFileSync "#{@basepath}/#{d.codingSchemaPath}")
@@ -77,7 +77,8 @@ class GiraphGraph extends StateMachineGraph
         #  TODO map types, node/edge URIs in query to long long int IDs
         run = spawn "./giraph/run-smallgraph-on-giraph", [
             "SmallGraphGiraphVertex"
-            path.join @basepath, @descriptor.graphPath
+            @descriptor.hdfsPath
+            @basepath
         ]
         rawResults = ""
         run.stderr.setEncoding 'utf-8'

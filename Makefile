@@ -16,6 +16,7 @@ GRAPHD_DEPS := \
 all: check-builddeps
 	cd smallgraph && jison syntax.jison{,lex}
 	coffee -c .
+	cd ./tools/rdfutil && mvn -q compile
 
 # check builddeps
 check-builddeps:
