@@ -58,7 +58,8 @@ class GiraphGraph extends StateMachineGraph
 
     _runStateMachine: (statemachine, limit, offset, req, res, q) ->
         # generate Pregel vertex code from statemachine
-        javaCode = @generateJavaCode statemachine
+        javaClassName = "SmallGraphGiraphVertex"
+        javaCode = @generateJavaCode javaClassName, statemachine
         # FIXME for debug
         javaFile = "test.java"
         fs.writeFileSync javaFile, javaCode
@@ -76,7 +77,7 @@ class GiraphGraph extends StateMachineGraph
         # FIXME end of debug
         #  TODO map types, node/edge URIs in query to long long int IDs
         run = spawn "./giraph/run-smallgraph-on-giraph", [
-            "SmallGraphGiraphVertex"
+            javaClassName
             @descriptor.hdfsPath
             @basepath
         ]
@@ -98,7 +99,7 @@ class GiraphGraph extends StateMachineGraph
                     q.emit 'error', new Error "run-smallgraph-on-giraph ended with #{code}:\n" +
                         "#{rawResults.split(/\n/).map((l) -> "    "+l).join("\n")}"
         run.stdin.end javaCode, 'utf-8'
-    generateJavaCode: (statemachine) ->
+    generateJavaCode: (javaClassName, statemachine) ->
         codegenType = (expr) ->
             if expr.targetNodeOf?
                 "LongWritable"
@@ -328,13 +329,13 @@ class GiraphGraph extends StateMachineGraph
         """
         import org.apache.hadoop.io.LongWritable;
 
-        import edu.stanford.smallgraphs.BaseSmallGraphGiraphVertex;
-        import edu.stanford.smallgraphs.MatchPath;
-        import edu.stanford.smallgraphs.Matches;
-        import edu.stanford.smallgraphs.MatchingMessage;
-        import edu.stanford.smallgraphs.PropertyMap;
+        import edu.stanford.smallgraphs.giraph.BaseSmallGraphGiraphVertex;
+        import edu.stanford.smallgraphs.giraph.MatchPath;
+        import edu.stanford.smallgraphs.giraph.Matches;
+        import edu.stanford.smallgraphs.giraph.MatchingMessage;
+        import edu.stanford.smallgraphs.giraph.PropertyMap;
 
-        public class SmallGraphGiraphVertex extends BaseSmallGraphGiraphVertex  {
+        public class #{javaClassName} extends BaseSmallGraphGiraphVertex  {
 
         @Override
 	public void handleMessages(Iterable<MatchingMessage> messages) {

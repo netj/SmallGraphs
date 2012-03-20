@@ -1,4 +1,4 @@
-package edu.stanford.smallgraphs;
+package edu.stanford.smallgraphs.giraph;
 
 import java.io.IOException;
 import java.util.List;
@@ -15,7 +15,7 @@ import org.json.JSONArray;
 /**
  * VertexOutputFormat that supports {@link BaseSmallGraphGiraphVertex}
  */
-public class PropertyGraphJSONVertexOutputFormat extends
+public class FinalMatchesOutputFormat extends
 		TextVertexOutputFormat<LongWritable, VertexMatchingState, PropertyMap> {
 	@Override
 	public VertexWriter<LongWritable, VertexMatchingState, PropertyMap> createVertexWriter(
@@ -29,18 +29,14 @@ public class PropertyGraphJSONVertexOutputFormat extends
 			public void writeVertex(
 					BasicVertex<LongWritable, VertexMatchingState, PropertyMap, ?> vertex)
 					throws IOException, InterruptedException {
-				// TODO output only those vertices and edges that are marked 
-				JSONArray jsonVertex = new JSONArray();
-				jsonVertex.put(vertex.getVertexId().get());
-				JSONArray jsonEdgeArray = new JSONArray();
-				for (LongWritable targetVertexId : vertex) {
-					jsonEdgeArray.put(targetVertexId.get());
-					jsonEdgeArray.put(vertex.getEdgeValue(targetVertexId)
-							.asJSONObject());
-				}
-				jsonVertex.put(jsonEdgeArray);
-				jsonVertex.put(vertex.getVertexValue().asJSONObject());
-				getRecordWriter().write(new Text(jsonVertex.toString()), null);
+				// output matches
+				List<Matches> finalMatches = vertex.getVertexValue()
+						.getAllFinalMatches();
+				if (finalMatches != null)
+					for (Matches matches : finalMatches) {
+						getRecordWriter().write(new Text(matches.toString()),
+								null);
+					}
 			}
 		};
 	}

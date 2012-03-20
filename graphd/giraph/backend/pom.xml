@@ -3,11 +3,11 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>edu.stanford.smallgraphs</groupId>
-  <artifactId>giraph.backend.base</artifactId>
+  <artifactId>smallgraphs-giraph-backend</artifactId>
   <packaging>jar</packaging>
   <version>0.1-SNAPSHOT</version>
 
-  <name>SmallGraph Giraph Backend Base Implementation</name>
+  <name>SmallGraphs Giraph Backend Base Implementation</name>
   <url>https://github.com/netj/SmallGraphs</url>
 
 <!--

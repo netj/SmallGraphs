@@ -1,4 +1,4 @@
-package edu.stanford.smallgraphs;
+package edu.stanford.smallgraphs.giraph;
 
 import java.io.DataInput;
 import java.io.DataOutput;

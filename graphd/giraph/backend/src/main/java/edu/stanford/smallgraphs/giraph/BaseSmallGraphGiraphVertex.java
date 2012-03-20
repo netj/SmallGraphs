@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package edu.stanford.smallgraphs;
+package edu.stanford.smallgraphs.giraph;
 
 import java.util.Collections;
 import java.util.Iterator;

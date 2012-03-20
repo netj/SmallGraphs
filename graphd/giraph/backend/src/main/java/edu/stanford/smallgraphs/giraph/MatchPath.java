@@ -1,4 +1,4 @@
-package edu.stanford.smallgraphs;
+package edu.stanford.smallgraphs.giraph;
 
 import java.util.ArrayList;
 import java.util.List;
