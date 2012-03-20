@@ -18,7 +18,7 @@ public class PropertyMap implements Writable {
 	}
 
 	public PropertyMap(JSONObject properties) {
-		this.properties = properties;
+		this.properties = properties != null ? properties : new JSONObject();
 	}
 
 	public boolean equals(Object obj) {

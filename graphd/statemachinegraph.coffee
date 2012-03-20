@@ -113,7 +113,7 @@ class StateMachineGraph extends BaseGraph
                 whenNode: symNode
                 satisfies: genConstraints s.step
                 then:
-                    for w_initId in s.walks_out
+                    for w_initId in s.walks_out ? []
                         w_init = qgraph.edges[w_initId]
                         # TODO unless it has a corresponding return edge
                         actionForWalkingOnEdge w_init, 0, symNode, 0, { newMatchesAtNode: symNode }
