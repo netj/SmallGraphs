@@ -12,26 +12,42 @@ set -eu
 Self=`readlink -f "$0"`
 Here=`dirname "$Self"`
 
-jars=("$Here"/target/giraph.backend-*-jar-with-dependencies.jar)
-GIRAPH_BACKEND_JAR=${jars[0]}
+giraphJars=("$Here"/giraph/target/giraph-*-jar-with-dependencies.jar)
+backendJars=("$Here"/target/giraph.backend-*-jar-with-dependencies.jar)
+export HADOOP_CLASSPATH="${backendJars[0]}:${giraphJars[0]}"
+
 
 # process arguments
-[ $# -eq 2 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
+[ $# -eq 3 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
 VertexClass=$1; shift
-InputGraphPath=$1; shift
-#OutputPath=$1; shift
+InputGraphHDFSPath=$1; shift
+InputGraphLocalPath=$1; shift
+
+
+
+# make sure the target graph is up there
+if ! hadoop dfs -test -e "$InputGraphHDFSPath"; then
+    if [ -e "$InputGraphLocalPath" ]; then
+        hadoop dfs -copyFromLocal "$InputGraphLocalPath"/jsonVertices "$InputGraphHDFSPath"/jsonVertices
+    else
+        echo >&2 "Target graph does not exists on HDFS($InputGraphHDFSPath) nor local($InputGraphLocalPath)"
+        exit 2
+    fi
+fi
+
 
 # prepare stuff
 tmp=/tmp/smallgiraph.XXXXXX; rm -rf $tmp; mkdir -p $tmp
 # FIXME tmp=`mktemp -d /tmp/smallgiraph.XXXXXX`
+dfstmp=`basename $tmp`
+hadoop dfs -rmr $dfstmp >/dev/null || true
+rm -rf $tmp/_bsp*
 # FIXME trap "rm -rf $tmp" EXIT
-InputGraphPath=`readlink -f "$InputGraphPath"`
 cd $tmp
-
 
 # compile Java code given over stdin
 cat >"$VertexClass".java
-javac -cp $GIRAPH_BACKEND_JAR \
+javac -cp "$HADOOP_CLASSPATH:`hadoop classpath`" \
     -d . \
     "$VertexClass".java \
     #
@@ -40,20 +56,21 @@ javac -cp $GIRAPH_BACKEND_JAR \
 jar=smallgiraph.jar
 jar cf $jar "$VertexClass".class
 
+
 # and run it
-java -cp "$GIRAPH_BACKEND_JAR" \
-    org.apache.hadoop.util.RunJar "$jar" org.apache.giraph.GiraphRunner \
+hadoop jar "$jar" org.apache.giraph.GiraphRunner \
     -Dgiraph.SplitMasterWorker=false \
+    -libjars "${HADOOP_CLASSPATH//:/,}" \
     "$VertexClass" \
     -w 1 \
     -if edu.stanford.smallgraphs.PropertyGraphJSONVertexInputFormat \
-    -of edu.stanford.smallgraphs.PropertyGraphJSONVertexOutputFormat \
-    -ip "$InputGraphPath" \
-    -op output \
+    -of edu.stanford.smallgraphs.FinalMatchesOutputFormat \
+    -ip "$InputGraphHDFSPath"/jsonVertices \
+    -op $dfstmp/output \
     -q >&2 \
     #
 
 
-# TODO combine resulting matches and output them
-cat output/*
-
+# combine resulting matches and output them
+hadoop dfs -getmerge $dfstmp/output output
+cat output
