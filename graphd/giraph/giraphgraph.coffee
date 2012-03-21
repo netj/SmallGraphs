@@ -327,13 +327,24 @@ class GiraphGraph extends StateMachineGraph
             maxMsgId = Math.max maxMsgId, msgs.length
 
         """
+        import java.io.FileInputStream;
+        import java.util.List;
+        import java.util.Map;
+        
+        import org.apache.commons.io.IOUtils;
         import org.apache.hadoop.io.LongWritable;
+        import org.apache.giraph.utils.InternalVertexRunner;
+        
+        import com.google.common.collect.Maps;
 
         import edu.stanford.smallgraphs.giraph.BaseSmallGraphGiraphVertex;
         import edu.stanford.smallgraphs.giraph.MatchPath;
         import edu.stanford.smallgraphs.giraph.Matches;
         import edu.stanford.smallgraphs.giraph.MatchingMessage;
         import edu.stanford.smallgraphs.giraph.PropertyMap;
+        import edu.stanford.smallgraphs.giraph.FinalMatchesOutputFormat;
+        import edu.stanford.smallgraphs.giraph.PropertyGraphJSONVertexInputFormat;
+        
 
         public class #{javaClassName} extends BaseSmallGraphGiraphVertex  {
 
@@ -362,6 +373,22 @@ class GiraphGraph extends StateMachineGraph
         #{
             ("private static final #{c.type} #{c.name} = #{code};" for code,c of constants
             ).join "\n"
+        }
+
+        public static void main(String[] args) throws Exception {
+            String fileName = "/tmp/smallgiraph.XXXXXX/input";
+            @SuppressWarnings("unchecked")
+            List<String> lines = (List<String>) IOUtils.readLines(new FileInputStream(fileName));
+            String[] graph = lines.toArray(new String[0]);
+            Map<String, String> params = Maps.newHashMap();
+            Iterable<String> result = InternalVertexRunner.run(
+                #{javaClassName}.class,
+                PropertyGraphJSONVertexInputFormat.class,
+                FinalMatchesOutputFormat.class
+                // PropertyGraphJSONVertexOutputFormat.class
+                , params, graph);
+            for (String line : result)
+                System.out.println(line);
         }
 
         }

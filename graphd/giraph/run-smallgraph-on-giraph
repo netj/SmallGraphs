@@ -45,8 +45,9 @@ tmp=/tmp/smallgiraph.XXXXXX; rm -rf $tmp; mkdir -p $tmp
 dfstmp=`basename $tmp`
 hadoop dfs -rmr $dfstmp >/dev/null || true
 rm -rf $tmp/_bsp*
-# FIXME trap "rm -rf $tmp" EXIT
+# FIXME trap "rm -rf $tmp; hadoop dfs -rmr $dfstmp >/dev/null" EXIT
 cd $tmp
+[ -e input ] || hadoop dfs -getmerge "$InputGraphHDFSPath"/jsonVertices input
 
 
 # compile Java code given over stdin

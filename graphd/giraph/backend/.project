@@ -20,4 +20,11 @@
 		<nature>org.eclipse.m2e.core.maven2Nature</nature>
 		<nature>org.eclipse.jdt.core.javanature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>smallgiraph.XXXXXX</name>
+			<type>2</type>
+			<location>/private/tmp/smallgiraph.XXXXXX</location>
+		</link>
+	</linkedResources>
 </projectDescription>
