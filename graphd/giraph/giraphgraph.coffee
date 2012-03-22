@@ -81,24 +81,30 @@ class GiraphGraph extends StateMachineGraph
             @descriptor.hdfsPath
             @basepath
         ]
-        rawResults = ""
         run.stderr.setEncoding 'utf-8'
         run.stderr.pipe process.stderr, { end: false }
         run.stdout.setEncoding 'utf-8'
+        results = []
+        stdoutRemainder = ""
+        generateEachMatch = @resultGeneratorForMatches statemachine
         run.stdout.on 'data', (chunk) ->
-            # collect raw matches
-            rawResults += chunk
+            # collect results from output
+            lines = (stdoutRemainder + chunk).split /\n/
+            stdoutRemainder = lines.pop()
+            for line in lines when line.length > 0
+                matches = JSON.parse line
+                generateEachMatch matches, (r) ->
+                    # TODO can't we just do q.emit 'eachResult' here?
+                    results.push r
         run.on 'exit', (code, signal) ->
             switch code
                 when 0
-                    # TODO collect results
-                    result = [rawResults]
-                    # TODO  inverse-map long long int IDs back to types, node/edge URIs
-                    q.emit 'result', result
+                    q.emit 'result', results
                 else
                     q.emit 'error', new Error "run-smallgraph-on-giraph ended with #{code}:\n" +
-                        "#{rawResults.split(/\n/).map((l) -> "    "+l).join("\n")}"
+                        "#{results.map((l) -> "    "+l).join("\n")}"
         run.stdin.end javaCode, 'utf-8'
+
     generateJavaCode: (javaClassName, statemachine) ->
         codegenType = (expr) ->
             if expr.targetNodeOf?
@@ -394,5 +400,47 @@ class GiraphGraph extends StateMachineGraph
         }
         """
 
+    resultGeneratorForMatches: (statemachine) ->
+        # prepare some vocabularies
+        qgraph = statemachine.qgraph
+        assign = (result, source, data) ->
+            if typeof source == 'string'
+                (result.names ?= {})[source] = data
+            else
+                (result.walks[source[0]] ?= [])[source[1]] = data
+        # find the terminal node
+        tNode = null
+        for node in qgraph.nodes
+            if node.isTerminal
+                tNode = node
+                break
+        (matches, emit) ->
+            # this is a way to do the traversal of the tree of matches
+            # for generating combinations in a continuation-passing-style
+            assignSubMatchesAndContinue = (result, matches, node, ret) ->
+                assign result, node.step.sourceInQuery,
+                    id: matches.v
+                    attrs: matches.a
+                if node.isInitial
+                    ret result
+                else
+                    continueYieldingSiblings = (result, ret) -> ret result
+                    # TODO not sure if this is also correct for return edges
+                    incomingEdgeIds = (node.walks_in ? []).concat (node.returns_in ? [])
+                    for wId in incomingEdgeIds
+                        continueYieldingSiblings = do (wId, matches, continueYieldingSiblings) ->
+                            (result, ret) ->
+                                w = qgraph.edges[wId]
+                                n = qgraph.nodes[w.source]
+                                for {p:{"":path}, m:subMatches} in matches.w[wId]
+                                    for i in [1 .. w.steps.length-2] by 1
+                                        m = path[i-1]
+                                        assign result, w.steps[i].sourceInQuery,
+                                            id: m.v
+                                            attrs: m.a
+                                    assignSubMatchesAndContinue result, subMatches, n,
+                                        (result) -> continueYieldingSiblings result, ret
+                    continueYieldingSiblings result, ret
+            assignSubMatchesAndContinue { walks: [] }, matches, tNode, emit
 
 exports.GiraphGraph = GiraphGraph

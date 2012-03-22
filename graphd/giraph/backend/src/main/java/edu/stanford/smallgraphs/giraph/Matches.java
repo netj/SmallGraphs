@@ -23,11 +23,17 @@ public class Matches extends JSONWritable {
 
 	@SerializedName("v")
 	public long vertexId;
+	// TODO
+	// @SerializedName("a")
+	// public PropertyMap properties;
+
 	@SerializedName("w")
 	public Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk;
 
 	public static class PathWithMatches extends JSONWritable {
+		@SerializedName("p")
 		public MatchPath path;
+		@SerializedName("m")
 		public Matches matches;
 
 		public PathWithMatches(MatchPath path, Matches matches) {

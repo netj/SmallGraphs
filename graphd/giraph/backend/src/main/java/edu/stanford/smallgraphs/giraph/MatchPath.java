@@ -12,8 +12,10 @@ public class MatchPath extends JSONWritable {
 
 	public static class PathElement extends JSONWritable {
 
+		@SerializedName("v")
 		public long id;
 
+		@SerializedName("a")
 		public PropertyMap properties;
 
 		public PathElement(long id) {

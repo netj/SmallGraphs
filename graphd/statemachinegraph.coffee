@@ -218,17 +218,25 @@ class StateMachineGraph extends BaseGraph
             [name, cond] = decl.let
             names[name] =
                 condition: cond
-        # first count occurrences of named steps while indexing walks
+        # first, count occurrences of named steps while indexing walks
+        # also, mark position from query of each step for mapping output
         i = 0
         walks = {}
         for decl in query when decl.walk?
             {walk: ss} = decl
-            walks[i++] = ss
-            for s in ss when s.objectRef?
-                env = names[s.objectRef]
-                env.occurrence ?= 0
-                env.occurrence++
-        # eliminate all intermediate named steps and either ends from walks
+            walks[i] = ss
+            j = 0
+            for s in ss
+                if s.objectRef?
+                    env = names[s.objectRef]
+                    env.occurrence ?= 0
+                    env.occurrence++
+                    env.condition.sourceInQuery = s.objectRef
+                else
+                    s.sourceInQuery = [i,j]
+                j++
+            i++
+        # eliminate all unmeaningfully named steps, and connect two walks into one
         for name,env of names when env.occurrence == 2
             walks_in  = (w for w,ss of walks when name == ss[ss.length-1].objectRef)
             walks_out = (w for w,ss of walks when name == ss[0].objectRef)
@@ -249,7 +257,6 @@ class StateMachineGraph extends BaseGraph
                     qnodes[nodeId] =
                         id: nodeId
                         step: env.condition
-                        name: s.objectRef
             else
                 nodeId = stepNodeCount++
                 qnodes[nodeId] =
