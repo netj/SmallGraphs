@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.hadoop.io.LongWritable;
-import org.json.JSONObject;
 
 import com.google.common.collect.Lists;
 
@@ -19,9 +18,9 @@ public class VertexMatchingState extends PropertyMap {
 		this(null, null);
 	}
 
-	public VertexMatchingState(LongWritable vertexId, JSONObject properties) {
+	public VertexMatchingState(LongWritable vertexId, PropertyMap properties) {
 		super(properties);
-		matches = new Matches(vertexId);
+		this.matches = new Matches(vertexId);
 	}
 
 	public Matches getMatches() {

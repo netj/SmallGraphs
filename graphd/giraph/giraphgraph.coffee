@@ -457,6 +457,12 @@ class GiraphGraph extends StateMachineGraph
                 (result.names ?= {})[source] = data
             else
                 (result.walks[source[0]] ?= [])[source[1]] = data
+        decodeAttributes = (attrs) =>
+            decodedAttrs = {}
+            for aId,aV of attrs
+                prop = @codingSchema.properties[aId]
+                decodedAttrs[prop.name] = aV
+            decodedAttrs
         # find the terminal node
         tNode = null
         for node in qgraph.nodes
@@ -469,7 +475,7 @@ class GiraphGraph extends StateMachineGraph
             assignSubMatchesAndContinue = (result, matches, node, ret) ->
                 assign result, node.step.sourceInQuery,
                     id: matches.v[""]
-                    attrs: matches.v.a # TODO map attribute keys
+                    attrs: decodeAttributes matches.v.a
                 if node.isInitial
                     ret result
                 else
@@ -486,7 +492,7 @@ class GiraphGraph extends StateMachineGraph
                                         m = path[i-1]
                                         assign result, w.steps[i].sourceInQuery,
                                             id: m?[""]
-                                            attrs: m?.a # TODO map attribute keys
+                                            attrs: decodeAttributes m?.a
                                     assignSubMatchesAndContinue result, subMatches, n,
                                         (result) -> continueYieldingSiblings result, ret
                     continueYieldingSiblings result, ret

@@ -1,7 +1,6 @@
 package edu.stanford.smallgraphs.giraph;
 
 import java.io.IOException;
-import java.util.List;
 
 import org.apache.giraph.graph.BasicVertex;
 import org.apache.giraph.graph.VertexWriter;
@@ -29,7 +28,7 @@ public class PropertyGraphJSONVertexOutputFormat extends
 			public void writeVertex(
 					BasicVertex<LongWritable, VertexMatchingState, PropertyMap, ?> vertex)
 					throws IOException, InterruptedException {
-				// TODO output only those vertices and edges that are marked 
+				// TODO output only those vertices and edges that are marked
 				JSONArray jsonVertex = new JSONArray();
 				jsonVertex.put(vertex.getVertexId().get());
 				JSONArray jsonEdgeArray = new JSONArray();
@@ -39,9 +38,11 @@ public class PropertyGraphJSONVertexOutputFormat extends
 							.asJSONObject());
 				}
 				jsonVertex.put(jsonEdgeArray);
-				jsonVertex.put(vertex.getVertexValue().asJSONObject());
+				jsonVertex
+						.put(vertex.getVertexValue().asJSONObject());
 				getRecordWriter().write(new Text(jsonVertex.toString()), null);
 			}
 		};
 	}
+
 }

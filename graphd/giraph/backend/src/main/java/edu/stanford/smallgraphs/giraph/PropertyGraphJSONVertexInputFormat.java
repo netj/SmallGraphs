@@ -22,6 +22,7 @@ import com.google.common.collect.Maps;
 public class PropertyGraphJSONVertexInputFormat
 		extends
 		TextVertexInputFormat<LongWritable, VertexMatchingState, PropertyMap, MatchingMessage> {
+
 	@Override
 	public VertexReader<LongWritable, VertexMatchingState, PropertyMap, MatchingMessage> createVertexReader(
 			InputSplit split, TaskAttemptContext context) throws IOException {
@@ -48,15 +49,15 @@ public class PropertyGraphJSONVertexInputFormat
 					LongWritable vertexId = new LongWritable(
 							jsonVertex.getLong(0));
 					VertexMatchingState vertexValue = new VertexMatchingState(
-							vertexId, jsonVertex.getJSONObject(2));
+							vertexId, new PropertyMap(
+									jsonVertex.getJSONObject(2)));
 					Map<LongWritable, PropertyMap> edges = Maps.newHashMap();
 					JSONArray jsonEdgeArray = jsonVertex.getJSONArray(1);
-					for (int i = 0; i < jsonEdgeArray.length(); i += 2) {
+					for (int i = 0; i < jsonEdgeArray.length(); i += 2)
 						edges.put(
 								new LongWritable(jsonEdgeArray.getLong(i)),
 								new PropertyMap(jsonEdgeArray
 										.getJSONObject(i + 1)));
-					}
 					vertex.initialize(vertexId, vertexValue, edges, null);
 				} catch (JSONException e) {
 					throw new IllegalArgumentException(

@@ -17,7 +17,7 @@ public class BaseSmallGraphGiraphVertexTest extends TestCase {
 				int messageId = msg.getMessageId();
 				switch (messageId) {
 				case 0:
-					if (getVertexValue().getType() == 1) {
+					if ("1".equals(getVertexValue().get(""))) {
 						for (LongWritable neighbor : this) {
 							sendMsg(neighbor, new MatchingMessage(1));
 						}

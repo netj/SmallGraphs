@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Map;
 
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.hadoop.io.LongWritable;
@@ -13,6 +14,7 @@ import org.apache.hadoop.io.WritableUtils;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.TypeAdapter;
+import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
@@ -26,51 +28,75 @@ public abstract class JSONWritable implements Writable {
 		return EqualsBuilder.reflectionEquals(this, o);
 	}
 
-	private static final Gson GSON = new GsonBuilder()
-	// .setPrettyPrinting()
-			.registerTypeAdapter(LongWritable.class,
-					new TypeAdapter<LongWritable>() {
-						@Override
-						public void write(JsonWriter out, LongWritable value)
-								throws IOException {
-							if (value == null)
-								out.nullValue();
-							else
-								out.value(value.get());
-						}
+	private static final Object typeAdapterForLongWritable = new TypeAdapter<LongWritable>() {
+		@Override
+		public void write(JsonWriter out, LongWritable value)
+				throws IOException {
+			if (value == null)
+				out.nullValue();
+			else
+				out.value(value.get());
+		}
 
-						@Override
-						public LongWritable read(JsonReader in)
-								throws IOException {
-							return new LongWritable(in.nextLong());
-						}
-					})
-			//
+		@Override
+		public LongWritable read(JsonReader in) throws IOException {
+			return new LongWritable(in.nextLong());
+		}
+	};
+
+	private static final Object typeAdapterForPropertyMap = new TypeAdapter<PropertyMap>() {
+		@Override
+		public void write(JsonWriter out, PropertyMap value) throws IOException {
+			if (value == null)
+				out.nullValue();
+			else
+				defaultTypeAdapterForStringStringMap.write(out, value.map);
+		}
+
+		@Override
+		public PropertyMap read(JsonReader in) throws IOException {
+			if (in.peek().equals(JsonToken.NULL)) {
+				in.nextNull();
+				return null;
+			} else
+				return new PropertyMap(
+						defaultTypeAdapterForStringStringMap.read(in));
+		}
+	};
+
+	@SuppressWarnings("unused")
+	private static final Object typeAdapterForPathElement = new TypeAdapter<PathElement>() {
+		@Override
+		public void write(JsonWriter out, PathElement value) throws IOException {
+			if (value == null || value.id == null)
+				out.nullValue();
+			else
+				defaultTypeAdapterForPathElement.write(out, value);
+		}
+
+		@Override
+		public PathElement read(JsonReader in) throws IOException {
+			if (in.peek().equals(JsonToken.NULL)) {
+				in.nextNull();
+				return new PathElement(null);
+			} else
+				return defaultTypeAdapterForPathElement.read(in);
+		}
+	};
+
+	private static final Gson GSON = new GsonBuilder()
+			// .setPrettyPrinting()
+			.registerTypeAdapter(LongWritable.class, typeAdapterForLongWritable)
+			.registerTypeAdapter(PropertyMap.class, typeAdapterForPropertyMap)
 			// .registerTypeAdapter(PathElement.class,
-			// new TypeAdapter<PathElement>() {
-			// @Override
-			// public void write(JsonWriter out, PathElement value)
-			// throws IOException {
-			// if (value == null || value.id == null)
-			// out.nullValue();
-			// else
-			// GSON.getAdapter(PathElement.class).write(out,
-			// value);
-			// }
-			//
-			// @Override
-			// public PathElement read(JsonReader in)
-			// throws IOException {
-			// if (in.peek().equals(JsonToken.NULL)) {
-			// in.nextNull();
-			// return new PathElement(null);
-			// } else
-			// return GSON.getAdapter(PathElement.class).read(
-			// in);
-			// }
-			// })
-			// //
+			// typeAdapterForPathElement)
 			.create();
+
+	private static final TypeAdapter<Map<String, String>> defaultTypeAdapterForStringStringMap = GSON
+			.getAdapter(new TypeToken<Map<String, String>>() {
+			});
+	private static final TypeAdapter<PathElement> defaultTypeAdapterForPathElement = GSON
+			.getAdapter(PathElement.class);
 
 	@Override
 	public void readFields(DataInput in) throws IOException {
