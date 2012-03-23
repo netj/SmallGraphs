@@ -1,6 +1,7 @@
 fs = require "fs"
 path = require "path"
 {spawn} = require "child_process"
+_ = require "underscore"
 
 {StateMachineGraph} = require "../statemachinegraph"
 
@@ -92,10 +93,10 @@ class GiraphGraph extends StateMachineGraph
             lines = (stdoutRemainder + chunk).split /\n/
             stdoutRemainder = lines.pop()
             for line in lines when line.length > 0
-                matches = JSON.parse (line.replace /[{][}]/g, "null")
+                matches = JSON.parse line #(line.replace /[{][}]/g, "null")
                 generateEachMatch matches, (r) ->
                     # TODO can't we just do q.emit 'eachResult' here?
-                    results.push r
+                    results.push (JSON.parse JSON.stringify r)
         run.on 'exit', (code, signal) ->
             switch code
                 when 0
