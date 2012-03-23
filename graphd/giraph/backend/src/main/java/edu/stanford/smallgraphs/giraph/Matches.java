@@ -5,10 +5,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +16,7 @@ import org.apache.commons.collections.Transformer;
 import org.apache.hadoop.io.LongWritable;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.gson.annotations.SerializedName;
 
 public class Matches extends JSONWritable {
@@ -79,11 +78,11 @@ public class Matches extends JSONWritable {
 	public Matches addPathWithMatchesArrived(int viaWalk,
 			List<PathElement> path, Matches matches) {
 		if (pathWithMatchesByWalk == null)
-			pathWithMatchesByWalk = new HashMap<Integer, Collection<PathWithMatches>>();
+			pathWithMatchesByWalk = Maps.newHashMap();
 		Collection<PathWithMatches> matchesForWalk = pathWithMatchesByWalk
 				.get(viaWalk);
 		if (matchesForWalk == null) {
-			matchesForWalk = new ArrayList<PathWithMatches>();
+			matchesForWalk = Lists.newArrayList();
 			pathWithMatchesByWalk.put(viaWalk, matchesForWalk);
 		}
 		matchesForWalk.add(new PathWithMatches(path, matches));
@@ -113,19 +112,24 @@ public class Matches extends JSONWritable {
 
 	public static Iterable<Matches> getAllConsistentMatches(Matches mInput,
 			int[][][] pathset, int... walkIndices) {
-		// first check if matches have all the necessary walks
+		// first refine the base Matches to necessary walkIndices
+		Map<Integer, Collection<PathWithMatches>> partialPathWithMatchesByWalk = Maps
+				.newHashMap();
 		for (int w : walkIndices) {
 			Collection<PathWithMatches> pms = mInput.pathWithMatchesByWalk
 					.get(w);
 			if (pms == null || pms.size() == 0)
 				return Collections.emptyList();
+			partialPathWithMatchesByWalk.put(w, pms);
 		}
+		Matches baseMatches = new Matches(mInput.vertex,
+				partialPathWithMatchesByWalk);
 		// then try to find consistent matches
 		if (pathset != null && pathset.length > 1) {
-			Collection<Matches> ms = Collections.singleton(mInput);
+			Collection<Matches> ms = Collections.singleton(baseMatches);
 			// distribute outermost conjunctions to innermost disjunctions
 			for (int[][] paths : pathset) {
-				List<Matches> matchesRefinedSoFar = new ArrayList<Matches>();
+				List<Matches> matchesRefinedSoFar = Lists.newArrayList();
 				// start refining from each disjunctive matches refined by
 				// previous paths
 				for (Matches mRefinedSoFar : ms) {
@@ -150,7 +154,7 @@ public class Matches extends JSONWritable {
 			}
 			return ms;
 		} else
-			return Collections.singleton(mInput);
+			return Collections.singleton(baseMatches);
 	}
 
 	private static Matches getCoincidingMatchesWith(final Matches m,
@@ -176,7 +180,7 @@ public class Matches extends JSONWritable {
 				return cursor;
 		} else {
 			// TODO can we defer list creation until we really need it?
-			List<PathWithMatches> pms2 = new ArrayList<Matches.PathWithMatches>();
+			List<PathWithMatches> pms2 = Lists.newArrayList();
 			boolean diff = false;
 			for (PathWithMatches pm : pms) {
 				Matches newMatches = getCoincidingMatchesWith(m, walkIndices,
@@ -203,8 +207,8 @@ public class Matches extends JSONWritable {
 			Collection<PathWithMatches> pms) {
 		// TODO avoid copying the whole map, since we only need to differ by one
 		// entry
-		Map<Integer, Collection<PathWithMatches>> newPathWithMatchesByWalk = new HashMap<Integer, Collection<PathWithMatches>>(
-				m.pathWithMatchesByWalk);
+		Map<Integer, Collection<PathWithMatches>> newPathWithMatchesByWalk = Maps
+				.newHashMap(m.pathWithMatchesByWalk);
 		newPathWithMatchesByWalk.put(w, pms);
 		return new Matches(m.vertex, newPathWithMatchesByWalk);
 	}
@@ -242,7 +246,7 @@ public class Matches extends JSONWritable {
 	}
 
 	public static List<PathElement> newPath(long... vertexIds) {
-		ArrayList<PathElement> path = Lists.newArrayList();
+		List<PathElement> path = Lists.newArrayList();
 		for (long id : vertexIds)
 			path.add(new PathElement(new LongWritable(id)));
 		return path;
