@@ -4,16 +4,19 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.List;
 
 import org.apache.hadoop.io.Writable;
+
+import edu.stanford.smallgraphs.giraph.Matches.PathElement;
 
 public class MatchingMessage implements Writable {
 
 	private int msgId;
 	private final Matches matches;
-	private final MatchPath path;
+	private final List<PathElement> path;
 
-	public MatchingMessage(int msgId, Matches match, MatchPath path) {
+	public MatchingMessage(int msgId, Matches match, List<PathElement> path) {
 		this.msgId = msgId;
 		this.matches = match;
 		this.path = path;
@@ -23,7 +26,7 @@ public class MatchingMessage implements Writable {
 		this(msgId, match, null);
 	}
 
-	public MatchingMessage(int msgId, MatchPath path) {
+	public MatchingMessage(int msgId, List<PathElement> path) {
 		this(msgId, null, path);
 	}
 
@@ -39,7 +42,7 @@ public class MatchingMessage implements Writable {
 		return matches;
 	}
 
-	public MatchPath getPath() {
+	public List<PathElement> getPath() {
 		return path;
 	}
 

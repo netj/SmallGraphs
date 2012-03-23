@@ -3,10 +3,12 @@ package edu.stanford.smallgraphs.giraph;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.io.LongWritable;
 import org.json.JSONObject;
+
+import com.google.common.collect.Lists;
 
 public class VertexMatchingState extends PropertyMap {
 
@@ -14,10 +16,10 @@ public class VertexMatchingState extends PropertyMap {
 	private List<Matches> allFinalMatches = null;
 
 	public VertexMatchingState() {
-		this(0L, null);
+		this(null, null);
 	}
 
-	public VertexMatchingState(Long vertexId, JSONObject properties) {
+	public VertexMatchingState(LongWritable vertexId, JSONObject properties) {
 		super(properties);
 		matches = new Matches(vertexId);
 	}
@@ -32,7 +34,7 @@ public class VertexMatchingState extends PropertyMap {
 
 	public void addFinalMatches(Matches m) {
 		if (allFinalMatches == null)
-			allFinalMatches = new ArrayList<Matches>();
+			allFinalMatches = Lists.newArrayList();
 		allFinalMatches.add(m);
 	}
 
@@ -44,9 +46,9 @@ public class VertexMatchingState extends PropertyMap {
 		if (n == 0)
 			allFinalMatches = null;
 		else {
-			allFinalMatches = new ArrayList<Matches>();
+			allFinalMatches = Lists.newArrayList();
 			for (int i = 0; i < n; i++) {
-				Matches m = new Matches(0);
+				Matches m = new Matches();
 				m.readFields(in);
 				allFinalMatches.add(m);
 			}

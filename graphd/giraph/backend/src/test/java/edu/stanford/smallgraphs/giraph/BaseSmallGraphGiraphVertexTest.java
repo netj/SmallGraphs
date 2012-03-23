@@ -25,7 +25,7 @@ public class BaseSmallGraphGiraphVertexTest extends TestCase {
 					break;
 
 				case 1:
-					emitMatches(new Matches(getVertexId().get()));
+					emitMatches(new Matches(getVertexId()));
 					break;
 
 				default:

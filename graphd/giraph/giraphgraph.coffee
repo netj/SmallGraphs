@@ -92,7 +92,7 @@ class GiraphGraph extends StateMachineGraph
             lines = (stdoutRemainder + chunk).split /\n/
             stdoutRemainder = lines.pop()
             for line in lines when line.length > 0
-                matches = JSON.parse line
+                matches = JSON.parse (line.replace /[{][}]/g, "null")
                 generateEachMatch matches, (r) ->
                     # TODO can't we just do q.emit 'eachResult' here?
                     results.push r
@@ -115,7 +115,7 @@ class GiraphGraph extends StateMachineGraph
                 { list: "LongWritable" }
 
             else if expr.newPath?
-                "MatchPath"
+                "List<PathElement>"
 
             else if expr.findAllConsistentMatches?
                 { list: "Matches" }
@@ -142,13 +142,14 @@ class GiraphGraph extends StateMachineGraph
 
         codegenNodeIdExpr = (expr) =>
             if typeof expr == 'string' and expr == '$this'
-                "#{codegenExpr expr}.getVertexId().get()"
+                "#{codegenExpr expr}.getVertexId()"
             else
                 codegenExpr expr
 
         codegenEdgeIdExpr = (expr) =>
             if typeof expr == 'string' and expr == '$e'
-                "#{codegenExpr expr}.get()"
+                #"#{codegenExpr expr}.get()"
+                "null" # XXX Using null instead? EdgeListVertex has no Id for edges
             else
                 codegenExpr expr
 
@@ -180,15 +181,16 @@ class GiraphGraph extends StateMachineGraph
 
             else if expr.newPath?
                 newPathArgs = []
-                if expr.newPath
-                    newPathArgs.push codegenExpr expr.newPath
+                # TODO collect attribute/property values
                 if expr.augmentedWithNode?
-                    newPathArgs.push codegenNodeIdExpr expr.augmentedWithNode
+                    newPathArgs.push "new PathElement(#{codegenNodeIdExpr expr.augmentedWithNode})"
                 else if expr.augmentedWithEdge?
                     # XXX EdgeListVertex has no ID for edges
-                    newPathArgs.push codegenEdgeIdExpr expr.augmentedWithEdge
-                # TODO collect attribute/property values
-                "new MatchPath(#{newPathArgs.join ", "})"
+                    newPathArgs.push "new PathElement(#{codegenEdgeIdExpr expr.augmentedWithEdge})"
+                if expr.newPath
+                    "Matches.newAugmentedPath(#{codegenExpr expr.newPath}, #{newPathArgs.join ", "})"
+                else
+                    "Matches.newPath(#{newPathArgs.join ", "})"
 
             else if expr.findAllConsistentMatches?
                 # TODO can we generate more explicit code for this?
@@ -292,6 +294,7 @@ class GiraphGraph extends StateMachineGraph
                 {
                 PropertyMap eV = this.getEdgeValue(#{codegenExpr action.whenEdge});
                 if (#{codegenExpr edgeTypeId} == eV.getType()) #{codegenConstraints "eV", cond.constraints}
+                    // TODO collect attributes
                     #{codegenAction action.then}
                 }
                 """
@@ -300,6 +303,7 @@ class GiraphGraph extends StateMachineGraph
                 nodeTypeId = @encodingMap.nodeTypes[cond.objectType]
                 """
                 if (#{codegenExpr nodeTypeId} == #{codegenExpr action.whenNode}.getVertexValue().getType()) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
+                    // TODO collect attributes
                     #{codegenAction action.then}
                 """
 
@@ -344,8 +348,8 @@ class GiraphGraph extends StateMachineGraph
         import com.google.common.collect.Maps;
 
         import edu.stanford.smallgraphs.giraph.BaseSmallGraphGiraphVertex;
-        import edu.stanford.smallgraphs.giraph.MatchPath;
         import edu.stanford.smallgraphs.giraph.Matches;
+        import edu.stanford.smallgraphs.giraph.Matches.PathElement;
         import edu.stanford.smallgraphs.giraph.MatchingMessage;
         import edu.stanford.smallgraphs.giraph.PropertyMap;
         import edu.stanford.smallgraphs.giraph.FinalMatchesOutputFormat;
@@ -366,7 +370,7 @@ class GiraphGraph extends StateMachineGraph
                     handleAggregatedMessage(i);
         }
 
-        private void handleMessage(int msgId, MatchPath path, Matches matches) {
+        private void handleMessage(int msgId, List<PathElement> path, Matches matches) {
             switch (msgId) {#{statemachine.actionByMessages.individual.map(codegenSingleHandler).join "\n"}
             }
         }
@@ -400,6 +404,8 @@ class GiraphGraph extends StateMachineGraph
         }
         """
 
+    # An example Matches will be: {"v":{"":21189},"w":{"0":[{"p":[{}],"m":{"v":{"":169}}},{"p":[{}],"m":{"v":{"":1734}}},{"p":[{}],"m":{"v":{"":1747}}},{"p":[{}],"m":{"v":{"":2994}}},{"p":[{}],"m":{"v":{"":2895}}},{"p":[{}],"m":{"v":{"":2906}}},{"p":[{}],"m":{"v":{"":4023}}},{"p":[{}],"m":{"v":{"":5669}}},{"p":[{}],"m":{"v":{"":8890}}},{"p":[{}],"m":{"v":{"":8535}}},{"p":[{}],"m":{"v":{"":8541}}},{"p":[{}],"m":{"v":{"":9549}}},{"p":[{}],"m":{"v":{"":12628}}},{"p":[{}],"m":{"v":{"":25824}}},{"p":[{}],"m":{"v":{"":25836}}},{"p":[{}],"m":{"v":{"":25614}}},{"p":[{}],"m":{"v":{"":27405}}},{"p":[{}],"m":{"v":{"":30077}}},{"p":[{}],"m":{"v":{"":36691}}},{"p":[{}],"m":{"v":{"":36456}}},{"p":[{}],"m":{"v":{"":40227}}},{"p":[{}],"m":{"v":{"":38877}}}]}}
+    # for a qgraph like: { "nodes": [ { "id": 0, "step": { "objectType": "Film106613686", "sourceInQuery": [ 0, 0 ] }, "walks_out": [ 0 ], "isCanonical": true, "visited": true, "isInitial": true }, { "id": 1, "step": { "objectType": "Actor109765278", "sourceInQuery": [ 0, 2 ] }, "walks_in": [ 0 ], "isCanonical": true, "visited": true, "isTerminal": true } ], "edges": [ { "id": 0, "source": 0, "target": 1, "steps": [ 0, { "linkType": "director", "sourceInQuery": [ 0, 1 ] }, 1 ], "msgIdWalkingBase": 1, "msgIdArrived": 1 } ] }
     resultGeneratorForMatches: (statemachine) ->
         # prepare some vocabularies
         qgraph = statemachine.qgraph
@@ -419,8 +425,8 @@ class GiraphGraph extends StateMachineGraph
             # for generating combinations in a continuation-passing-style
             assignSubMatchesAndContinue = (result, matches, node, ret) ->
                 assign result, node.step.sourceInQuery,
-                    id: matches.v
-                    attrs: matches.a
+                    id: matches.v[""]
+                    attrs: matches.v.a
                 if node.isInitial
                     ret result
                 else
@@ -432,12 +438,12 @@ class GiraphGraph extends StateMachineGraph
                             (result, ret) ->
                                 w = qgraph.edges[wId]
                                 n = qgraph.nodes[w.source]
-                                for {p:{"":path}, m:subMatches} in matches.w[wId]
+                                for {p:path, m:subMatches} in matches.w[wId]
                                     for i in [1 .. w.steps.length-2] by 1
                                         m = path[i-1]
                                         assign result, w.steps[i].sourceInQuery,
-                                            id: m.v
-                                            attrs: m.a
+                                            id: m?[""]
+                                            attrs: m?.a
                                     assignSubMatchesAndContinue result, subMatches, n,
                                         (result) -> continueYieldingSiblings result, ret
                     continueYieldingSiblings result, ret

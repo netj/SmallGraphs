@@ -48,7 +48,7 @@ public class PropertyGraphJSONVertexInputFormat
 					LongWritable vertexId = new LongWritable(
 							jsonVertex.getLong(0));
 					VertexMatchingState vertexValue = new VertexMatchingState(
-							vertexId.get(), jsonVertex.getJSONObject(2));
+							vertexId, jsonVertex.getJSONObject(2));
 					Map<LongWritable, PropertyMap> edges = Maps.newHashMap();
 					JSONArray jsonEdgeArray = jsonVertex.getJSONArray(1);
 					for (int i = 0; i < jsonEdgeArray.length(); i += 2) {

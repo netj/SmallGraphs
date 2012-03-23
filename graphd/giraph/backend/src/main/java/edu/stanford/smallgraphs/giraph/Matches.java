@@ -17,44 +17,67 @@ import org.apache.commons.collections.Predicate;
 import org.apache.commons.collections.Transformer;
 import org.apache.hadoop.io.LongWritable;
 
+import com.google.common.collect.Lists;
 import com.google.gson.annotations.SerializedName;
 
 public class Matches extends JSONWritable {
 
-	@SerializedName("v")
-	public long vertexId;
-	// TODO
-	// @SerializedName("a")
-	// public PropertyMap properties;
+	public static class PathElement extends JSONWritable {
+		@SerializedName("")
+		public LongWritable id;
 
-	@SerializedName("w")
-	public Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk;
+		@SerializedName("a")
+		public PropertyMap properties;
+
+		public PathElement(LongWritable id) {
+			this.id = id;
+		}
+
+		public PathElement(LongWritable id, PropertyMap properties) {
+			this.id = id;
+			this.properties = properties;
+		}
+	}
 
 	public static class PathWithMatches extends JSONWritable {
 		@SerializedName("p")
-		public MatchPath path;
+		public List<PathElement> path;
 		@SerializedName("m")
 		public Matches matches;
 
-		public PathWithMatches(MatchPath path, Matches matches) {
+		public PathWithMatches(List<PathElement> path, Matches matches) {
 			super();
 			this.path = path;
 			this.matches = matches;
 		}
 	}
 
-	public Matches(long atVertexId) {
-		this(atVertexId, null);
-	}
+	@SerializedName("v")
+	public PathElement vertex;
+	@SerializedName("w")
+	public Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk;
 
-	public Matches(long vertexId,
+	public Matches(PathElement vertex,
 			Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk) {
-		this.vertexId = vertexId;
+		this.vertex = vertex;
 		this.pathWithMatchesByWalk = pathWithMatchesByWalk;
 	}
 
-	public Matches addPathWithMatchesArrived(int viaWalk, MatchPath path,
-			Matches matches) {
+	public Matches(LongWritable vertexId,
+			Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk) {
+		this(new PathElement(vertexId), pathWithMatchesByWalk);
+	}
+
+	public Matches(LongWritable atVertexId) {
+		this(atVertexId, null);
+	}
+
+	public Matches() {
+		this((LongWritable) null, null);
+	}
+
+	public Matches addPathWithMatchesArrived(int viaWalk,
+			List<PathElement> path, Matches matches) {
 		if (pathWithMatchesByWalk == null)
 			pathWithMatchesByWalk = new HashMap<Integer, Collection<PathWithMatches>>();
 		Collection<PathWithMatches> matchesForWalk = pathWithMatchesByWalk
@@ -78,8 +101,7 @@ public class Matches extends JSONWritable {
 					@Override
 					public Object transform(Object o) {
 						// FIXME can we make vertexId LongWritable instead?
-						return new LongWritable(
-								((PathWithMatches) o).matches.vertexId);
+						return ((PathWithMatches) o).matches.vertex.id;
 					}
 				});
 	}
@@ -184,12 +206,12 @@ public class Matches extends JSONWritable {
 		Map<Integer, Collection<PathWithMatches>> newPathWithMatchesByWalk = new HashMap<Integer, Collection<PathWithMatches>>(
 				m.pathWithMatchesByWalk);
 		newPathWithMatchesByWalk.put(w, pms);
-		return new Matches(m.vertexId, newPathWithMatchesByWalk);
+		return new Matches(m.vertex, newPathWithMatchesByWalk);
 	}
 
 	private static List<Matches> getInitialMatchesForWalkIndices(Matches root,
 			int... walkIndices) {
-		List<Matches> ms = new ArrayList<Matches>();
+		List<Matches> ms = Lists.newArrayList();
 		getInitialMatchesForWalkIndices(root, walkIndices, 0, ms);
 		return ms;
 	}
@@ -207,23 +229,39 @@ public class Matches extends JSONWritable {
 		}
 	}
 
+	public static List<PathElement> newAugmentedPath(List<PathElement> path,
+			PathElement lastElement) {
+		// TODO avoid copying?
+		List<PathElement> newPath = Lists.newArrayList(path);
+		newPath.add(lastElement);
+		return newPath;
+	}
+
+	public static List<PathElement> newPath(PathElement... elements) {
+		return Lists.newArrayList(elements);
+	}
+
+	public static List<PathElement> newPath(long... vertexIds) {
+		ArrayList<PathElement> path = Lists.newArrayList();
+		for (long id : vertexIds)
+			path.add(new PathElement(new LongWritable(id)));
+		return path;
+	}
+
 	/**
 	 * test for Writable and Gson
 	 */
 	public static void main(String[] args) throws IOException {
-		Matches m1 = new Matches(1);
-		MatchPath p1 = new MatchPath();
-		p1.augment(101L).augment(9L).augment(103L);
+		Matches m1 = new Matches(new LongWritable(1));
+		List<PathElement> p1 = Matches.newPath(101L, 102L, 103L);
 
-		Matches m3a = new Matches(3);
-		MatchPath p3a = new MatchPath();
-		p3a.augment(201L);
+		Matches m3a = new Matches(new LongWritable(3));
+		List<PathElement> p3a = Matches.newPath(201L);
 
-		Matches m3b = new Matches(33);
-		MatchPath p3b = new MatchPath();
-		p3b.augment(301L).augment(8L).augment(303L).augment(7L).augment(305L);
+		Matches m3b = new Matches(new LongWritable(33));
+		List<PathElement> p3b = Matches.newPath(301L, 8L, 303L, 7L, 305L);
 
-		Matches m2 = new Matches(2);
+		Matches m2 = new Matches(new LongWritable(2));
 		m2.addPathWithMatchesArrived(1, p1, m1)
 				.addPathWithMatchesArrived(2, p3a, m3a)
 				.addPathWithMatchesArrived(2, p3b, m3b);
@@ -238,7 +276,7 @@ public class Matches extends JSONWritable {
 		System.out.println(byteArrayOutputStream.toString());
 
 		// read
-		Matches m2readwrite = new Matches(0);
+		Matches m2readwrite = new Matches(new LongWritable(0));
 		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(
 				byteArrayOutputStream.toByteArray());
 		m2readwrite.readFields(new DataInputStream(byteArrayInputStream));

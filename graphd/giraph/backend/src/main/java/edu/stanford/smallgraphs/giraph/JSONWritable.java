@@ -6,11 +6,18 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 
 import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableUtils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+
+import edu.stanford.smallgraphs.giraph.Matches.PathElement;
 
 public abstract class JSONWritable implements Writable {
 
@@ -21,11 +28,54 @@ public abstract class JSONWritable implements Writable {
 
 	private static final Gson GSON = new GsonBuilder()
 	// .setPrettyPrinting()
+			.registerTypeAdapter(LongWritable.class,
+					new TypeAdapter<LongWritable>() {
+						@Override
+						public void write(JsonWriter out, LongWritable value)
+								throws IOException {
+							if (value == null)
+								out.nullValue();
+							else
+								out.value(value.get());
+						}
+
+						@Override
+						public LongWritable read(JsonReader in)
+								throws IOException {
+							return new LongWritable(in.nextLong());
+						}
+					})
+			//
+			// .registerTypeAdapter(PathElement.class,
+			// new TypeAdapter<PathElement>() {
+			// @Override
+			// public void write(JsonWriter out, PathElement value)
+			// throws IOException {
+			// if (value == null || value.id == null)
+			// out.nullValue();
+			// else
+			// GSON.getAdapter(PathElement.class).write(out,
+			// value);
+			// }
+			//
+			// @Override
+			// public PathElement read(JsonReader in)
+			// throws IOException {
+			// if (in.peek().equals(JsonToken.NULL)) {
+			// in.nextNull();
+			// return new PathElement(null);
+			// } else
+			// return GSON.getAdapter(PathElement.class).read(
+			// in);
+			// }
+			// })
+			// //
 			.create();
 
 	@Override
 	public void readFields(DataInput in) throws IOException {
-		// XXX this is very inefficient since Gson creates an extra copy of this object :(
+		// XXX this is very inefficient since Gson creates an extra copy of this
+		// object :(
 		Object o = GSON.fromJson(WritableUtils.readString(in), this.getClass());
 		for (Field field : this.getClass().getFields()) {
 			try {
