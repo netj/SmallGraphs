@@ -269,9 +269,14 @@ class StateMachineGraph extends BaseGraph
                     env = names[s.objectRef]
                     env.occurrence ?= 0
                     env.occurrence++
-                    env.condition.sourceInQuery = s.objectRef
+                    if env.occurrence == 1
+                        env.condition.sourceInQuery =
+                            name: s.objectRef
+                            refs: []
+                    env.condition.sourceInQuery.refs.push [i,j]
                 else
-                    s.sourceInQuery = [i,j]
+                    s.sourceInQuery =
+                        pos: [i,j]
                 j++
             i++
         # eliminate all unmeaningfully named steps, and connect two walks into one
