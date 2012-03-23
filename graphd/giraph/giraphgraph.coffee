@@ -117,6 +117,9 @@ class GiraphGraph extends StateMachineGraph
             else if expr.newPath?
                 "List<PathElement>"
 
+            else if expr.collectedAttributes?
+                "PropertyMap"
+
             else if expr.findAllConsistentMatches?
                 { list: "Matches" }
             else if expr.newMatches?
@@ -183,14 +186,37 @@ class GiraphGraph extends StateMachineGraph
                 newPathArgs = []
                 # TODO collect attribute/property values
                 if expr.augmentedWithNode?
-                    newPathArgs.push "new PathElement(#{codegenNodeIdExpr expr.augmentedWithNode})"
+                    newPathArgs.push "new PathElement(#{
+                        codegenNodeIdExpr expr.augmentedWithNode
+                    }#{
+                        if not expr.andAttributes? then ""
+                        else ", #{codegenExpr expr.andAttributes}"
+                    })"
                 else if expr.augmentedWithEdge?
                     # XXX EdgeListVertex has no ID for edges
-                    newPathArgs.push "new PathElement(#{codegenEdgeIdExpr expr.augmentedWithEdge})"
+                    newPathArgs.push "new PathElement(#{
+                        codegenEdgeIdExpr expr.augmentedWithEdge
+                    }#{
+                        if not expr.andAttributes? then ""
+                        else ", #{codegenExpr expr.andAttributes}"
+                    })"
                 if expr.newPath
                     "Matches.newAugmentedPath(#{codegenExpr expr.newPath}, #{newPathArgs.join ", "})"
                 else
                     "Matches.newPath(#{newPathArgs.join ", "})"
+
+            else if expr.collectedAttributes?
+                "#{
+                    if expr.ofNode?
+                        "#{codegenExpr expr.ofNode}.getVertexValue()"
+                    else if expr.ofEdge?
+                        "#{codegenExpr expr.ofNode}.getEdgeValue()"
+                }.project(#{
+                    (
+                        for [attrName, attrConstraint] in expr.collectedAttributes
+                            codegenExpr String @encodingMap.properties[attrName]
+                    ).join(", ")
+                })"
 
             else if expr.findAllConsistentMatches?
                 # TODO can we generate more explicit code for this?
@@ -208,7 +234,12 @@ class GiraphGraph extends StateMachineGraph
                     pathsetCode = codegenConstant "int[][][]", "PATHSET", pathsetCode
                 "this.getAllConsistentMatches(#{pathsetCode}, #{expr.ofWalks.join ","})"
             else if expr.newMatchesAtNode?
-                "new Matches(#{codegenNodeIdExpr expr.newMatchesAtNode})"
+                "new Matches(new PathElement(#{
+                    codegenNodeIdExpr expr.newMatchesAtNode
+                }#{
+                    unless expr.andAttributes? then ""
+                    else ", #{codegenExpr expr.andAttributes}"
+                }))"
 
             else
                 "/* XXX: unknown expr: #{JSON.stringify expr} */ null"
@@ -293,19 +324,31 @@ class GiraphGraph extends StateMachineGraph
                 """
                 {
                 PropertyMap eV = this.getEdgeValue(#{codegenExpr action.whenEdge});
-                if (#{codegenExpr edgeTypeId} == eV.getType()) #{codegenConstraints "eV", cond.constraints}
-                    // TODO collect attributes
+                if (#{codegenExpr edgeTypeId} == eV.getType())
+                #{codegenConstraints "eV", cond.constraints} {
                     #{codegenAction action.then}
+                }
                 }
                 """
             else if action.whenNode?
                 cond = action.satisfies
                 nodeTypeId = @encodingMap.nodeTypes[cond.objectType]
                 """
-                if (#{codegenExpr nodeTypeId} == #{codegenExpr action.whenNode}.getVertexValue().getType()) #{codegenConstraints (codegenExpr action.whenNode), cond.constraints}
-                    // TODO collect attributes
-                    #{codegenAction action.then}
+                if (#{codegenExpr nodeTypeId} == #{codegenExpr action.whenNode}.getVertexValue().getType())
+                #{codegenConstraints (codegenExpr action.whenNode), cond.constraints} {
+                #{codegenAction action.then}
+                }
                 """
+
+            else if action.rememberAttributes?
+                if action.ofNode != "$this"
+                    """
+                    // XXX can't remember matches of node: #{action.ofNode}
+                    """
+                else
+                    """
+                    this.getVertexValue().getMatches().vertex.properties = #{codegenExpr action.rememberAttributes};
+                    """
 
             else if action.rememberMatches?
                 if action.ofNode != "$this"
@@ -426,7 +469,7 @@ class GiraphGraph extends StateMachineGraph
             assignSubMatchesAndContinue = (result, matches, node, ret) ->
                 assign result, node.step.sourceInQuery,
                     id: matches.v[""]
-                    attrs: matches.v.a
+                    attrs: matches.v.a # TODO map attribute keys
                 if node.isInitial
                     ret result
                 else
@@ -443,7 +486,7 @@ class GiraphGraph extends StateMachineGraph
                                         m = path[i-1]
                                         assign result, w.steps[i].sourceInQuery,
                                             id: m?[""]
-                                            attrs: m?.a
+                                            attrs: m?.a # TODO map attribute keys
                                     assignSubMatchesAndContinue result, subMatches, n,
                                         (result) -> continueYieldingSiblings result, ret
                     continueYieldingSiblings result, ret

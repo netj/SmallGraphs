@@ -82,14 +82,34 @@ class StateMachineGraph extends BaseGraph
                 qgraph.nodes[s].step
             else
                 s
+        collectAttributesOf = (stepType, stepSym, s, attrSym, body...) ->
+            s = qgraph.nodes[s].step if typeof s == 'number'
+            if s.attrs? and s.attrs.length > 0
+                let: attrSym
+                be:
+                    switch stepType
+                        when "Node"
+                            collectedAttributes: s.attrs
+                            ofNode: stepSym
+                        when "Edge"
+                            collectedAttributes: s.attrs
+                            ofEdge: stepSym
+                        else
+                            throw new Error "#{stepType}: unknown step type"
+                in: body
+            else
+                body
         symNode = "$this"
         symNode2 = "$node"
+        symNodeAttrs = "$nAttrs"
         symEdge = "$e"
+        symEdgeAttrs = "$eAttrs"
         symPath = "$path"
         symPath2 = "$path2"
         symMatches = "$matches"
         actionForWalkingOnEdge = (w, i=0, node=symNode, path=0, matches=symMatches) ->
             # edge step
+            eStep = w.steps[2*i+1]
             foreach: symEdge
             in:
                 outgoingEdgesOf: node
@@ -97,14 +117,15 @@ class StateMachineGraph extends BaseGraph
                 whenEdge: symEdge
                 satisfies: genConstraints w.steps[2*i+1]
                 then:
-                    sendMessage: w.msgIdWalkingBase + i
-                    to:
-                        targetNodeOf: symEdge
-                    withPath:
-                        # TODO collect attribute values
-                        newPath: path
-                        augmentedWithEdge: symEdge
-                    withMatches: matches
+                    collectAttributesOf "Edge", symEdge, eStep, symEdgeAttrs,
+                        sendMessage: w.msgIdWalkingBase + i
+                        to:
+                            targetNodeOf: symEdge
+                        withPath:
+                            newPath: path
+                            augmentedWithEdge: symEdge
+                            andAttributes: if eStep.attrs then symEdgeAttrs
+                        withMatches: matches
         #  Start message
         addAction "individual", msgIdStart, "Start",
             for s in qgraph.nodes when s.isInitial
@@ -112,11 +133,14 @@ class StateMachineGraph extends BaseGraph
                 # TODO group initial nodes with same constraints
                 whenNode: symNode
                 satisfies: genConstraints s.step
-                then:
+                then: collectAttributesOf "Node", symNode, s.step, symNodeAttrs, _.flatten [
                     for w_initId in s.walks_out ? []
                         w_init = qgraph.edges[w_initId]
                         # TODO unless it has a corresponding return edge
-                        actionForWalkingOnEdge w_init, 0, symNode, 0, { newMatchesAtNode: symNode }
+                        actionForWalkingOnEdge w_init, 0, symNode, 0,
+                            newMatchesAtNode: symNode
+                            andAttributes: if s.step.attrs then symNodeAttrs
+                ]
         # TODO optimize out unnecessary foreach CompatibleMatchesWithMatches
         # Arrived messages
         symMatchesIn = "$matches_i"
@@ -125,17 +149,22 @@ class StateMachineGraph extends BaseGraph
             s = qgraph.nodes[w.target]
             addAction "individual", w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
                 whenNode: symNode
-                satisfies: genConstraints w.steps[w.steps.length-1]
+                satisfies: genConstraints s.step
                 then:
-                    { rememberMatches: symMatches, ofNode: symNode, viaWalk: w.id, withPath: symPath }
+                    rememberMatches: symMatches
+                    ofNode: symNode
+                    viaWalk: w.id
+                    withPath: symPath
             addAction "aggregated", w.msgIdArrived, "Arrived(#{w.id}, #{symPath}, #{symMatches})",
                 whenNode: symNode
-                satisfies: genConstraints w.steps[w.steps.length-1]
-                then:
+                satisfies: genConstraints s.step
+                then: collectAttributesOf "Node", symNode, s.step, symNodeAttrs, _.flatten [
+                    { rememberAttributes: symNodeAttrs, ofNode: symNode }
                     foreach: symMatchesIn
                     in:
                         findAllConsistentMatches: s.joiningPaths ? 0
                         ofWalks: s.walks_in
+                        ofNode: symNode
                     do: _.flatten [
                         if s.returns_in?.length
                             # initiate walks that we expect to return
@@ -161,6 +190,7 @@ class StateMachineGraph extends BaseGraph
                                         to: symNode2
                                         withMatches: symMatchesIn
                     ]
+                ]
         # Returned messages
         symMatchesInRet = "$matches_ir"
         for r in returns
@@ -168,12 +198,15 @@ class StateMachineGraph extends BaseGraph
             s = qgraph.nodes[w.source]
             walks_out_with_returns = (qgraph.edges[r].walk for r in s.returns_in)
             addAction "individual", w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
-                { rememberMatches: symMatches, ofNode: symNode, returnedFromWalk: w.id }
+                rememberMatches: symMatches
+                ofNode: symNode
+                returnedFromWalk: w.id
             addAction "aggregated", w.msgIdReturned, "Returned(#{w.id}, #{symMatches})",
                 foreach: symMatchesInRet
                 in:
                     findAllConsistentMatches: s.joiningPaths ? 0
                     ofWalks: _.union s.walks_in ? [], walks_out_with_returns
+                    ofNode: symNode
                 do:
                     if s.isTerminal # we can emit once we get back all the Returned matches
                         emitMatches: symMatchesInRet
@@ -196,17 +229,19 @@ class StateMachineGraph extends BaseGraph
         for w in walks
             numEdges = (parseInt (w.steps.length-1))/2
             for i in [1 ... numEdges] by 1
+                nStep = w.steps[2*i]
                 addAction "individual", w.msgIdWalkingBase + i-1, "Walking(#{w.id}, #{2*i}, #{symPath}, #{symMatches})",
                     # node step
                     whenNode: symNode
-                    satisfies: genConstraints w.steps[2*i]
-                    then:
+                    satisfies: genConstraints nStep
+                    then: collectAttributesOf "Node", symNode, nStep, symNodeAttrs, _.flatten [
                         let: symPath2
                         be:
-                            # TODO collect attribute values
                             newPath: symPath
                             augmentedWithNode: symNode
+                            andAttributes: if nStep.attrs then symNodeAttrs
                         in: actionForWalkingOnEdge w, i, symNode, symPath2, symMatches
+                    ]
         # we're done constructing the state machine
         stateMachine
 
@@ -218,6 +253,9 @@ class StateMachineGraph extends BaseGraph
             [name, cond] = decl.let
             names[name] =
                 condition: cond
+        for decl in query when decl.look?
+            [name, attrs...] = decl.look
+            names[name].condition.attrs = attrs
         # first, count occurrences of named steps while indexing walks
         # also, mark position from query of each step for mapping output
         i = 0

@@ -62,6 +62,10 @@ public class Matches extends JSONWritable {
 		this.pathWithMatchesByWalk = pathWithMatchesByWalk;
 	}
 
+	public Matches(PathElement vertex) {
+		this(vertex, null);
+	}
+
 	public Matches(LongWritable vertexId,
 			Map<Integer, Collection<PathWithMatches>> pathWithMatchesByWalk) {
 		this(new PathElement(vertexId), pathWithMatchesByWalk);
@@ -72,7 +76,7 @@ public class Matches extends JSONWritable {
 	}
 
 	public Matches() {
-		this((LongWritable) null, null);
+		this((LongWritable) null);
 	}
 
 	public Matches addPathWithMatchesArrived(int viaWalk,

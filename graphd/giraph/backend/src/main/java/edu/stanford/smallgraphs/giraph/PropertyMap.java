@@ -15,6 +15,7 @@ public class PropertyMap implements Writable {
 	private JSONObject properties;
 
 	public PropertyMap() {
+		this(null);
 	}
 
 	public PropertyMap(JSONObject properties) {
@@ -98,6 +99,10 @@ public class PropertyMap implements Writable {
 		return this;
 	}
 
+	public JSONObject put(String key, String value) throws JSONException {
+		return properties.put(key, value);
+	}
+
 	public Object remove(String key) {
 		return properties.remove(key);
 	}
@@ -128,4 +133,15 @@ public class PropertyMap implements Writable {
 		return getLong("", -1);
 	}
 
+	public PropertyMap project(String... keys) {
+		PropertyMap projectedProperties = new PropertyMap();
+		for (String key : keys)
+			try {
+				projectedProperties.put(key, getString(key));
+			} catch (JSONException e) {
+				// XXX exception will impact performance :(
+				// using other backend than JSONObject will be a wise move
+			}
+		return projectedProperties;
+	}
 }
