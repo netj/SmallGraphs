@@ -82,8 +82,20 @@ class StateMachineGraph extends BaseGraph
                 qgraph.nodes[s].step
             else
                 s
-        hasAttributes = (s) -> s.attrs? and s.attrs.length > 0
-        collectAttributesOf = (stepType, stepSym, s, attrSym, body...) ->
+        labelAttributeName = (s) =>
+            if s.objectType? and @schema.Objects[s.objectType]?.Label?
+                [@schema.Objects[s.objectType]?.Label]
+            else if s.linkType? and @schema.Links?[s.linkType]?.Label?
+                [@schema.Links?[s.linkType]?.Label]
+        hasAttributes = (s) =>
+            s.attrs? and s.attrs.length > 0 or (labelAttributeName s)?
+        withDefaultAttributes = (s) =>
+            attrs = []
+            labelAttr = labelAttributeName s
+            attrs.push labelAttr if labelAttr?
+            attrs.push.apply attrs, s.attrs if s.attrs?
+            attrs
+        collectAttributesOf = (stepType, stepSym, s, attrSym, body...) =>
             s = qgraph.nodes[s].step if typeof s == 'number'
             if hasAttributes s
                 null
@@ -91,10 +103,10 @@ class StateMachineGraph extends BaseGraph
                 be:
                     switch stepType
                         when "Node"
-                            collectedAttributes: s.attrs
+                            collectedAttributes: withDefaultAttributes s
                             ofNode: stepSym
                         when "Edge"
-                            collectedAttributes: s.attrs
+                            collectedAttributes: withDefaultAttributes s
                             ofEdge: stepSym
                         else
                             throw new Error "#{stepType}: unknown step type"
