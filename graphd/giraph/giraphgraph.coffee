@@ -454,6 +454,8 @@ class GiraphGraph extends StateMachineGraph
         # prepare some vocabularies
         qgraph = statemachine.qgraph
         assign = (result, sourceInQuery, data) ->
+            delete data.attrs unless data.attrs? and not _.isEmpty data.attrs
+            data = null unless data.id? or data.attrs?
             if sourceInQuery.name?
                 (result.names ?= {})[sourceInQuery.name] = data
                 for ref in sourceInQuery.refs
@@ -461,10 +463,10 @@ class GiraphGraph extends StateMachineGraph
             else if sourceInQuery.pos?
                 (result.walks[sourceInQuery.pos[0]] ?= [])[sourceInQuery.pos[1]] = data
         decodeAttributes = (attrs) =>
-            decodedAttrs = {}
+            decodedAttrs = null
             for aId,aV of attrs
                 prop = @codingSchema.properties[aId]
-                decodedAttrs[prop.name] = aV
+                (decodedAttrs ?= {})[prop.name] = aV
             decodedAttrs
         # find the terminal node
         tNode = null
@@ -479,18 +481,16 @@ class GiraphGraph extends StateMachineGraph
                 assign result, node.step.sourceInQuery,
                     id: matches.v[""]
                     attrs: decodeAttributes matches.v.a
-                if node.isInitial
-                    ret result
-                else
-                    continueYieldingSiblings = (result, ret) -> ret result
-                    # TODO not sure if this is also correct for return edges
-                    incomingEdgeIds = (node.walks_in ? []).concat (node.returns_in ? [])
-                    for wId in incomingEdgeIds
-                        continueYieldingSiblings = do (wId, matches, continueYieldingSiblings) ->
-                            (result, ret) ->
-                                w = qgraph.edges[wId]
-                                n = qgraph.nodes[w.source]
-                                for {p:path, m:subMatches} in matches.w[wId]
+                continueYieldingSiblings = (result, ret) -> ret result
+                incomingEdgeIds = (node.walks_in ? []).concat (node.returns_in ? [])
+                for wId in incomingEdgeIds
+                    continueYieldingSiblings = do (wId, matches, continueYieldingSiblings) ->
+                        (result, ret) ->
+                            w = qgraph.edges[wId]
+                            n = qgraph.nodes[w.source]
+                            w = qgraph.edges[w.walk] if w.walk? # handle return edges
+                            if (matchesForWalk = matches?.w?[w.id])?.length
+                                for {p:path, m:subMatches} in matchesForWalk
                                     for i in [1 .. w.steps.length-2] by 1
                                         m = path[i-1]
                                         assign result, w.steps[i].sourceInQuery,
@@ -498,7 +498,9 @@ class GiraphGraph extends StateMachineGraph
                                             attrs: decodeAttributes m?.a
                                     assignSubMatchesAndContinue result, subMatches, n,
                                         (result) -> continueYieldingSiblings result, ret
-                    continueYieldingSiblings result, ret
+                            else
+                                continueYieldingSiblings result, ret
+                continueYieldingSiblings result, ret
             assignSubMatchesAndContinue { walks: [] }, matches, tNode, emit
 
 exports.GiraphGraph = GiraphGraph

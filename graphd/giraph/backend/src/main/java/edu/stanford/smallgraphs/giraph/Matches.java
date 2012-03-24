@@ -94,7 +94,25 @@ public class Matches extends JSONWritable {
 	}
 
 	public Matches addMatchesReturned(int returnedFromWalk, Matches matches) {
-		return addPathWithMatchesArrived(returnedFromWalk, null, matches);
+		// transplant the matches returned to this matches
+		// 1. extract the list of path and matches for returnedFromWalk,
+		if (matches.pathWithMatchesByWalk != null) {
+			Collection<PathWithMatches> pms = matches.pathWithMatchesByWalk
+					.remove(returnedFromWalk);
+			if (matches.pathWithMatchesByWalk.size() == 0)
+				matches.pathWithMatchesByWalk = null;
+			// 2. make each of its matches for returnedFromWalk to the returned
+			// Matches
+			if (pms != null) {
+				for (PathWithMatches pm : pms)
+					pm.matches = matches;
+				// 3. attach the path and matches to this Matches
+				if (pathWithMatchesByWalk == null)
+					pathWithMatchesByWalk = Maps.newHashMap();
+				pathWithMatchesByWalk.put(returnedFromWalk, pms);
+			}
+		}
+		return this;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -119,6 +137,8 @@ public class Matches extends JSONWritable {
 		// first refine the base Matches to necessary walkIndices
 		Map<Integer, Collection<PathWithMatches>> partialPathWithMatchesByWalk = Maps
 				.newHashMap();
+		if (walkIndices.length > 0 && mInput.pathWithMatchesByWalk == null)
+			return Collections.emptyList();
 		for (int w : walkIndices) {
 			Collection<PathWithMatches> pms = mInput.pathWithMatchesByWalk
 					.get(w);
