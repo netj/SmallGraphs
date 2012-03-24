@@ -136,12 +136,20 @@ class StateMachineGraph extends BaseGraph
                 whenNode: symNode
                 satisfies: genConstraints s.step
                 then: collectAttributesOf "Node", symNode, s.step, symNodeAttrs, _.flatten [
-                    for w_initId in s.walks_out ? []
-                        w_init = qgraph.edges[w_initId]
-                        # TODO unless it has a corresponding return edge
-                        actionForWalkingOnEdge w_init, 0, symNode, 0,
-                            newMatchesAtNode: symNode
-                            andAttributes: if hasAttributes s.step then symNodeAttrs
+                    do ->
+                        walkIdsToStart =
+                            if s.returns_in?.length
+                                # if there're walks that we expect to return, only start them
+                                for r_iId in s.returns_in
+                                    qgraph.edges[r_iId].walk
+                            else
+                                # otherwise, we should simply initiate all outgoing walks
+                                s.walks_out ? []
+                        for w_initId in walkIdsToStart
+                            w_init = qgraph.edges[w_initId]
+                            actionForWalkingOnEdge w_init, 0, symNode, 0,
+                                newMatchesAtNode: symNode
+                                andAttributes: if hasAttributes s.step then symNodeAttrs
                 ]
         # TODO optimize out unnecessary foreach CompatibleMatchesWithMatches
         # Arrived messages
