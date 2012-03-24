@@ -75,9 +75,9 @@ public class RDFGraphTransformer {
 		// open dictionary
 		dictionaryCodec = new RDFDictionaryCodec(dictDir, false);
 		typePredicateId = dictionaryCodec
-				.encode(RDFDictionaryCodec.RDF_TYPE_PREDICATE_URI);
+				.encodeOrRegister(RDFDictionaryCodec.RDF_TYPE_PREDICATE_URI);
 		labelPredicateId = dictionaryCodec
-				.encode(RDFDictionaryCodec.RDF_LABEL_PREDICATE_URI);
+				.encodeOrRegister(RDFDictionaryCodec.RDF_LABEL_PREDICATE_URI);
 
 		// initialize BerkeleyDB
 		EnvironmentConfig envConfig = new EnvironmentConfig().setAllowCreate(

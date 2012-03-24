@@ -95,6 +95,7 @@ public class RDFDictionaryCodec {
 	private Long register(String uriString) {
 		Long id = counter++;
 		putLong(dictionaryUriToId, uriString, id);
+		putLong(dictionaryUriToId, "", counter);
 		putString(dictionaryIdToUri, id, uriString);
 		return id;
 	}
