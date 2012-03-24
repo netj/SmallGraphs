@@ -82,9 +82,11 @@ class StateMachineGraph extends BaseGraph
                 qgraph.nodes[s].step
             else
                 s
+        hasAttributes = (s) -> s.attrs? and s.attrs.length > 0
         collectAttributesOf = (stepType, stepSym, s, attrSym, body...) ->
             s = qgraph.nodes[s].step if typeof s == 'number'
-            if s.attrs? and s.attrs.length > 0
+            if hasAttributes s
+                null
                 let: attrSym
                 be:
                     switch stepType
@@ -124,7 +126,7 @@ class StateMachineGraph extends BaseGraph
                         withPath:
                             newPath: path
                             augmentedWithEdge: symEdge
-                            andAttributes: if eStep.attrs then symEdgeAttrs
+                            andAttributes: if hasAttributes eStep then symEdgeAttrs
                         withMatches: matches
         #  Start message
         addAction "individual", msgIdStart, "Start",
@@ -139,7 +141,7 @@ class StateMachineGraph extends BaseGraph
                         # TODO unless it has a corresponding return edge
                         actionForWalkingOnEdge w_init, 0, symNode, 0,
                             newMatchesAtNode: symNode
-                            andAttributes: if s.step.attrs then symNodeAttrs
+                            andAttributes: if hasAttributes s.step then symNodeAttrs
                 ]
         # TODO optimize out unnecessary foreach CompatibleMatchesWithMatches
         # Arrived messages
@@ -159,7 +161,12 @@ class StateMachineGraph extends BaseGraph
                 whenNode: symNode
                 satisfies: genConstraints s.step
                 then: collectAttributesOf "Node", symNode, s.step, symNodeAttrs, _.flatten [
-                    { rememberAttributes: symNodeAttrs, ofNode: symNode }
+                    if hasAttributes s.step
+                        null
+                        rememberAttributes: symNodeAttrs
+                        ofNode: symNode
+                    else
+                        []
                     foreach: symMatchesIn
                     in:
                         findAllConsistentMatches: s.joiningPaths ? 0
@@ -239,7 +246,7 @@ class StateMachineGraph extends BaseGraph
                         be:
                             newPath: symPath
                             augmentedWithNode: symNode
-                            andAttributes: if nStep.attrs then symNodeAttrs
+                            andAttributes: if hasAttributes nStep then symNodeAttrs
                         in: actionForWalkingOnEdge w, i, symNode, symPath2, symMatches
                     ]
         # we're done constructing the state machine
