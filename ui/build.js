@@ -1,7 +1,7 @@
 ({
     appDir: "src",
     baseUrl: ".",
-    dir: "gh-pages",
+    dir: "build",
     //Comment out the optimize line if you want
     //the code minified by UglifyJS
     optimize: "none",
