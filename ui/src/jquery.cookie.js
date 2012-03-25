@@ -1,1 +1,1 @@
-../jquery-cookie/jquery.cookie.js
+../lib/jquery-cookie/jquery.cookie.js

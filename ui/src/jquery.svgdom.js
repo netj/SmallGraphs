@@ -1,1 +1,1 @@
-../jquery-svg/jquery.svgdom.min.js
+../lib/jquery-svg/jquery.svgdom.min.js

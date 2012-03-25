@@ -1,18 +1,18 @@
-[submodule "ui/less.js"]
-	path = ui/less.js
+[submodule "ui/lib/requirejs"]
+	path = ui/lib/requirejs
+	url = git://github.com/jrburke/requirejs.git
+[submodule "ui/lib/less.js"]
+	path = ui/lib/less.js
 	url = git://github.com/cloudhead/less.js.git
-[submodule "ui/jquery-svg"]
-	path = ui/jquery-svg
+[submodule "ui/lib/jquery-svg"]
+	path = ui/lib/jquery-svg
 	url = git://github.com/apendleton/jquery-svg.git
-[submodule "ui/d3"]
-	path = ui/d3
+[submodule "ui/lib/d3"]
+	path = ui/lib/d3
 	url = git://github.com/mbostock/d3.git
-[submodule "ui/jquery-cookie"]
-	path = ui/jquery-cookie
+[submodule "ui/lib/jquery-cookie"]
+	path = ui/lib/jquery-cookie
 	url = git://github.com/carhartl/jquery-cookie
 [submodule "graphd/giraph/giraph"]
 	path = graphd/giraph/giraph
 	url = git://git.apache.org/giraph.git
-[submodule "ui/requirejs"]
-	path = ui/requirejs
-	url = git://github.com/jrburke/requirejs.git

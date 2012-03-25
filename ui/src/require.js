@@ -1,1 +1,1 @@
-../requirejs/require.js
+../lib/requirejs/require.js

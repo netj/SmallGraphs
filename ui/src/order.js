@@ -1,1 +1,1 @@
-../requirejs/order.js
+../lib/requirejs/order.js
