@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # import-rdf
-# Usage: import-rdf GRAPHDIR RDFFILE
+# Usage: import-rdf GRAPHDIR [RDFFILE]...
 # 
 # Import RDF files to the given GRAPHDIR.
 #
@@ -16,19 +16,13 @@ RDFUtilJar=${jars[0]}
 
 
 # process arguments
-[ $# -ge 2 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
+[ $# -ge 1 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
 GraphBase=$1; shift
-RDFNTriplesFile=$1; shift
 
 graphName=`basename "$GraphBase"`
 
 
-# uncompress input if needed
-case $RDFNTriplesFile in
-    *.gz)   gunzip ;;
-    *.bz2)  bunzip2 ;;
-    *)      cat ;;
-esac <"$RDFNTriplesFile" |
+cat -- "$@" |
 {
     mkdir -p "$GraphBase"/map
     cd "$GraphBase"

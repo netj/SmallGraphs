@@ -464,10 +464,14 @@ public class RDFGraphTransformer {
 
 	private void writeSetAsJSONArray(JSONWriter jsonWriter, Set<Long> set)
 			throws JSONException {
-		jsonWriter.array();
-		for (Long id : set)
-			jsonWriter.value(id);
-		jsonWriter.endArray();
+		if (set == null)
+			jsonWriter.value(null);
+		else {
+			jsonWriter.array();
+			for (Long id : set)
+				jsonWriter.value(id);
+			jsonWriter.endArray();
+		}
 	}
 
 	private Set<Long> getSet(Map<Long, Set<Long>> domainByEdge, long pId) {
