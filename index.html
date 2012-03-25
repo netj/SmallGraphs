@@ -1892,6 +1892,18 @@ function smallgraphsCompileSketchToQuery() {
   //// build a mapping from result data back to a diagram
   var resultMappings = [];
   function addResultMapping(i, j, obj) {
+    var schema;
+    if (obj.objectType != null && smallgraphsGraphSchema.Objects != null)
+      schema = smallgraphsGraphSchema.Objects[obj.objectType];
+    else if (obj.linkType != null && smallgraphsGraphSchema.Links != null)
+      schema = smallgraphsGraphSchema.Links[obj.linkType];
+    var getLabel;
+    if (schema != null && schema.Label != null)
+      getLabel = function(schema) {
+        return function(step) { return (step.attrs != null ? step.attrs[schema.Label] : step.id) || step.id; };
+      }(schema);
+    else
+      getLabel = function(step) { return step.label || step.id; };
     resultMappings.push(function(data, resultSVG) {
         var step = data.walks[i][j];
         if (step == null)
@@ -1899,7 +1911,7 @@ function smallgraphsCompileSketchToQuery() {
         if (typeof step == "string")
           step = data.names[step];
         var resultObj = $("#"+obj.id, resultSVG)[0];
-        $("text", resultObj).text(step.label || step.id);
+        $("text", resultObj).text(getLabel(step));
         // bind data to the DOM for later use
         // TODO use dataset API http://www.w3.org/TR/html5/elements.html#custom-data-attribute
         resultObj.data = step;
