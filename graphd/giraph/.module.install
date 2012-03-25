@@ -1,0 +1,8 @@
+giraphgraph.js                                          $BIGGRAPHDIR/giraph/
+
+# FIXME: use env var to share where to put jars in
+run-smallgraph-on-giraph                                $BIGGRAPHDIR/giraph/
+giraph/target/giraph-*-jar-with-dependencies.jar        $BIGGRAPHDIR/giraph/giraph/target/
+target/smallgraphs-giraph-*-jar-with-dependencies.jar   $BIGGRAPHDIR/giraph/target/
+
+import-rdf                                              $TOOLSDIR/biggraph-import-rdf-for-giraph

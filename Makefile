@@ -2,23 +2,29 @@
 # Author: Jaeho.Shin@Stanford.EDU
 # Created: 2011-12-08
 
+export BINDIR         := bin
+export LIBDIR         := lib
+export NODEMODULESDIR := $(LIBDIR)/node_modules
+export JARDIR         := $(LIBDIR)/java
+export SMALLGRAPHSDIR := smallgraphs
+export BIGGRAPHDIR    := biggraph
+export TOOLSDIR       := tools
+export DOCDIR         := doc
+
+STAGEDIR := dist
+include buildkit/modules.mk
+
+
 BUILD_DEPS := \
     coffee-script \
     jison \
-    #
-GRAPHD_DEPS := \
-    mysql \
-    underscore \
+    requirejs \
+    uglify-js \
     #
 
-.PHONY: all check-builddeps graphd
-# build everything
+.PHONY: check-builddeps
+
 all: check-builddeps
-	cd smallgraph && jison syntax.jison{,lex}
-	coffee -c .
-# TODO move these to separate targets
-	cd ./tools/rdfutil && mvn -q compile
-	cd ./graphd/giraph && mvn -q compile
 
 # check builddeps
 check-builddeps:
@@ -28,25 +34,16 @@ check-builddeps:
 	    for pkg in $(BUILD_DEPS); do echo " $$pkg"; done; \
 	    }
 
-# run graphd
-graphd: all graphd/node_modules
-	cd graphd && coffee graphd.coffee
-
-# install graphd dependencies locally
-graphd/node_modules:
-	mkdir -p $@
-	cd graphd && npm install $(GRAPHD_DEPS)
-	ln -sfn ../../smallgraph $@/
-
 publish: all
 	# prepare gh-pages/ directory
 	[ -d gh-pages ] || git clone --recursive --branch gh-pages git@github.com:netj/SmallGraphs.git gh-pages
 	# copy everything built here
 	rsync -avcR --delete --delete-excluded \
 	    --exclude=*.{coffee,jison{,lex}} --exclude=jquery-ui/development-bundle/ \
-	    {index.html,resource/,smallgraph/,jquery-ui/} \
+	    ui/{index.html,*.less,resource/,jquery-ui/} smallgraph/ \
 	    gh-pages/
 	# add some submodule git repos, and sync submodule version with the source
+	$(call publish-submodule,less.js,      git://github.com/cloudhead/less.js.git)
 	$(call publish-submodule,d3,           git://github.com/mbostock/d3.git)
 	$(call publish-submodule,jquery-svg,   git://github.com/apendleton/jquery-svg.git)
 	$(call publish-submodule,jquery-cookie,git://github.com/carhartl/jquery-cookie.git)

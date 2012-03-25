@@ -1,0 +1,2 @@
+*.js                        $BIGGRAPHDIR/
+node_modules/!(smallgraph)  $NODEMODULESDIR/

@@ -1,10 +1,9 @@
 .*.sw?
 .DS_Store
 *~
-
-/jquery-ui/development-bundle
-/graphd/node_modules
-*.js
 *.vim
 
-/gh-pages
+*.js
+
+/.build
+/dist

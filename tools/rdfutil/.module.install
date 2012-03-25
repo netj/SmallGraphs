@@ -1,0 +1,2 @@
+#biggraph-rdfutil                                           $TOOLSDIR/
+target/smallgraphs-rdfutil-*-jar-with-dependencies.jar      $JARDIR/

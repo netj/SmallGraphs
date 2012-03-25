@@ -1,3 +1,6 @@
+[submodule "buildkit"]
+	path = buildkit
+	url = git://github.com/netj/buildkit.git
 [submodule "ui/lib/requirejs"]
 	path = ui/lib/requirejs
 	url = git://github.com/jrburke/requirejs.git

@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 set -eu
 
+# compile CoffeeScript
 coffee -c src
 
 # convert CommonJS modules to AMD
 mkdir -p src/smallgraph
 r.js -convert ../smallgraph src/smallgraph
 
+## compile LESS stylesheet
+#lessc src/style.less src/style.css
+
 # optimize with Require.js
+rm -rf gh-pages
 r.js -o build.js

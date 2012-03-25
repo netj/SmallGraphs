@@ -1,0 +1,5 @@
+gh-pages/index.html                 $SMALLGRAPHSDIR/
+gh-pages/style.less                 $SMALLGRAPHSDIR/
+gh-pages/main.js                    $SMALLGRAPHSDIR/
+gh-pages/require.js                 $SMALLGRAPHSDIR/
+gh-pages/resource                   $SMALLGRAPHSDIR/
