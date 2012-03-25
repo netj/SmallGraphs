@@ -13,3 +13,6 @@
 [submodule "graphd/giraph/giraph"]
 	path = graphd/giraph/giraph
 	url = git://git.apache.org/giraph.git
+[submodule "ui/requirejs"]
+	path = ui/requirejs
+	url = git://github.com/jrburke/requirejs.git

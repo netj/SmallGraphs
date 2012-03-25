@@ -1,127 +1,14 @@
-<!DOCTYPE html>
-<html xmlns:svg="http://www.w3.org/2000/svg">
-  <head>
-    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
-    <title>SmallGraphs</title>
-    <script type="text/javascript" src="smallgraph/syntax.js"></script>
-    <script type="text/javascript" src="smallgraph/serialize.js"></script>
-    <script type="text/javascript" src="jquery-ui/js/jquery-1.6.2.min.js"></script>
-    <script type="text/javascript" src="jquery-ui/js/jquery-ui-1.8.16.custom.min.js"></script>
-    <link rel="stylesheet" type="text/css" href="jquery-ui/css/cupertino/jquery-ui-1.8.16.custom.css">
-    <script type="text/javascript" src="jquery-svg/jquery.svg.js"></script>
-    <script type="text/javascript" src="jquery-svg/jquery.svgdom.js"></script>
-    <script type="text/javascript" src="jquery-cookie/jquery.cookie.js"></script>
-    <script type="text/javascript" src="d3/d3.js"></script>
-    <link rel="stylesheet/less" type="text/css" href="smallgraphs.less">
-    <script src="less.js/dist/less-1.3.0.min.js" type="text/javascript"></script>
-  </head>
+require([
+        "order!jquery",
+        "smallgraph/main",
+        "d3.AMD",
+        "order!jquery-ui",
+        "order!jquery.svg",
+        "order!jquery.svgdom",
+        "order!jquery.cookie",
+        "order!less"
+        ], function($, smallgraph, d3) {
 
-  <body>
-    <div id="title">
-      <h1>SmallGraphs</h1>
-      <span id="graph-url-display"> of <span id="graph-url" class="ui-state-default">no graph. <span class="ui-state-error">Click here to enter a URL.</span></span></span>
-      <div id="subtitle">for searching motifs from a large graph</div>
-    </div>
-    <div id="tools">
-      <div id="query-tools">
-        <span id="query-mode">
-          <input type="radio" id="query-mode-sketch" name="query-mode" value="sketch" checked="checked"><label for="query-mode-sketch">Sketch</label>
-          <input type="radio" id="query-mode-layout" name="query-mode" value="layout"                  ><label for="query-mode-layout">Layout</label>
-          <!--<input type="radio" id="query-mode-pan"    name="query-mode" value="pan"                     ><label for="query-mode-pan"   >Pan   </label>-->
-        </span>
-        <button style="display:none;" id="query-constraint">Constraint</button>
-        <button id="query-aggregate">Aggregate</button>
-        <button id="query-order">Order</button>
-        <button id="query-run">Search!</button>
-      </div>
-      <div id="result-tools">
-        <button id="result-reorder">Reorder</button>
-        <button id="result-refine">Retry</button>
-      </div>
-    </div>
-
-    <div id="frame">
-      <h3 id="query-header"><a href="#query">Sketch Query</a></h3>
-      <div id="query">
-        <svg xmlns="http://www.w3.org/2000/svg" id="query-sketchpad">
-          <defs>
-            <marker id="arrowhead"
-              viewBox="0 0 10 10" refX="5" refY="5" 
-              markerUnits="strokeWidth"
-              markerWidth="4" markerHeight="3"
-              orient="auto">
-              <path d="M 0 0 L 10 5 L 0 10 Z"/>
-            </marker>
-          </defs>
-          <g id="query-sketch"/>
-          <g id="query-sketchpad-selectionbox"><rect/><text/></g>
-          <g id="query-sketchpad-phantom-node"><rect/><text/></g>
-        </svg>
-        <div id="query-type-entry" class="ui-widget">
-          <input type="text" id="query-type-input">
-        </div>
-      </div>
-
-      <h3 id="result-header"><a href="#result">See Results</a></h3>
-      <div id="result">
-        <div id="results"></div>
-        <div id="result-info">
-          <span id="result-stats"></span>
-          <button id="result-more">Get more...</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="dialogs">
-      <div id="progress-dialog" class="dialog">
-        <span class="description"></span>
-      </div>
-      <div id="error-dialog" class="dialog">
-        <span class="description"></span>
-      </div>
-      <div id="graph-url-dialog" class="dialog">
-        <label for="graph-url-input">URL: </label>
-        <input type="url" id="graph-url-input" size="42">
-        <span class="description">Enter a URL to a graph living in a <a href="https://github.com/netj/SmallGraphs/wiki/GraphD"><em>GraphD</em> server</a>.</span>
-      </div>
-      <div id="ordering-dialog" class="dialog">
-        <ul id="ordering-list">
-          <li class="ui-state-default">
-          <label for="order-0"></label>
-          <select class="ui-widget" id="order-0">
-            <option value="desc">9-&gt;0</option>
-            <option value="asc">0-&gt;9</option>
-          </select>
-          <a href="#" class="ui-corner-all" role="button"><span class="ui-icon ui-icon-closethick">remove</span></a>
-          </li>
-        </ul>
-        <span class="description"></span>
-      </div>
-      <div id="aggregation-dialog" class="dialog">
-        <ul id="aggregation-list">
-          <li class="ui-state-default" for="Quantitative"><label for="aggfn-0"></label>
-          <select id="aggfn-0">
-            <option>Sum</option>
-            <option>Count</option>
-            <option>MAX</option>
-            <option>min</option>
-          </select></li>
-          <li for="Ordinal"><label for="aggfn-1"></label>
-          <select id="aggfn-1">
-            <option>Count</option>
-            <option>MAX</option>
-            <option>min</option>
-          </select></li>
-          <li for="Nominal"><label for="aggfn-2"></label>
-          <select id="aggfn-2">
-            <option>Count</option>
-          </select></li>
-        </ul>
-        <span class="description"></span>
-      </div>
-    </div>
-
-    <script type="text/javascript">
 var SVGNameSpace = "http://www.w3.org/2000/svg";
 var MouseMoveThreshold = 5;
 var NodeWidth  = 40;//px
@@ -1473,9 +1360,8 @@ $(window)
   .bind("keydown",   sketchpadKeyDown)
   .bind("keyup",     sketchpadKeyUp)
   ;
-    </script>
 
-    <script type="text/javascript">
+
 ////////////////////////////////////////////////////////////////////////////////
 // query execution & result presentation
 ////////////////////////////////////////////////////////////////////////////////
@@ -1507,7 +1393,7 @@ function smallgraphsRunQuery() {
 function smallgraphsSendQuery(query, offset, msg) {
   var queryURL = smallgraphsGraphURL + "/query";
 
-  var sgq = "<pre>"+ smallgraphSerialize(query) +"</pre>";
+  var sgq = "<pre>"+ smallgraph.serialize(query) +"</pre>";
   if (msg == null) {
     if (offset == 0)
       msg = "Running at "+ queryURL +":<br>" + sgq;
@@ -1536,7 +1422,7 @@ function smallgraphsSendQuery(query, offset, msg) {
     queryURL = debugResultURL;
 
   // send it to server and get response
-  console.debug("sending query to "+ queryURL, "limiting range to "+ offset +"-"+ (offset+ResultPageSize), "\n"+ smallgraphSerialize(query), query, "\n"+ JSON.stringify(query));
+  console.debug("sending query to "+ queryURL, "limiting range to "+ offset +"-"+ (offset+ResultPageSize), "\n"+ smallgraph.serialize(query), query, "\n"+ JSON.stringify(query));
   ajaxHandle = $.ajax({
         type: 'POST',
         url: queryURL,
@@ -2023,9 +1909,8 @@ $("#frame").accordion({
 $("#query-tools").addClass("active");
 sketchpadPageLeft = sketchpad.offsetLeft + sketchpad.offsetParent.offsetLeft;
 sketchpadPageTop  = sketchpad.offsetTop  + sketchpad.offsetParent.offsetTop;
-    </script>
-  </body>
-</html>
-<!--
-vim:sw=2:sts=2
--->
+
+
+$("#loading-screen").remove();
+
+});

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+
+# compile grammar with Jison
+jison syntax.jison{,lex}
+#  and remove the useless main part
+sed '/^exports.main = /,/^}$/d;  /^if .* require.main === module/,/^}$/d' <syntax.js >syntax.without-main.js
+mv -f syntax.without-main.js syntax.js
+
+coffee -c .

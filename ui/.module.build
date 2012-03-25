@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -eu
+
+coffee -c src
+
+# convert CommonJS modules to AMD
+mkdir -p src/smallgraph
+r.js -convert ../smallgraph src/smallgraph
+
+# optimize with Require.js
+r.js -o build.js
