@@ -10,3 +10,6 @@
 [submodule "graphd/giraph/giraph"]
 	path = graphd/giraph/giraph
 	url = git://git.apache.org/giraph.git
+[submodule "less.js"]
+	path = less.js
+	url = git://github.com/cloudhead/less.js.git
