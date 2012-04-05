@@ -3365,6 +3365,7 @@ define('d3.AMD',['order!d3'], function() { return d3; });
         });
         $(".node, .edge", resultPrototype).removeClass("selected attribute invalid orderby-desc orderby-asc");
         $(".edge text", resultPrototype).remove();
+        $(".node text", resultPrototype).text("");
         smallgraphsCurrentResultPrototype = resultPrototype;
         dataOverview = {};
         dataColorIndex = 0;

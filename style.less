@@ -211,12 +211,12 @@ li .ui-icon {
   stroke-width: 2px;
   stroke-dasharray: 10,5;
 }
-.invalid.edge line {
+.invalid.edge path {
   opacity: 0.4;
   stroke-dasharray: 14,14;
 }
 
-.edge.drawing line {
+.edge.drawing path {
   /* XXX: no arrowhead seems more confusing :(
   marker-end: none; marker-end: url();
   */
@@ -224,11 +224,11 @@ li .ui-icon {
 
 #query-sketchpad .attribute.node:hover rect { stroke: #f63; }
 #query-sketchpad .node:hover rect { stroke: #900; }
-#query-sketchpad .edge:hover line { stroke: #039; }
+#query-sketchpad .edge:hover path { stroke: #039; }
 #query-sketchpad .node.selected:hover rect,
-#query-sketchpad .edge.selected:hover line { stroke: #090; }
+#query-sketchpad .edge.selected:hover path { stroke: #090; }
 #query-sketchpad .node.selected       rect,
-#query-sketchpad .edge.selected       line { fill: #3c3; stroke: #3c3; }
+#query-sketchpad .edge.selected       path { stroke: #3c3; }
 
 #query-sketchpad text { cursor: default; }
 
@@ -259,12 +259,14 @@ li .ui-icon {
   stroke-width: 1px;
 }
 #result-arrowhead,
-.result .edge line {
-  fill: #ccc;
+.result .edge path {
   stroke: #ccc;
   stroke-width: 2px;
 }
-.result .edge line {
+#result-arrowhead {
+  fill: #ccc;
+}
+.result .edge path {
   marker-end: url(#result-arrowhead);
 }
 
