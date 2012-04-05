@@ -268,15 +268,15 @@ require [
     y1 = if r < e.source.h then 0 else e.source.h * y2/r
     dx2 = (EdgeMarkerSize + e.target.w) * x2/r
     dy2 = (EdgeMarkerSize + e.target.h) * y2/r
-    # TODO adjust curvature based on the outedge index
-    curvature = 0.05
-    xm = x2 / 2
-    ym = y2 / 2
+    dratio = 0.2
+    curvature = 0.05 * e.degree # adjust curvature based on the outedge index
     dxm =   curvature * y2
     dym = - curvature * x2
+    xm = x2 / 2
+    ym = y2 / 2
     $("path", e).attr(
       d: "M#{x1} #{y1} Q #{xm+2*dxm} #{ym+2*dym}, #{
-        x2 - dx2 + 4*curvature*dy2}, #{y2 - dy2 - 4*curvature*dx2}"
+        x2 - dx2 + dratio*dy2}, #{y2 - dy2 - dratio*dx2}"
     )
     $("text", e).attr(
       x: xm+dxm, y: ym+dym
@@ -535,6 +535,8 @@ require [
       y2 = ty - this.sy
       if n? # pointing on a node
         e.target = n
+        e.degree = 1 + $(".edge", sketch).filter( ->
+          this != e and this.source == e.source and this.target == e.target).length
         # hide phantom node
         $(sketchpadPhantomNode).removeClass("active")
         $("rect", sketchpadPhantomNode).attr({ width : 0, height: 0 })
@@ -560,6 +562,7 @@ require [
             $(e).removeClass("invalid")
       else # not pointing on a node
         e.target = nullNode
+        e.degree = 1
         # calculate some length for displacing the phantom node from cursor
         r = Math.sqrt(x2*x2 + y2*y2)
         dx = x2/r * (NodeWidth /2 + EdgeMarkerSize)
@@ -593,6 +596,8 @@ require [
         $(e).remove()
       else if n? and not n.isAttributeNode # finish edge to the target
         e.target = n
+        e.degree = 1 + $(".edge", sketch).filter( ->
+          this != e and this.source == e.source and this.target == e.target).length
         allowedEdgeTypesToTarget = this.allowedEdgeTypesToTarget
         # ask user to choose type
         queryTypeEntryShow(
