@@ -1534,6 +1534,8 @@ require [
         .removeClass("selected attribute invalid orderby-desc orderby-asc")
       $(".edge text", resultPrototype)
         .remove()
+      $(".node text", resultPrototype)
+        .text("")
       # TODO adjust edge coords, or add an arrow-ending? updateEdgeCoordinates e, x2, y2
       smallgraphsCurrentResultPrototype = resultPrototype
       # from the query, derive a function for summarizing data for visual encodings

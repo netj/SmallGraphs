@@ -7,7 +7,7 @@ Here=`dirname "$Self"`
 cd "$Here"
 
 # make sure UI is built
-[ -d ../dist/smallgraphs ] || make -C ..
+make -C ..
 
 # prepare gh-pages/ directory
 [ -d gh-pages ] || git clone --branch gh-pages git@github.com:netj/SmallGraphs.git gh-pages
