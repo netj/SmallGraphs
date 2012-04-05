@@ -23,7 +23,7 @@ require [
   NodeRounding = 10#px
   EdgeMarkerSize = 12#px
   EdgeLabelLeft = 0#px
-  EdgeLabelTop  = 10#px
+  EdgeLabelTop  = 5#px
   EntryWidth  = 70/2#px
   EntryHeight = 25/2#px
 
@@ -268,12 +268,18 @@ require [
     y1 = if r < e.source.h then 0 else e.source.h * y2/r
     dx2 = (EdgeMarkerSize + e.target.w) * x2/r
     dy2 = (EdgeMarkerSize + e.target.h) * y2/r
-    $("line", e).attr(
-      x1: x1      , y1: y1
-      x2: x2 - dx2, y2: y2 - dy2
+    # TODO adjust curvature based on the outedge index
+    curvature = 0.05
+    xm = x2 / 2
+    ym = y2 / 2
+    dxm =   curvature * y2
+    dym = - curvature * x2
+    $("path", e).attr(
+      d: "M#{x1} #{y1} Q #{xm+2*dxm} #{ym+2*dym}, #{
+        x2 - dx2 + 4*curvature*dy2}, #{y2 - dy2 - 4*curvature*dx2}"
     )
     $("text", e).attr(
-      x : x2 / 2 , y : y2 / 2
+      x: xm+dxm, y: ym+dym
     )
 
   adjustEdgeLayout = (es...) ->
@@ -485,9 +491,8 @@ require [
         e.id = "e" + edgeId++
         e.source = n
         e.target = null
-        this.line = $(addToSketchpad "line",
-            x1: 0, y1: 0
-            x2: 0, y2: 0
+        this.line = $(addToSketchpad "path",
+            d: "M0 0"
           , e)
         this.label = $(addToSketchpad "text",
             dx: EdgeLabelLeft, dy: EdgeLabelTop

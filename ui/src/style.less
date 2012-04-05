@@ -186,18 +186,23 @@ li .ui-icon {
 #arrowhead {
   fill: #06c;
 }
-.edge line {
-  stroke: #06c;
-  opacity: 0.8;
-  stroke-width: 7px;
-  stroke-linecap: round;
-  marker-end: url(#arrowhead);
-}
-.edge text {
-  font-size: 0.8em;
-}
-.attribute.edge line {
-  stroke-width: 5px;
+.edge {
+  path {
+    stroke: #06c;
+    opacity: 0.8;
+    stroke-width: 7px;
+    stroke-linecap: round;
+    marker-end: url(#arrowhead);
+    fill: none;
+  }
+  text {
+    font-size: 0.8em;
+  }
+  &.attribute {
+    path {
+      stroke-width: 5px;
+    }
+  }
 }
 
 .invalid.node rect {
