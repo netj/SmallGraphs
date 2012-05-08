@@ -1,0 +1,24 @@
+{
+  "author": "Jaeho Shin <netj@cs.stanford.edu>",
+  "name": "SmallGraphs",
+  "description": "SmallGraphs and GraphD",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/netj/SmallGraphs.git"
+  },
+  "main": "graphd/graphd.js",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "eco": "1.0.3",
+    "requirejs": "1.0.8",
+    "jison": "0.3.6",
+    "underscore": "1.3.3",
+    "coffee-script": "1.3.1"
+  },
+  "optionalDependencies": {},
+  "engines": {
+    "node": "*"
+  }
+}

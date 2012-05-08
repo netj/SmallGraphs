@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -eu
 
-coffee -c *.coffee
-
-[ -d node_modules ] || npm install mysql underscore
+mkdir -p node_modules
 ln -sfn ../../smallgraph node_modules/
+npm install
+npm shrinkwrap
+
+coffee -c .

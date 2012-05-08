@@ -1,1 +1,2 @@
-*.js    $NODEMODULESDIR/smallgraph/
+package.json    $NODEMODULESDIR/smallgraph/
+*.js            $NODEMODULESDIR/smallgraph/

@@ -70,8 +70,8 @@ public abstract class BaseSmallGraphGiraphVertex
 		job.setVertexClass(getClass());
 		job.setVertexInputFormatClass(PropertyGraphJSONVertexInputFormat.class);
 		job.setVertexOutputFormatClass(PropertyGraphJSONVertexOutputFormat.class);
-		FileInputFormat.addInputPath(job, new Path(args[0]));
-		FileOutputFormat.setOutputPath(job, new Path(args[1]));
+		FileInputFormat.addInputPath(job.getInternalJob(), new Path(args[0]));
+		FileOutputFormat.setOutputPath(job.getInternalJob(), new Path(args[1]));
 		// job.getConfiguration().setLong(BaseSmallGraphGiraphVertex.SOURCE_ID,
 		// Long.parseLong(argArray[2]));
 		job.setWorkerConfiguration(Integer.parseInt(args[2]),

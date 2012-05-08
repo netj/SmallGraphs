@@ -1,0 +1,10 @@
+let n3 = user;
+let n2 = post;
+let n1 = text;
+let n4 = fan-page;
+walk $n3 -wrote-> $n2 -contains-text-> $n1 -contains-url-> url;
+walk $n4 -has-post-> $n2;
+aggregate $n1;
+aggregate $n2;
+aggregate $n3;
+aggregate $n4;

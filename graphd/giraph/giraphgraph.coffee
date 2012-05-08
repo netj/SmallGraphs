@@ -77,7 +77,7 @@ class GiraphGraph extends StateMachineGraph
         ]
         # FIXME end of debug
         #  TODO map types, node/edge URIs in query to long long int IDs
-        run = spawn "./giraph/run-smallgraph-on-giraph", [
+        run = spawn "#{__dirname}/run-smallgraph-on-giraph", [
             javaClassName
             @descriptor.hdfsPath
             @basepath

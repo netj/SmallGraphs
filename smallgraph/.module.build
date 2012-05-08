@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
+npm install
+
 # compile grammar with Jison
 jison syntax.jison{,lex}
 #  and remove the useless main part

@@ -15,7 +15,7 @@ class StateMachineGraph extends BaseGraph
         child = require "child_process"
         fs.writeFileSync "test.sgm", JSON.stringify sm, null, 2
         #console.log "test.sgm"
-        child.spawn "./test-view-sgm.sh", ["test.sgm"]
+        child.spawn "#{__dirname}/giraph/test/test-view-sgm.sh", ["test.sgm"]
         # FIXME end of debug
         @_runStateMachine sm, limit, offset, req, res, q
 

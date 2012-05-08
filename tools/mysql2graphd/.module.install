@@ -1,1 +1,1 @@
-mysql2graphd.coffee         $TOOLSDIR/
+mysql2graphd.js             $TOOLSDIR/graph-import-mysql-schema

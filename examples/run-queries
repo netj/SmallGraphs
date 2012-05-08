@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -x
+
+: ${graphd:=http://localhost:53411/query}
+limit=${1:-1000}
+offset=${2:-0}
+
+for q in *.sgq
+do
+    out=${q%.sgq}.json
+    ! [ -e $out ] || continue
+    #wget --tries=1 --timeout=0 -O $out "$graphd?limit=$limit&offset=$offset&q=`cat "$q"`"
+    curl --verbose --retry 0 --max-time 3600000 -o $out "$graphd?limit=$limit&offset=$offset&q=$(perl -pe's/([^-_.~A-Za-z0-9])/sprintf("%%%02X", ord($1))/seg' <$q)"
+done

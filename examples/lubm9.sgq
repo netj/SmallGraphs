@@ -1,0 +1,4 @@
+let n3 = Student;
+let n5 = Course;
+walk $n3 -advisor-> Faculty -teacherOf-> $n5;
+walk $n3 -takesCourse-> $n5;

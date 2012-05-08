@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -eu
+
+{
+echo "#!/usr/bin/env node"
+coffee -p mysql2graphd.coffee
+} >mysql2graphd.js
+chmod +x mysql2graphd.js

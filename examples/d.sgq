@@ -1,0 +1,5 @@
+let n0 = post;
+let n1 = text;
+walk $n0 -contains-text-> $n1 -contains-url-> url;
+aggregate $n0;
+aggregate $n1;

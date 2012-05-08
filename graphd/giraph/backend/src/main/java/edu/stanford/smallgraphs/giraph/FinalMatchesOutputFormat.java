@@ -10,7 +10,6 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.json.JSONArray;
 
 /**
  * VertexOutputFormat that supports {@link BaseSmallGraphGiraphVertex}

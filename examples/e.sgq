@@ -1,0 +1,7 @@
+let n1 = post;
+let n2 = text;
+let n3 = url;
+walk user -wrote-> $n1 -contains-text-> $n2 -contains-url-> $n3;
+aggregate $n1;
+aggregate $n2;
+aggregate $n3;

@@ -1,38 +1,33 @@
 # Makefile for SmallGraphs
-# Author: Jaeho.Shin@Stanford.EDU
+# Author: netj@cs.stanford.edu
 # Created: 2011-12-08
+
+PATH := $(PWD)/node_modules/.bin:$(PATH)
+export PATH
 
 export BINDIR         := bin
 export LIBDIR         := lib
-export NODEMODULESDIR := $(LIBDIR)/node_modules
 export JARDIR         := $(LIBDIR)/java
+export NODEMODULESDIR := $(LIBDIR)/node_modules
+export GRAPHDDIR      := $(NODEMODULESDIR)/graphd
 export SMALLGRAPHSDIR := smallgraphs
-export BIGGRAPHDIR    := biggraph
 export TOOLSDIR       := tools
 export DOCDIR         := doc
 
-STAGEDIR := dist
+STAGEDIR := @prefix@
 include buildkit/modules.mk
 
 
-BUILD_DEPS := \
-    coffee-script \
-    jison \
-    requirejs \
-    uglify-js \
-    #
+.PHONY: check-builddeps publish
 
-.PHONY: check-builddeps
-
-all: check-builddeps
+build: check-builddeps
 
 # check builddeps
 check-builddeps:
-	@type npm jison coffee >/dev/null || { \
-	    echo "Please install node.js from http://nodejs.org/#download"; \
-	    echo " and the following node packages with \`npm install -g ...\`:"; \
-	    for pkg in $(BUILD_DEPS); do echo " $$pkg"; done; \
-	    }
+	@npm install || { \
+	    echo "You need node.js and npm to build GraphD and SmallGraphs"; \
+	    false; \
+	    } >&2
 
 publish: all
 	# prepare gh-pages/ directory

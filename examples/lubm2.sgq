@@ -1,0 +1,4 @@
+let n0 = GradStudent;
+let n1 = Univ;
+walk $n0 -memberOf-> Dept -subOrgOf-> $n1;
+walk $n0 -undergradFrom-> $n1;

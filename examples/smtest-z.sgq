@@ -1,0 +1,5 @@
+let n0 = a;
+let n2 = c;
+walk $n0 -x-> b;
+walk $n0 -y-> $n2;
+walk d -z-> $n2;

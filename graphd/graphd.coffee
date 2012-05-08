@@ -1,6 +1,6 @@
 # configure some knobs
 _GraphDPort = 53411
-_GraphDirectoryPath = "graphs"
+_GraphDirectoryPath = process.cwd() # __dirname + "/graphs"
 
 
 {_} = require "underscore"
@@ -12,9 +12,8 @@ fs = require "fs"
 smallgraph = require "smallgraph"
 
 # factory method
-{MySQLGraph} = require "./mysqlgraph"
+{MySQLGraph} = require "./mysql/mysqlgraph"
 {GiraphGraph} = require "./giraph/giraphgraph"
-{GreenMarlGraph} = require "./green-marl/greenmarlgraph"
 loadGraph = (graphId) ->
     graphdPath = "#{_GraphDirectoryPath}/#{graphId}/graphd.json"
     basepath = path.dirname graphdPath
@@ -23,8 +22,6 @@ loadGraph = (graphId) ->
         return new MySQLGraph graphDescriptor.mysql, basepath
     else if graphDescriptor.giraph?
         return new GiraphGraph graphDescriptor.giraph, basepath
-    else if graphDescriptor.greenmarl?
-        return new GreenMarlGraph graphDescriptor.greenmarl, basepath
     else
         throw new Error "unknown graph type"
 

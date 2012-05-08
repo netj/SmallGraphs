@@ -1,3 +1,5 @@
-/target
-/**/target
-/backend/bin
+target
+/test/test.*
+!/test/test.sh
+!/test/hadoop.conf
+!/test/sgm-qgraph2dot

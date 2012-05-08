@@ -1,5 +1,5 @@
 _MySQL = require "mysql"
-{RelationalDataBaseGraph} = require "./rdbgraph"
+{RelationalDataBaseGraph} = require "../rdbgraph"
 
 class MySQLGraph extends RelationalDataBaseGraph
     constructor: (@descriptor) ->
