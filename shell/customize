@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# customize -- Substitute contents and names of given files
+# 
+# Usage:
+#   customize DEST [FILE...] <<RULES
+#   Name=Foo
+#   Version=1.0
+#   RULES
+# 
+#
+# Author: Jaeho Shin <netj@sparcs.org>
+# Created: 2009-12-18
+set -e
+
+Dest=$1; shift || { sed -n "2,/^#$/s/^# //p" <"$0"; exit; }
+
+[ $# -gt 0 ] || set -- *
+
+# prepare substitutions
+subst=`sed 's/:/\\\\:/g;  s/^/s:/; s/=/:/; s/$/:g/'`
+find "$@" -type f |
+while read -r f; do
+    [ -e "$f" ] || continue
+    # customize name
+    g=`sed "$subst" <<<"$f"`
+    h="$Dest/$g"
+    d=`dirname "$h"`
+    [ -d "$d" ] || mkdir -p "$d"
+    # customize contents
+    sed "$subst" <"$f" >"$h"
+    ! [ -x "$f" ] || chmod +x "$h"
+done

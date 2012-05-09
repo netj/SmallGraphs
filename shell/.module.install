@@ -1,0 +1,4 @@
+.build/graphd.sh    $BINDIR/graphd
+usage               $TOOLSDIR/
+error               $TOOLSDIR/
+customize           $TOOLSDIR/

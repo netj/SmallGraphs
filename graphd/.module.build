@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-set -eu
+set -eu; shopt -s extglob
 
-mkdir -p node_modules
-ln -sfn ../../smallgraph node_modules/
+mkdir -p .build/node_modules
+cd .build
+
+coffee -o . -c ../!(test*).coffee
+
+ln -f ../package.json
+ln -sfn ../../../smallgraph/.build node_modules/smallgraph
 npm install
 npm shrinkwrap
-
-coffee -c .

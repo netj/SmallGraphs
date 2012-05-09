@@ -9,9 +9,10 @@ export BINDIR         := bin
 export LIBDIR         := lib
 export JARDIR         := $(LIBDIR)/java
 export NODEMODULESDIR := $(LIBDIR)/node_modules
+export TOOLSDIR       := tools
 export GRAPHDDIR      := $(NODEMODULESDIR)/graphd
 export SMALLGRAPHSDIR := smallgraphs
-export TOOLSDIR       := tools
+export RUNDIR         := run
 export DOCDIR         := doc
 
 STAGEDIR := @prefix@

@@ -1,1 +1,1 @@
-*.js            $GRAPHDDIR/mysql/
+.build/*.js             $GRAPHDDIR/mysql/

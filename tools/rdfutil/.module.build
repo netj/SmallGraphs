@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 
-mvn -q compile
+mvn compile

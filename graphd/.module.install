@@ -1,4 +1,4 @@
-*.js                            $GRAPHDDIR/
-package.json                    $GRAPHDDIR/
-npm-shrinkwrap.json             $GRAPHDDIR/
-node_modules/!(smallgraph)      $NODEMODULESDIR/
+.build/*.js                         $GRAPHDDIR/
+.build/package.json                 $GRAPHDDIR/
+.build/npm-shrinkwrap.json          $GRAPHDDIR/
+.build/node_modules/!(smallgraph)   $NODEMODULESDIR/

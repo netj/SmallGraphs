@@ -2,5 +2,3 @@
 set -eu
 
 coffee -o .build -c *.coffee
-
-mvn compile

@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-set -eu
+set -eu; shopt -s extglob
 
-npm install
+mkdir -p .build
+cd .build
+
+# compile CoffeeScripts
+coffee -o . -c ../!(test*).coffee
 
 # compile grammar with Jison
-jison syntax.jison{,lex}
+jison -o syntax.js  ../syntax.jison{,lex}
 #  and remove the useless main part
 sed '/^exports.main = /,/^}$/d;  /^if .* require.main === module/,/^}$/d' <syntax.js >syntax.without-main.js
 mv -f syntax.without-main.js syntax.js
 
-coffee -c .
+# dependencies
+ln -f ../package.json
+npm install

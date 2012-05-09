@@ -6,7 +6,7 @@ coffee -c src
 
 # convert CommonJS modules to AMD
 mkdir -p src/smallgraph
-r.js -convert ../smallgraph src/smallgraph
+r.js -convert ../smallgraph/.build src/smallgraph
 
 ## compile LESS stylesheet
 #lessc src/style.less src/style.css
