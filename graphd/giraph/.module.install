@@ -1,4 +1,5 @@
 .build/*.js                                             $GRAPHDDIR/giraph/
+template                                                $GRAPHDDIR/giraph/
 
 # FIXME: use env var to share where to put jars in
 run-smallgraph-on-giraph                                $GRAPHDDIR/giraph/

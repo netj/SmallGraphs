@@ -1,0 +1,13 @@
+{
+  "mysql": {
+    "user": "PUT_MYSQL_USER_HERE",
+    "password": "PUT_MYSQL_PASSWORD_HERE",
+    "database": "PUT_MYSQL_DATABASE_NAME_HERE",
+    "host": "PUT_MYSQL_HOSTNAME_HERE",
+    "port": 3306,
+    "layout": {
+      "objects": {
+      }
+    }
+  }
+}

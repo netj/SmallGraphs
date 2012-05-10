@@ -1,0 +1,6 @@
+{
+  "giraph": {
+    "hdfsPath": "graphs/@GraphName@",
+    "codingSchemaPath": "codingSchema.json"
+  }
+}

@@ -22,6 +22,7 @@ export RUNDIR="$GRAPHD_HOME/@DATADIR@"
 export DOCDIR="$GRAPHD_HOME/@DOCDIR@"
 
 export PATH="$TOOLSDIR:$PATH"
+unset CDPATH
 export NODE_PATH="$GRAPHD_HOME/node_modules${NODE_PATH:+:$NODE_PATH}"
 
 

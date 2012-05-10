@@ -1,1 +1,2 @@
 .build/*.js             $GRAPHDDIR/mysql/
+template                $GRAPHDDIR/mysql/

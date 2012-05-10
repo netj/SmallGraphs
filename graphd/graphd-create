@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# graphd-create -- create a graph for GraphD
+# Usage: graphd create BACKEND NAME
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-09
+set -eu
+
+[ $# -eq 2 ] || usage "$0" "Need both BACKEND and NAME"
+
+Backend=$1; shift
+Name=$1; shift
+
+template="$GRAPHDDIR/$Backend/template"
+[ -d "$template" ] || usage "$0" "$Backend: Unknown BACKEND"
+
+mkdir -p "$Name"
+path=$(readlink -f "$Name")
+(
+cd "$template"
+customize "$path" . <<PARAMS
+@GraphName@=$Name
+@Backend@=$Backend
+PARAMS
+)
+echo "$Backend" >"$path/.graphd.backend"
