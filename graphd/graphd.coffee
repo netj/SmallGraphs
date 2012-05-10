@@ -1,6 +1,16 @@
-# configure some knobs
+# GraphD -- a property graph management system
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-09
+
+# default values for some configuration variables
 _GraphDPort = 53411
 _GraphDirectoryPath = process.cwd() # __dirname + "/graphs"
+
+# process arguments
+argv = process.argv
+if argv.length > 2
+    _GraphDPort = argv[2]
 
 
 {_} = require "underscore"

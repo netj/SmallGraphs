@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# graphd-stop -- stop the running GraphD for the current working directory
+# Usage: graphd stop
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-09
+set -eu
+
+if [ -r .graphd.pid ] && pid=$(cat .graphd.pid) && ps -- "$pid" >/dev/null; then
+    kill $pid
+    rm -f .graphd.pid
+else
+    error "no graphd running here"
+fi

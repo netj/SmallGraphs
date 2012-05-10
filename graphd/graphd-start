@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# graphd-start -- start GraphD for current working directory
+# Usage: graphd start [PORTNUM]
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-09
+set -eu
+
+if [ -r .graphd.pid ] && pid=$(cat .graphd.pid) && ps -- "$pid" >/dev/null; then
+    error "graphd already running as PID $pid"
+fi
+
+# load configuration
+GraphDPort=53411
+[ -r .graphd.port ] && GraphDPort=$(cat .graphd.port)
+
+# process arguments and save configuration
+if [ $# -gt 0 ]; then
+    GraphDPort=$1; shift
+    echo $GraphDPort >graphd.port
+fi
+
+touch .graphd.pid
+node "$NODEMODULESDIR"/graphd $GraphDPort &
+echo $! >.graphd.pid
