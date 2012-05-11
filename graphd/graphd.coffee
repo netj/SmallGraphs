@@ -37,118 +37,95 @@ loadGraph = (graphId) ->
         throw new Error "unknown graph type"
 
 graphsById = {}
-getGraph = (graphId) ->
-    g = graphsById[graphId]
-    unless g? # TODO compare timestamps for refreshing
-        graphsById[graphId] = g = loadGraph graphId
-    return g
+getGraph = (graphId, next) ->
+    setTimeout ->
+        try
+            g = graphsById[graphId]
+            unless g? # TODO compare timestamps for refreshing
+                graphsById[graphId] = g = loadGraph graphId
+            next(g)
+        catch err
+            next(null, err)
+    , 0
 
 
 app = express.createServer()
 
-app.configure( ->
+app.configure ->
     app.use express.logger()
     app.use express.methodOverride()
-    # TODO app.use express.bodyParser()
+    app.use express.bodyParser()
     app.use app.router
-)
 
-app.configure('development', ->
-    app.use express.static(__dirname + '/public')
+app.configure "development", ->
+    #app.use express.static(__dirname + "/public")
+    #app.error (err, req, res, next) ->
+    #    console.log err
+    #    switch err.code
+    #        when "ENOENT"
+    #            res.render "404.jade"
+    #        else
+    #            next(err)
     app.use express.errorHandler( dumpExceptions: true, showStack: true )
-)
 
-app.configure('production', ->
-    oneYear = 31557600000
-    app.use express.static(__dirname + '/public', { maxAge: oneYear })
+app.configure "production", ->
+    #oneYear = 31557600000
+    #app.use express.static(__dirname + "/public", { maxAge: oneYear })
     app.use express.errorHandler()
-)
 
+app.param "graphId", (req, res, next, id) ->
+    getGraph id, (g, err) ->
+        if err or not g?
+            #res.send 404
+            return next(new Error "Graph not found", err)
+        req.graph = g
+        next()
 
-app.all '/*', (req,res) ->
-        sendHeaders = (code, hdrs) ->
-            res.writeHead code,
-                _.extend {
-                    "Access-Control-Allow-Origin": "*"
-                    "Content-Type": "text/plain" # "application/json"
-                }, hdrs
-        sendError = (err) ->
-            console.error "<< #{new Date()}: " + err.stack
-            sendHeaders 500,
-                "Content-Type": "application/json"
-            res.end JSON.stringify err+""
-        try
-            console.log ">> #{new Date()}: handling #{req.method} request for #{req.url} from #{req.socket.remoteAddress+":"+req.socket.remotePort}"
-            # reply to OPTIONS request for cross origin AJAX
-            switch req.method
-                when 'OPTIONS'
-                    sendHeaders 200,
-                        "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
-                        "Access-Control-Allow-Headers": req.headers["access-control-request-headers"]
-                    res.end()
-                    return
-            # prepare the graph we'll be working on by parsing the URL
-            parsedURL = url.parse req.url, true
-            [__, graphId, command] = parsedURL.pathname.match(/^\/(.*)\/(schema|query)$/)
-            # TODO sanitize graphId (../, ...)
-            try
-                g = getGraph graphId
-            catch err
-                console.log "Cannot get graph '#{graphId}': " + err
-            unless g?
-                sendHeaders 404
-                res.end "Graph not available"
-                return
-            console.log ">>> #{command} for graph '#{graphId}'"
-            switch command
-                when 'schema' # /#{graphname}/schema GET
-                    # send schema of this graph for SmallGraphs UI
-                    sendHeaders 200
-                    res.end JSON.stringify g.schema
-                    return
-                when 'query' # /#{graphname}/query {POST,GET,OPTIONS}
-                    # process queries sketched from SmallGraphs UI on this graph
-                    sendResultOf = (queried, jsonIndent = 0) ->
-                        queried.on 'result', (result) ->
-                            clearInterval keepAliveInterval
-                            # XXX console.log (JSON.stringify result)
-                            res.end JSON.stringify result, null, jsonIndent
-                        queried.on 'error', (err) ->
-                            clearInterval keepAliveInterval
-                            sendError err
-                        req.once "close", queried.abort
-                        req.once "error", queried.abort
-                        res.once "error", queried.abort
-                        # send garbage back to keep the connection from dropping (WebKit drops it after 2 min)
-                        sendHeaders 200 # XXX can't we defer sending headers while keeping the connection alive?
-                        keepAlive = -> res.write " "
-                        keepAliveInterval = setInterval keepAlive, 10000
-                    switch req.method
-                        when 'POST'
-                            limit  = req.headers["smallgraphs-result-limit"] ? 100
-                            offset = req.headers["smallgraphs-result-offset"] ? 0
-                            rawQuery = ""
-                            req.on 'data', (chunk) ->
-                                rawQuery += chunk
-                            req.on 'end', ->
-                                query = JSON.parse rawQuery
-                                sendResultOf g.query query, limit, offset
-                            return
-                        when 'GET'
-                            queryString = parsedURL.query
-                            {q,limit,offset} = queryString
-                            q ?= ""
-                            limit  ?= 100
-                            offset ?= 0
-                            query = smallgraph.parse q
-                            sendResultOf (g.query query, limit, offset), 2
-                            return
-            # if this point is reached, request was not handled, so error should be returned
-            sendHeaders 400,
-                "Content-Type": "text/plain"
-            res.end "Unknown command: #{command}"
-        catch err
-            sendError err
+setupXHRResponse = (res) ->
+    res.header "Access-Control-Allow-Origin", "*"
+
+# reply to OPTIONS request for cross origin AJAX
+app.options "/*", (req, res) ->
+    res.writeHead 200,
+        "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
+        "Access-Control-Allow-Headers": req.headers["access-control-request-headers"]
+    res.end()
+
+# schema of graph for SmallGraphs UI
+app.all "/:graphId/schema", (req, res) ->
+    setupXHRResponse res
+    res.json req.graph.schema
+
+# process queries sketched from SmallGraphs UI on this graph
+app.all "/:graphId/query", (req, res, next) ->
+    # collect inputs
+    if req.is "json"
+        query = req.body
+        jsonIndent = 0
+    else # req.is "application/x-www-form-urlencoded" or ""
+        query = smallgraph.parse req.param("q")
+        jsonIndent = 2
+    limit  = req.param("SmallGraphs-Result-Limit", 100)
+    offset = req.param("SmallGraphs-Result-Offset", 0)
+    # run query and send results
+    queried = req.graph.query query, limit, offset
+    queried.on "result", (result) ->
+        #clearInterval keepAliveInterval
+        setupXHRResponse res
+        res.contentType "application/json"
+        res.send JSON.stringify result, null, jsonIndent
+    queried.on "error", (err) ->
+        #clearInterval keepAliveInterval
+        next(err)
+    req.once "close", queried.abort
+    req.once "error", queried.abort
+    res.once "error", queried.abort
+    # send garbage back to keep the connection from dropping (WebKit drops it after 2 min)
+    #res.writeHead 200 # XXX can't we defer sending headers while keeping the connection alive?
+    #keepAlive = -> res.write " "
+    #keepAliveInterval = setInterval keepAlive, 10000
+
 
 app.listen _GraphDPort, ->
     console.log "graphd: running at http://%s:%d/", app.address().address, app.address().port
+
