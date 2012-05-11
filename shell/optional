@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# optional -- try given command if exists, otherwise it's okay to skip
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-10
+set -eu
+
+if ! type "$1" &>/dev/null; then
+    exit 127
+fi
+
+exec "$@"

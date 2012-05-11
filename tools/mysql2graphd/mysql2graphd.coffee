@@ -104,7 +104,7 @@ input.join ->
                             table: linktable
                             joinOn: s_fkey.field
 
-    console.log JSON.stringify { mysql: { layout: { objects: objects } } }, null, 2
+    console.log JSON.stringify { objects: objects }, null, 2
 
 process.stdin.resume()
 process.stdin.setEncoding 'utf8'

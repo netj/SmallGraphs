@@ -1,2 +1,3 @@
 .build/*.js             $GRAPHDDIR/mysql/
 template                $GRAPHDDIR/mysql/
+graphd-init@mysql       $TOOLSDIR/

@@ -1,10 +1,15 @@
 {_} = require "underscore"
+fs = require "fs"
 
 {BaseGraph} = require "./basegraph"
 
 class RelationalDataBaseGraph extends BaseGraph
-    constructor: (@descriptor) ->
-        super
+    constructor: (@descriptor, @basepath) ->
+        super @basepath
+        unless @descriptor.layout? or @descriptor.layoutPath?
+            throw new Error "layout or layoutPath are required for the graph descriptor"
+        if @descriptor.layoutPath? and not @descriptor.layout?
+            @descriptor.layout = JSON.parse (fs.readFileSync "#{@basepath}/#{@descriptor.layoutPath}")
         # populate schema from the RDB layout
         schema = @schema
         for objName, objLayout of @descriptor.layout.objects

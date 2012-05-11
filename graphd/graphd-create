@@ -6,7 +6,7 @@
 # Created: 2012-05-09
 set -eu
 
-[ $# -eq 2 ] || usage "$0" "Need both BACKEND and NAME"
+[ $# -ge 2 ] || usage "$0" "Need both BACKEND and NAME"
 
 Backend=$1; shift
 Name=$1; shift
@@ -15,12 +15,14 @@ template="$GRAPHDDIR/$Backend/template"
 [ -d "$template" ] || usage "$0" "$Backend: Unknown BACKEND"
 
 mkdir -p "$Name"
-path=$(readlink -f "$Name")
-(
-cd "$template"
-customize "$path" . <<PARAMS
+cd "$Name"
+
+# initialize common skeleton
+customize "$template" <<-PARAMS
 @GraphName@=$Name
 @Backend@=$Backend
 PARAMS
-)
-echo "$Backend" >"$path/.graphd.backend"
+echo "$Backend" >.graphd.backend
+
+# more initialization
+backend-specific graphd-init "$@"

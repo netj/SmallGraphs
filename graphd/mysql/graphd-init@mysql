@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# graphd-init@mysql -- initialize a MySQL-backed graph
+# Usage: graphd create mysql NAME DBNAME USER PASSWD [HOST [PORT]]
+# 
+# Usage: graphd init              DBNAME USER PASSWD [HOST [PORT]]
+# 
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-10
+set -eu
+
+[ $# -ge 3 ] || usage "$0" "Arguments DBNAME, USER, PASSWD are required"
+DBName=$1; shift
+Username=$1; shift
+Password=$1; shift
+Host=localhost
+Port=3306
+[ $# -eq 0 ] || { Host=$1; shift; }
+[ $# -eq 0 ] || { Port=$1; shift; }
+
+customize . graphd.json <<PARAMS
+@MYSQL_USER@=$Username
+@MYSQL_PASSWORD@=$Password
+@MYSQL_DATABASE_NAME@=$DBName
+@MYSQL_HOST@=$Host
+@MYSQL_PORT@=$Port
+PARAMS
+
+! [ -e rdbLayout.json ] || mv -f rdbLayout.json rdbLayout.json~
+mysqldump --no-data --host=$Host --port=$Port -u$Username -p$Password $DBName |
+mysql2graphd >rdbLayout.json
+
+echo "rdbLayout.json: derived from MySQL database $DBName at $Host:$Port"

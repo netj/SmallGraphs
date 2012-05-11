@@ -1,1 +1,1 @@
-.build/mysql2graphd.js          $TOOLSDIR/graphd-import-mysql-schema
+.build/mysql2graphd.js          $TOOLSDIR/mysql2graphd

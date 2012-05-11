@@ -10,7 +10,7 @@ class GiraphGraph extends StateMachineGraph
         super @descriptor, @basepath
         d = @descriptor
         unless d.hdfsPath? and d.codingSchemaPath?
-            throw new Error "hdfsPath, codingSchemaPath, ... are required for the graph descriptor"
+            throw new Error "hdfsPath, codingSchemaPath are required for the graph descriptor"
 
         # populate schema from codingSchema
         @codingSchema = JSON.parse (fs.readFileSync "#{@basepath}/#{d.codingSchemaPath}")

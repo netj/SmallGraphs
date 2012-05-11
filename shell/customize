@@ -2,7 +2,14 @@
 # customize -- Substitute contents and names of given files
 # 
 # Usage:
-#   customize DEST [FILE...] <<RULES
+#   # when DEST is . and simply want everything customized under TEMPLATEDIR
+#   customize TEMPLATEDIR <<RULES
+#   Name=Foo
+#   Version=1.0
+#   RULES
+# 
+#   # or, you provide a DEST path with paths of template files relative to .
+#   customize DEST [TEMPLATEPATH...] <<RULES
 #   Name=Foo
 #   Version=1.0
 #   RULES
@@ -12,9 +19,15 @@
 # Created: 2009-12-18
 set -e
 
-Dest=$1; shift || { sed -n "2,/^#$/s/^# //p" <"$0"; exit; }
-
-[ $# -gt 0 ] || set -- *
+usage() { sed -n "2,/^#$/s/^# //p" <"$0"; exit; }
+if [ $# -eq 1 ]; then
+    Dest=`readlink -f .`
+    cd "$1"
+    set -- .
+else
+    Dest=$1; shift || usage
+    [ $# -gt 0 ] || set -- *
+fi
 
 # prepare substitutions
 subst=`sed 's/:/\\\\:/g;  s/^/s:/; s/=/:/; s/$/:g/'`
@@ -27,6 +40,7 @@ while read -r f; do
     d=`dirname "$h"`
     [ -d "$d" ] || mkdir -p "$d"
     # customize contents
-    sed "$subst" <"$f" >"$h"
-    ! [ -x "$f" ] || chmod +x "$h"
+    sed "$subst" <"$f" >"$h.$$~"
+    ! [ -x "$f" ] || chmod +x "$h.$$~"
+    mv -f "$h.$$~" "$h"
 done

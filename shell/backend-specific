@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# backend-specific -- invoke a backend specific command for the current graph
+# Usage: backend-specific COMMAND [ARG...]
+#
+# Author: Jaeho Shin <netj@cs.stanford.edu>
+# Created: 2012-05-10
+set -eu
+
+[ $# -gt 0 ] || usage "$0" "No COMMAND given"
+
+if [ -r .graphd.backend ] && Backend=$(cat .graphd.backend); then
+    Cmd=$1; shift
+    if type "$Cmd@$Backend" &>/dev/null; then
+        exec "$Cmd@$Backend" "$@"
+    else
+        error "$Cmd: not available for $Backend backend"
+    fi
+else
+    error "PWD is not a graph or cannot determine its backend"
+fi

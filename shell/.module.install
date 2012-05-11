@@ -2,3 +2,5 @@
 usage               $TOOLSDIR/
 error               $TOOLSDIR/
 customize           $TOOLSDIR/
+optional            $TOOLSDIR/
+backend-specific    $TOOLSDIR/
