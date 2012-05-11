@@ -1,0 +1,188 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+
+use Digest::SHA1 qw(sha1_hex);
+
+unless (@ARGV) {
+    print "nt2sql -- convert NTriples to SQL\n";
+    print "Usage: nt2sql NTRIPLESFILE\n";
+    exit 1;
+}
+
+my $ntfilename = shift @ARGV;
+open my $ntfile, "<", $ntfilename
+    or die "$ntfilename: No such file: $!";
+
+our $RDF_TYPE_URI = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>";
+our $RDF_LABEL_URI = "<http://www.w3.org/2000/01/rdf-schema#label>";
+our $IdType = "BIGINT";
+our $LabelType = "TEXT";
+
+my $lastSubj;
+my $lastPred;
+
+sub sqlName {
+    my $name = shift;
+    if ($name =~ /^<(.*)>$/) {
+        $name = $1;
+    }
+    $name =~ s/[^A-Za-z0-9_]/_/g;
+    return $name;
+}
+
+sub sha1sum {
+    my $hex = sha1_hex(@_);
+    return hex(substr $hex, 0, 8);
+}
+
+sub esc {
+    my $s = shift;
+    if ($s =~ /^"(.*)"(\^\^\S+?)?(@..)?$/) {
+        # drop literal type and lang code
+        $s = $1;
+    }
+    $s =~ s/'/''/g;
+    return $s;
+}
+sub escURI {
+    my $s = shift;
+    if ($s =~ /^<(.*)>$/) {
+        # drop literal type and lang code
+        $s = $1;
+    }
+    $s =~ s/'/''/g;
+    return $s;
+}
+
+sub resolveNS {
+    my $uri = shift;
+    return $uri;
+    if ($uri =~ /^(\w+):(.*)$/) {
+        # TODO handle namespace prefix
+        return $uri;
+    } else {
+        # <URI> or "literal"^^xsd:string@en
+        return $uri;
+    }
+}
+
+sub scan {
+    my $iter = shift;
+    seek $ntfile, 0, 0; 
+    while (my $line = <$ntfile>) {
+        chomp $line;
+        $line =~ s/\s*\.\s*$//;
+        my @args = map {resolveNS($_)} (split /\s+/, $line, 3);
+        shift @args until $args[0];
+        unshift @args, $lastPred if @args == 1;
+        unshift @args, $lastSubj if @args == 2;
+        my ($s, $p, $o) = @args;
+        $iter->(@args);
+        $lastSubj = $s;
+        $lastPred = $p;
+    }
+}
+
+sub printCreate {
+    my $tableName = shift;
+    my $fields = shift;
+    printf "DROP TABLE IF EXISTS `%s`;\n", $tableName;
+    printf "CREATE TABLE `%s` (\n", $tableName;
+    my $fn = 0;
+    for my $field (@$fields) {
+        printf ",\n" if $fn++;
+        printf "  `%s` %s", $field->[0], $field->[1];
+    }
+    for my $c (@_) {
+        printf ",\n" if $fn++;
+        printf "  %s", $c;
+    }
+    printf "\n);\n"
+}
+
+my $id = {};
+my $typeCreated = {};
+my $types = {};
+my $fieldCreated = {};
+
+# start with some MySQL directives
+print '
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE=\'+00:00\' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE=\'NO_AUTO_VALUE_ON_ZERO\' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+';
+
+# first pass to find all nodes
+scan(sub {
+        my ($s, $p, $o) = @_;
+        if ($p eq "a" or $p eq $RDF_TYPE_URI) {
+            return if exists $id->{$s};
+            $id->{$s} = sha1sum($s);
+            unless (exists $typeCreated->{$o}) {
+                printCreate(sqlName($o),
+                    [["id", $IdType], ["uri", $LabelType]],
+                    "PRIMARY KEY (`id`)"
+                );
+                $typeCreated->{$o} = 1;
+            }
+            printf "INSERT INTO `%s` VALUES ('%s', '%s');\n", sqlName($o), $id->{$s}, escURI($s);
+            # remember subject type for later use
+            $types->{$id->{$s}} = $o;
+        }
+    });
+
+# second pass to find all edges
+scan(sub {
+        my ($s, $p, $o) = @_;
+        return if $p eq "a" or $p eq $RDF_TYPE_URI;
+        if (exists $id->{$s} and exists $id->{$o}) {
+            unless (exists $typeCreated->{$p}) {
+                my $srcType = $types->{$id->{$s}};
+                my $dstType = $types->{$id->{$o}};
+                printCreate(sqlName($p),
+                    [["src", $IdType], ["dst", $IdType]],
+                    # XXX assuming a single domain/range type for links
+                    (sprintf "CONSTRAINT FOREIGN KEY (`src`) REFERENCES `%s` (`id`)", sqlName($srcType)),
+                    (sprintf "CONSTRAINT FOREIGN KEY (`dst`) REFERENCES `%s` (`id`)", sqlName($dstType))
+                );
+                $typeCreated->{$p} = [$srcType, $dstType];
+            }
+            # print only when both subject and object nodes are identified
+            printf "INSERT INTO `%s` VALUES ('%s', '%s');\n", sqlName($p), $id->{$s}, (exists $id->{$o} ? $id->{$o} : esc($o));
+        }
+    });
+
+
+# third pass to find all edges to literal nodes (i.e. attributes)
+scan(sub {
+        my ($s, $p, $o) = @_;
+        return if $p eq "a" or $p eq $RDF_TYPE_URI;
+        #return if exists $typeCreated->{$p} and defined $typeCreated->{$p}->[1];
+        if (exists $id->{$s} and $o !~ /^<.*>$/) { # not exists $id->{$o}) {
+            my $srcType = $types->{$id->{$s}};
+            my $fieldName = ($p eq $RDF_LABEL_URI) ? "label" : sqlName($p);
+            unless (exists $fieldCreated->{$srcType}->{$p}) {
+                my $dstType = ($o =~ /^\d+$/) ? "BIGINT" : $LabelType;
+                printf "ALTER TABLE `%s` ADD `%s` $dstType DEFAULT NULL;\n", sqlName($srcType), $fieldName;
+                ($fieldCreated->{$srcType} ||= {})->{$p} = 1;
+            }
+            # print only when both subject and object nodes are identified
+            printf "UPDATE `%s` SET `%s`='%s' WHERE `id`=%s;\n",
+                sqlName($srcType),
+                $fieldName, (exists $id->{$o} ? $id->{$o} : esc($o)),
+                $id->{$s};
+        } else {
+            warn "unknown node: $s" unless exists $id->{$s};
+        }
+    });
+

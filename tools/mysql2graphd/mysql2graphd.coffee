@@ -51,8 +51,7 @@ input.lines.forEach (line) ->
                 field: m[1]
                 reftable: m[2]
                 reffield: m[3]
-            foreignKeys[tableName] ?= []
-            foreignKeys[tableName].push fkey
+            (foreignKeys[tableName] ?= []).push fkey
             # we dont think keys are attrs
             delete attrs[fkey.field]
         else if m = /`([^`]+)` (\w+)/.exec line
@@ -78,31 +77,32 @@ input.lines.forEach (line) ->
 input.join ->
     # find multiple foreign keys from a table
     for table,fkeys of foreignKeys
-        if fkeys.length == 1
-            fkey = fkeys[0]
-            s_obj = objects[table]
-            t_obj = objects[fkey.reftable]
-            if s_obj? and t_obj.id.field == fkey.reffield
-                s_obj.links["to-" + t_obj.id.table] =
-                    to: t_obj.id.table
-                    field: fkey.field
-        else if fkeys.length > 1
-            for i in [0 .. fkeys.length-2]
-                for j in [i+1 .. fkeys.length-1]
-                    s_fkey = fkeys[i]
-                    t_fkey = fkeys[j]
-                    linktable = s_fkey.table # == t_fkey.table
-                    s_obj = objects[s_fkey.reftable]
-                    t_obj = objects[t_fkey.reftable]
-                    if   s_obj.id.table == s_fkey.reftable and
-                         s_obj.id.field == s_fkey.reffield and
-                         t_obj.id.table == t_fkey.reftable and
-                         t_obj.id.field == t_fkey.reffield
-                        s_obj.links[linktable] =
-                            to: t_fkey.reftable
-                            field: t_fkey.field
-                            table: linktable
-                            joinOn: s_fkey.field
+        s_obj = objects[table]
+        if (a for a of s_obj?.attrs)?.length > 0
+            # generate links to each foreign tables, treating this table as a node
+            for fkey in fkeys
+                t_obj = objects[fkey.reftable]
+                if s_obj? and t_obj.id.field == fkey.reffield
+                    s_obj.links["to-" + t_obj.id.table] =
+                        to: t_obj.id.table
+                        field: fkey.field
+        # generate links from multiple foreign key relationships, treating this table as an edge
+        for i in [0 .. fkeys.length-2]
+            for j in [i+1 .. fkeys.length-1]
+                s_fkey = fkeys[i]
+                t_fkey = fkeys[j]
+                linktable = s_fkey.table # == t_fkey.table
+                s_obj = objects[s_fkey.reftable]
+                t_obj = objects[t_fkey.reftable]
+                if   s_obj?.id.table == s_fkey.reftable and
+                     s_obj?.id.field == s_fkey.reffield and
+                     t_obj?.id.table == t_fkey.reftable and
+                     t_obj?.id.field == t_fkey.reffield
+                    s_obj.links[linktable] =
+                        to: t_fkey.reftable
+                        field: t_fkey.field
+                        table: linktable
+                        joinOn: s_fkey.field
 
     console.log JSON.stringify { objects: objects }, null, 2
 
