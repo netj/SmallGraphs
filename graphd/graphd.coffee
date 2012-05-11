@@ -14,6 +14,7 @@ if argv.length > 2
 
 
 {_} = require "underscore"
+express = require "express"
 path = require "path"
 http = require "http"
 url = require "url"
@@ -35,7 +36,6 @@ loadGraph = (graphId) ->
     else
         throw new Error "unknown graph type"
 
-
 graphsById = {}
 getGraph = (graphId) ->
     g = graphsById[graphId]
@@ -43,7 +43,29 @@ getGraph = (graphId) ->
         graphsById[graphId] = g = loadGraph graphId
     return g
 
-http.createServer (req,res) ->
+
+app = express.createServer()
+
+app.configure( ->
+    app.use express.logger()
+    app.use express.methodOverride()
+    # TODO app.use express.bodyParser()
+    app.use app.router
+)
+
+app.configure('development', ->
+    app.use express.static(__dirname + '/public')
+    app.use express.errorHandler( dumpExceptions: true, showStack: true )
+)
+
+app.configure('production', ->
+    oneYear = 31557600000
+    app.use express.static(__dirname + '/public', { maxAge: oneYear })
+    app.use express.errorHandler()
+)
+
+
+app.all '/*', (req,res) ->
         sendHeaders = (code, hdrs) ->
             res.writeHead code,
                 _.extend {
@@ -128,6 +150,5 @@ http.createServer (req,res) ->
         catch err
             sendError err
 
-    .listen _GraphDPort
-
-console.log "#{new Date()}: graphd running on port #{_GraphDPort}"
+app.listen _GraphDPort, ->
+    console.log "graphd: running at http://%s:%d/", app.address().address, app.address().port
