@@ -15,6 +15,8 @@ export SMALLGRAPHSDIR := smallgraphs
 export RUNDIR         := run
 export DOCDIR         := doc
 
+#PACKAGEEXECUTES:=bin/graphd
+
 STAGEDIR := @prefix@
 include buildkit/modules.mk
 
@@ -28,7 +30,8 @@ check-builddeps:
 	@npm install || { \
 	    echo "You need node.js and npm to build GraphD and SmallGraphs"; \
 	    false; \
-	    } >&2
+	    } >&2 \
+	    #
 
 publish: all
 	# prepare gh-pages/ directory
