@@ -1,9 +1,11 @@
 {EventEmitter} = require "events"
+path = require "path"
 smallgraph = require "smallgraph"
 
 
 class BaseGraph
     constructor: (@basepath) ->
+        @id = path.basename @basepath
         # skeleton schema
         @schema =
             Namespaces:

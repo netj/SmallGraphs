@@ -4,8 +4,8 @@ fs = require "fs"
 {BaseGraph} = require "./basegraph"
 
 class RelationalDataBaseGraph extends BaseGraph
-    constructor: (@descriptor, @basepath) ->
-        super @basepath
+    constructor: (@descriptor, args...) ->
+        super args...
         unless @descriptor.layout? or @descriptor.layoutPath?
             throw new Error "layout or layoutPath are required for the graph descriptor"
         if @descriptor.layoutPath? and not @descriptor.layout?

@@ -15,6 +15,7 @@ if argv.length > 2
 
 {_} = require "underscore"
 express = require "express"
+coffeekup = require "coffeekup"
 path = require "path"
 http = require "http"
 url = require "url"
@@ -25,37 +26,76 @@ smallgraph = require "smallgraph"
 # factory method
 {MySQLGraph} = require "./mysql/mysqlgraph"
 {GiraphGraph} = require "./giraph/giraphgraph"
-loadGraph = (graphId) ->
-    graphdPath = "#{_GraphDirectoryPath}/#{graphId}/graphd.json"
-    basepath = path.dirname graphdPath
-    graphDescriptor = JSON.parse fs.readFileSync graphdPath
-    if graphDescriptor.mysql?
-        return new MySQLGraph graphDescriptor.mysql, basepath
-    else if graphDescriptor.giraph?
-        return new GiraphGraph graphDescriptor.giraph, basepath
+
+failWith = (fail, succ) -> (err, args...) ->
+    if err
+        fail(err)
     else
-        throw new Error "unknown graph type"
-
-graphsById = {}
-getGraph = (graphId, next) ->
-    setTimeout ->
         try
-            g = graphsById[graphId]
-            unless g? # TODO compare timestamps for refreshing
-                graphsById[graphId] = g = loadGraph graphId
-            next(g)
-        catch err
-            next(null, err)
-    , 0
+            succ(args...)
+        catch err2
+            fail(err2)
 
+class GraphManager
+    constructor: (@basepath) ->
+    load: (graphId, done) ->
+        basepath = "#{@basepath}/#{graphId}"
+        graphDescriptorPath =  "#{basepath}/graphd.json"
+        fs.readFile graphDescriptorPath, failWith done, (json) ->
+            graphDescriptor = JSON.parse json
+            if graphDescriptor.mysql?
+                done null, new MySQLGraph graphDescriptor.mysql, basepath
+            else if graphDescriptor.giraph?
+                done null, new GiraphGraph graphDescriptor.giraph, basepath
+            else
+                done new Error "unknown graph type"
+    graphsById: {}
+    get: (graphId, done) ->
+        setTimeout =>
+            g = @graphsById[graphId]
+            if g? # TODO compare timestamps for refreshing
+                done(null, g)
+            else
+                @load graphId, failWith done, (g) =>
+                    @graphsById[graphId] = g
+                    done(null, g)
+        , 0
+    list: (done) ->
+        find = (path, done) =>
+            fs.readdir "#{@basepath}/#{path}", failWith done, (files) =>
+                graphs = []
+                i = 0
+                next = () =>
+                    if i == files.length
+                        return done(null, graphs)
+                    f = files[i++]
+                    p = "#{path}#{f}"
+                    fs.stat "#{@basepath}/#{p}/graphd.json", failWith next, (stat) =>
+                        if stat?.isDirectory()
+                            find "#{p}/", failWith done, (moreGraphs) ->
+                                graphs.append moreGraphs
+                                next()
+                        else
+                            @get p, failWith next, (g) ->
+                                graphs.push g
+                                next()
+                next()
+        find "", done
 
+graphManager = new GraphManager _GraphDirectoryPath
+
+## ExpressJS server
 app = express.createServer()
 
 app.configure ->
+    app.set "views", "#{__dirname}/views"
+    app.set "view engine", "coffee"
+    app.register ".coffee", coffeekup.adapters.express
     app.use express.logger()
     app.use express.methodOverride()
     app.use express.bodyParser()
     app.use app.router
+    app.use express.static "#{process.env.GRAPHD_HOME}/smallgraphs"
 
 app.configure "development", ->
     #app.use express.static(__dirname + "/public")
@@ -73,16 +113,6 @@ app.configure "production", ->
     #app.use express.static(__dirname + "/public", { maxAge: oneYear })
     app.use express.errorHandler()
 
-app.param "graphId", (req, res, next, id) ->
-    getGraph id, (g, err) ->
-        if err or not g?
-            #res.send 404
-            return next(new Error "Graph not found", err)
-        req.graph = g
-        next()
-
-setupXHRResponse = (res) ->
-    res.header "Access-Control-Allow-Origin", "*"
 
 # reply to OPTIONS request for cross origin AJAX
 app.options "/*", (req, res) ->
@@ -91,13 +121,37 @@ app.options "/*", (req, res) ->
         "Access-Control-Allow-Headers": req.headers["access-control-request-headers"]
     res.end()
 
+setupXHRResponse = (res) ->
+    res.header "Access-Control-Allow-Origin", "*"
+
+
+## Entrance
+app.all "/", (req, res) ->
+    res.render "start"
+
+
+## Graphs
+# list of graphs
+app.all "/g/", (req, res, next) ->
+    graphManager.list failWith next, (graphs) ->
+        res.render "listGraphs",
+            graphs: graphs
+
+app.param "graphId", (req, res, next, id) ->
+    graphManager.get id, (err, g) ->
+        if err or not g?
+            #res.send 404
+            return next(new Error "Graph not found", err)
+        req.graph = g
+        next()
+
 # schema of graph for SmallGraphs UI
-app.all "/:graphId/schema", (req, res) ->
+app.all "/g/:graphId/schema", (req, res) ->
     setupXHRResponse res
     res.json req.graph.schema
 
 # process queries sketched from SmallGraphs UI on this graph
-app.all "/:graphId/query", (req, res, next) ->
+app.all "/g/:graphId/query", (req, res, next) ->
     # collect inputs
     if req.is "json"
         query = req.body
@@ -124,6 +178,23 @@ app.all "/:graphId/query", (req, res, next) ->
     #res.writeHead 200 # XXX can't we defer sending headers while keeping the connection alive?
     #keepAlive = -> res.write " "
     #keepAliveInterval = setInterval keepAlive, 10000
+
+
+## Queries
+app.all "/q/", (req, res) ->
+    res.render "listQueries"
+
+app.param "queryId", (req, res, next, id) ->
+    getQuery id, (q, err) ->
+        if err or not g?
+            #res.send 404
+            return next(new Error "Query not found", err)
+        req.query = q
+        next()
+
+app.all "/q/:queryId/", (req, res, next) ->
+    next()
+
 
 
 app.listen _GraphDPort, ->

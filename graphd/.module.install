@@ -3,4 +3,6 @@
 .build/npm-shrinkwrap.json          $GRAPHDDIR/
 .build/node_modules/!(smallgraph)   $NODEMODULESDIR/
 
+views/*.coffee                      $GRAPHDDIR/views/
+
 graphd-*                            $TOOLSDIR/

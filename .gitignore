@@ -3,8 +3,7 @@
 *~
 *.vim
 
-node_modules
-npm-shrinkwrap.json
+/node_modules
 
 .build
 /@prefix@

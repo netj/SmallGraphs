@@ -2,8 +2,8 @@ _MySQL = require "mysql"
 {RelationalDataBaseGraph} = require "../rdbgraph"
 
 class MySQLGraph extends RelationalDataBaseGraph
-    constructor: (@descriptor, @basepath) ->
-        super @descriptor, @basepath
+    constructor: (@descriptor, args...) ->
+        super @descriptor, args...
         d = @descriptor
         unless d.host? and d.port? and d.user? and d.password? and d.database?
             throw new Error "host, port, user, password, database are required for the graph descriptor"
