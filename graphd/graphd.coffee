@@ -95,7 +95,7 @@ app.configure ->
     app.use express.methodOverride()
     app.use express.bodyParser()
     app.use app.router
-    app.use express.static "#{process.env.GRAPHD_HOME}/smallgraphs"
+    app.use express.static "#{__dirname}/public"
 
 app.configure "development", ->
     #app.use express.static(__dirname + "/public")
@@ -159,8 +159,8 @@ app.all "/g/:graphId/query", (req, res, next) ->
     else # req.is "application/x-www-form-urlencoded" or ""
         query = smallgraph.parse req.param("q")
         jsonIndent = 2
-    limit  = req.param("SmallGraphs-Result-Limit", 100)
-    offset = req.param("SmallGraphs-Result-Offset", 0)
+    limit  = req.headers["smallgraphs-result-limit"]  ? req.param("limit", 100)
+    offset = req.headers["smallgraphs-result-offset"] ? req.param("offset",  0)
     # run query and send results
     queried = req.graph.query query, limit, offset
     queried.on "result", (result) ->
@@ -178,6 +178,14 @@ app.all "/g/:graphId/query", (req, res, next) ->
     #res.writeHead 200 # XXX can't we defer sending headers while keeping the connection alive?
     #keepAlive = -> res.write " "
     #keepAliveInterval = setInterval keepAlive, 10000
+
+# query UI for graph
+app.all "/g/:graphId/*", (req, res, next) ->
+    req.url = req.url.replace("/g/#{req.params.graphId}", "/smallgraphs")
+    next()
+
+app.all "/g/:graphId", (req, res, next) ->
+    res.redirect req.url + "/"
 
 
 ## Queries

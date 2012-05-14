@@ -1,1 +1,0 @@
-../lib/jquery-svg/jquery.svg.min.js

@@ -1,5 +1,5 @@
-build/index.html                 $SMALLGRAPHSDIR/
-build/style.less                 $SMALLGRAPHSDIR/
-build/main.js                    $SMALLGRAPHSDIR/
-build/require.js                 $SMALLGRAPHSDIR/
-build/resource                   $SMALLGRAPHSDIR/
+.build/index.html               $SMALLGRAPHSDIR/
+.build/scripts/main.js          $SMALLGRAPHSDIR/scripts/
+.build/scripts/require.js       $SMALLGRAPHSDIR/scripts/
+.build/scripts/order.js         $SMALLGRAPHSDIR/scripts/
+.build/resource                 $SMALLGRAPHSDIR/

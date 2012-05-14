@@ -5,12 +5,17 @@ set -eu
 coffee -c src
 
 # convert CommonJS modules to AMD
-mkdir -p src/smallgraph
-r.js -convert ../smallgraph/.build src/smallgraph
+mkdir -p src/scripts/smallgraph
+r.js -convert ../smallgraph/.build src/scripts/smallgraph
 
 ## compile LESS stylesheet
 #lessc src/style.less src/style.css
 
 # optimize with Require.js
-rm -rf gh-pages
+rm -rf .build
 r.js -o build.js
+
+# modify final output
+cd .build
+sed 's:<head>:& <base href="/smallgraphs/">:' <index.html >index.html.new
+mv -f index.html.new index.html

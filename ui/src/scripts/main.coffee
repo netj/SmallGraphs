@@ -158,6 +158,7 @@ require [
     smallgraphsGraphSchema = emptySchema
     NodeTypes = []
   smallgraphsLoadSchema = ->
+    smallgraphsGraphURL = smallgraphsGraphURL.replace(/\/$/g, "")
     console.log "loading graph", smallgraphsGraphURL
     document.title = "#{smallgraphsOriginalTitle} of #{smallgraphsGraphURL}" # TODO use friendlier name/label of graph
     $("#graph-url").text(smallgraphsGraphURL)
@@ -185,6 +186,10 @@ require [
         smallgraphsShowError "Could not load graph schema from: " + smallgraphsGraphURL
         smallgraphsResetSchema()
       )
+
+  # default graph URL from the location where UI is loaded
+  if document.baseURI != location.href
+    smallgraphsGraphURL = location.href
 
   if smallgraphsGraphURL?
     smallgraphsLoadSchema()

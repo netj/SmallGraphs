@@ -2,8 +2,8 @@
 # Author: netj@cs.stanford.edu
 # Created: 2011-12-08
 
-PATH := $(PWD)/node_modules/.bin:$(PATH)
-export PATH
+export PATH := $(PWD)/node_modules/.bin:$(PATH)
+export CDPATH :=
 
 export BINDIR         := bin
 export LIBDIR         := lib
@@ -20,6 +20,13 @@ export DOCDIR         := doc
 STAGEDIR := @prefix@
 include buildkit/modules.mk
 
+polish: links
+links:
+	mkdir -p $(STAGEDIR)/$(GRAPHDDIR)/public
+	ln -s ../../../../smallgraphs $(STAGEDIR)/$(GRAPHDDIR)/public/
+
+# TODO need to take this dependency into account somehow with BuildKit
+shell/.module.build: Makefile
 
 .PHONY: check-builddeps publish
 

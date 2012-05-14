@@ -1,1 +1,0 @@
-../lib/requirejs/require.js
