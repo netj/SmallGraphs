@@ -22,13 +22,24 @@ our $LabelType = "TEXT";
 my $lastSubj;
 my $lastPred;
 
+my $sqlNameCache = {};
 sub sqlName {
     my $name = shift;
-    if ($name =~ /^<(.*)>$/) {
-        $name = $1;
+    my $sqlName = $sqlNameCache->{$name};
+    return $sqlName if defined $sqlName;
+    $sqlName = $name;
+    if ($sqlName =~ /^<(.*)>$/) {
+        $sqlName = $1;
     }
-    $name =~ s/[^A-Za-z0-9_]/_/g;
-    return $name;
+    $sqlName =~ s#^https?://##;
+    $sqlName =~ s/[^A-Za-z0-9_]/_/g;
+    # XXX MySQL has length limit of 64 for names of tables, etc.
+    # See: http://dev.mysql.com/doc/refman/5.0/en/identifiers.html
+    if ((my $l = length($sqlName)) > 64) {
+        $sqlName = substr $sqlName, $l - 64;
+    }
+    $sqlNameCache->{$name} = $sqlName;
+    return $sqlName;
 }
 
 sub sha1sum {
