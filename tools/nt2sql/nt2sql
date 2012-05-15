@@ -44,7 +44,8 @@ sub sqlName {
 
 sub sha1sum {
     my $hex = sha1_hex(@_);
-    return hex(substr $hex, 0, 8);
+    return hex(substr $hex, 0, 16);
+    # XXX this truncation causes collisions
 }
 
 sub esc {
@@ -134,11 +135,12 @@ print '
 ';
 
 # first pass to find all nodes
+my $idCounter = 0;
 scan(sub {
         my ($s, $p, $o) = @_;
         if ($p eq "a" or $p eq $RDF_TYPE_URI) {
             return if exists $id->{$s};
-            $id->{$s} = sha1sum($s);
+            $id->{$s} = $idCounter++; # XXX collisions: sha1sum($s);
             unless (exists $typeCreated->{$o}) {
                 printCreate(sqlName($o),
                     [["id", $IdType], ["uri", $LabelType]],
@@ -157,19 +159,22 @@ scan(sub {
         my ($s, $p, $o) = @_;
         return if $p eq "a" or $p eq $RDF_TYPE_URI;
         if (exists $id->{$s} and exists $id->{$o}) {
-            unless (exists $typeCreated->{$p}) {
-                my $srcType = $types->{$id->{$s}};
-                my $dstType = $types->{$id->{$o}};
-                printCreate(sqlName($p),
+            my $srcType = $types->{$id->{$s}};
+            my $dstType = $types->{$id->{$o}};
+            my $pType = "$p $srcType $dstType";
+            my $pUniq = $typeCreated->{$pType};
+            unless (defined $pUniq) {
+                $pUniq = $typeCreated->{$pType} = $p . ($typeCreated->{$p} || "");
+                ($typeCreated->{$p} ||= 1)++;
+                printCreate(sqlName($pUniq),
                     [["src", $IdType], ["dst", $IdType]],
                     # XXX assuming a single domain/range type for links
                     (sprintf "CONSTRAINT FOREIGN KEY (`src`) REFERENCES `%s` (`id`)", sqlName($srcType)),
                     (sprintf "CONSTRAINT FOREIGN KEY (`dst`) REFERENCES `%s` (`id`)", sqlName($dstType))
                 );
-                $typeCreated->{$p} = [$srcType, $dstType];
             }
             # print only when both subject and object nodes are identified
-            printf "INSERT INTO `%s` VALUES ('%s', '%s');\n", sqlName($p), $id->{$s}, (exists $id->{$o} ? $id->{$o} : esc($o));
+            printf "INSERT INTO `%s` VALUES ('%s', '%s');\n", sqlName($pUniq), $id->{$s}, (exists $id->{$o} ? $id->{$o} : esc($o));
         }
     });
 
