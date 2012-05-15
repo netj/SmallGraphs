@@ -53,12 +53,18 @@ class GraphManager
     get: (graphId, done) ->
         setTimeout =>
             g = @graphsById[graphId]
-            if g? # TODO compare timestamps for refreshing
-                done(null, g)
-            else
+            load = =>
                 @load graphId, failWith done, (g) =>
+                    g.loadTimestamp = new Date().getTime()
                     @graphsById[graphId] = g
                     done(null, g)
+            return load() unless g?
+            fs.stat "#{@basepath}/#{graphId}/graphd.json", failWith done, (stat) ->
+                # compare timestamps to see if we need reload
+                if g.loadTimestamp > stat.mtime.getTime()
+                    done(null, g)
+                else
+                    load()
         , 0
     list: (done) ->
         find = (path, done) =>
