@@ -131,14 +131,14 @@ setupXHRResponse = (res) ->
     res.header "Access-Control-Allow-Origin", "*"
 
 
-## Entrance
-app.all "/", (req, res) ->
-    res.render "start"
+# ## Entrance
+# app.all "/", (req, res) ->
+#     res.render "start"
 
 
 ## Graphs
 # list of graphs
-app.all "/g/", (req, res, next) ->
+app.all "/", (req, res, next) ->
     graphManager.list failWith next, (graphs) ->
         res.render "listGraphs",
             graphs: graphs
@@ -212,5 +212,5 @@ app.all "/q/:queryId/", (req, res, next) ->
 
 
 app.listen _GraphDPort, ->
-    console.log "graphd: running at http://%s:%d/", app.address().address, app.address().port
+    console.log "graphd: running at http://%s:%d/", "localhost" ? app.address().address, app.address().port
 

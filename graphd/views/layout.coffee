@@ -27,6 +27,7 @@ html ->
     '''
   body ->
     header ->
+      h1 -> "GraphD"
       #a href: '/', title: 'Home', -> 'Home'
 
       nav ->
