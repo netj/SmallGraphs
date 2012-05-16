@@ -6,10 +6,24 @@
 # Created: 2012-05-08
 set -eu
 
-Self=$(readlink -f "$0")
+Self=$(readlink -f "$0" 2>/dev/null || {
+    # XXX readlink -f is only available in GNU coreutils
+    cd $(dirname -- "$0")
+    n=$(basename -- "$0")
+    if [ -L "$n" ]; then
+        L=$(readlink "$n")
+        if [ x"$L" = x"${L#/}" ]; then
+            echo "$L"; exit
+        else
+            cd "$(dirname -- "$L")"
+            n=$(basename -- "$L")
+        fi
+    fi
+    echo "$(pwd -P)/$n"
+})
 Here=$(dirname "$Self")
 
-# Setup some environment
+# Setup environment
 export GRAPHD_HOME=${Here%/@BINDIR@}
 export BINDIR="$GRAPHD_HOME/@BINDIR@"
 export LIBDIR="$GRAPHD_HOME/@LIBDIR@"

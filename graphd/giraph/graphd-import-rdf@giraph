@@ -1,31 +1,25 @@
 #!/usr/bin/env bash
-# import-rdf
-# Usage: import-rdf GRAPHDIR [RDFFILE]...
+# graphd-import-rdf@giraph -- Import RDF NTriples
+# Usage: graphd import-rdf NTRIPLESFILE...
 # 
-# Import RDF files to the given GRAPHDIR.
+# Import RDF NTriples files to the graph at current working directory
 #
 # Author: Jaeho Shin <netj@cs.stanford.edu>
 # Created: 2012-03-18
 set -eu
 
-Self=`readlink -f "$0"`
-Here=`dirname "$Self"`
-
-jars=("$Here"/../../tools/rdfutil/target/smallgraphs-rdfutil-*-jar-with-dependencies.jar)
-RDFUtilJar=${jars[0]}
+RDFUtilJar="$JARDIR"/graphd-rdfutil.jar
 
 
 # process arguments
-[ $# -ge 1 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
-GraphBase=$1; shift
+[ $# -ge 0 ] || { sed -n '2,/^#$/ s/^# //p' <"$0"; exit 2; }
 
-graphName=`basename "$GraphBase"`
+graphName=`basename "$PWD"`
 
 
 cat -- "$@" |
 {
-    mkdir -p "$GraphBase"/map
-    cd "$GraphBase"
+    mkdir -p map
 
     # encode/load RDF N-Triples and transform it to vertex-wise JSON graph and derive a decoding schema
     java -cp "$RDFUtilJar" edu.stanford.smallgraphs.util.RDFGraphTransformer \
@@ -48,9 +42,5 @@ cat -- "$@" |
     fi
 
     # format JSONs
-    coffee -e '
-    fs = require("fs")
-    for f in "codingSchema.json".split /\s+/
-        fs.writeFileSync f, (JSON.stringify (JSON.parse fs.readFileSync f), null, 2)
-    '
+    format-json codingSchema.json
 }

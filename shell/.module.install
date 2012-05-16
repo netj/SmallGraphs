@@ -1,8 +1,9 @@
-.build/graphd.sh    $BINDIR/graphd
-usage               $TOOLSDIR/
-error               $TOOLSDIR/
-customize           $TOOLSDIR/
-optional            $TOOLSDIR/
-backend-specific    $TOOLSDIR/
+.build/graphd.sh            $BINDIR/graphd
+usage                       $TOOLSDIR/
+error                       $TOOLSDIR/
+customize                   $TOOLSDIR/
+optional                    $TOOLSDIR/
+backend-specific            $TOOLSDIR/
+.build/format-json          $TOOLSDIR/
 
-graphd-hack         $TOOLSDIR/
+graphd-hack                 $TOOLSDIR/

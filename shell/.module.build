@@ -13,3 +13,13 @@ set -eu
 @DOCDIR@=$DOCDIR
 PARAMS
 chmod +x .build/graphd.sh
+
+cd .build
+
+{
+    echo "#!/bin/sh -e"
+    echo "exec node -e '"
+    coffee -p ../format-json.coffee
+    echo "' \"\$@\""
+} >format-json
+chmod +x format-json

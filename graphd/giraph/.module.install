@@ -3,7 +3,7 @@ template                                                $GRAPHDDIR/giraph/
 
 # FIXME: use env var to share where to put jars in
 run-smallgraph-on-giraph                                $GRAPHDDIR/giraph/
-giraph/target/giraph-*-jar-with-dependencies.jar        $GRAPHDDIR/giraph/giraph/target/
-target/smallgraphs-giraph-*-jar-with-dependencies.jar   $GRAPHDDIR/giraph/target/
+giraph/target/giraph-*-jar-with-dependencies.jar        $JARDIR/giraph-with-dependencies.jar
+target/smallgraphs-giraph-*-jar-with-dependencies.jar   $JARDIR/smallgraphs-giraph.jar
 
-import-rdf                                              $TOOLSDIR/graphd-import-rdf-for-giraph
+graphd-import-rdf@giraph                                $TOOLSDIR/

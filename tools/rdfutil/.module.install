@@ -1,2 +1,1 @@
-#graphd-rdfutil                                             $TOOLSDIR/
-target/smallgraphs-rdfutil-*-jar-with-dependencies.jar      $TOOLSDIR/graphd-rdfutil.jar
+target/graphd-rdfutil-*-jar-with-dependencies.jar      $JARDIR/graphd-rdfutil.jar

@@ -9,14 +9,11 @@
 # Created: 2012-03-05
 set -eu
 
-Self=`readlink -f "$0"`
 Here=`dirname "$Self"`
 
 : ${NumWorkers:=1}
 
-giraphJars=("$Here"/giraph/target/giraph-*-jar-with-dependencies.jar)
-backendJars=("$Here"/target/smallgraphs-giraph-*-jar-with-dependencies.jar)
-export HADOOP_CLASSPATH="${backendJars[0]}:${giraphJars[0]}"
+export HADOOP_CLASSPATH="$JARDIR/giraph-with-dependencies.jar:$JARDIR/smallgraphs-giraph.jar"
 
 
 # process arguments
@@ -58,15 +55,15 @@ javac -cp "$HADOOP_CLASSPATH:`hadoop classpath`" \
     #
 
 # create a jar
-jar=smallgiraph.jar
-jar cf $jar "$VertexClass".class
-HADOOP_CLASSPATH+=":`readlink -f $jar`"
+jar="$tmp"/smallgiraph.jar
+jar cf "$jar" "$VertexClass".class
+HADOOP_CLASSPATH+=":$jar"
 
 # and run it
 [ $NumWorkers -gt 1 ] || HADOOP_OPTS+=" -Dgiraph.SplitMasterWorker=false"
 hadoop \
     jar "$jar" org.apache.giraph.GiraphRunner \
-    -libjars "`readlink -f $jar`,${HADOOP_CLASSPATH//:/,}" \
+    -libjars "$jar,${HADOOP_CLASSPATH//:/,}" \
     "$VertexClass" \
     -w $NumWorkers \
     -if edu.stanford.smallgraphs.giraph.PropertyGraphJSONVertexInputFormat \

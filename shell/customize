@@ -21,7 +21,7 @@ set -e
 
 usage() { sed -n "2,/^#$/s/^# //p" <"$0"; exit; }
 if [ $# -eq 1 ]; then
-    Dest=`readlink -f .`
+    Dest=`pwd -P`
     cd "$1"
     set -- .
 else

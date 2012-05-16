@@ -1,5 +1,5 @@
-# Makefile for SmallGraphs
-# Author: netj@cs.stanford.edu
+# Makefile for SmallGraphs/GraphD
+# Author: Jaeho Shin <netj@cs.stanford.edu>
 # Created: 2011-12-08
 
 export PATH := $(PWD)/node_modules/.bin:$(PATH)
@@ -15,7 +15,7 @@ export SMALLGRAPHSDIR := smallgraphs
 export RUNDIR         := run
 export DOCDIR         := doc
 
-#PACKAGEEXECUTES:=bin/graphd
+#PACKAGEEXECUTES := bin/graphd
 
 STAGEDIR := @prefix@
 include buildkit/modules.mk
@@ -25,7 +25,7 @@ links:
 	mkdir -p $(STAGEDIR)/$(GRAPHDDIR)/public
 	ln -s ../../../../smallgraphs $(STAGEDIR)/$(GRAPHDDIR)/public/
 
-# TODO need to take this dependency into account somehow with BuildKit
+# TODO should make BuildKit take this dependency into account somehow
 shell/.module.build: Makefile
 
 .PHONY: check-builddeps publish

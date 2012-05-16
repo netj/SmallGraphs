@@ -17,7 +17,7 @@ GraphDPort=53411
 # process arguments and save configuration
 if [ $# -gt 0 ]; then
     GraphDPort=$1; shift
-    echo $GraphDPort >graphd.port
+    echo $GraphDPort >.graphd.port
 fi
 
 touch .graphd.pid

@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>edu.stanford.smallgraphs</groupId>
-	<artifactId>smallgraphs-rdfutil</artifactId>
+	<artifactId>graphd-rdfutil</artifactId>
 	<name>SmallGraphs RDF Utilities</name>
 	<version>0.1-SNAPSHOT</version>
 

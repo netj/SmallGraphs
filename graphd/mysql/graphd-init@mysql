@@ -18,6 +18,8 @@ Port=3306
 [ $# -eq 0 ] || { Host=$1; shift; }
 [ $# -eq 0 ] || { Port=$1; shift; }
 
+type mysqldump &>/dev/null || error "mysqldump: not available"
+
 customize . graphd.json <<PARAMS
 @MYSQL_USER@=$Username
 @MYSQL_PASSWORD@=$Password
