@@ -8,13 +8,16 @@ set -eu
 
 [ $# -gt 0 ] || usage "$0" "No COMMAND given"
 
-if [ -r .graphd.backend ] && Backend=$(cat .graphd.backend); then
-    Cmd=$1; shift
-    if type "$Cmd@$Backend" &>/dev/null; then
-        exec "$Cmd@$Backend" "$@"
-    else
-        error "$Cmd: not available for $Backend backend"
-    fi
+Cmd=$1; shift
+if backendCmd=$(find-backend-specific "$Cmd"); then
+    exec "$backendCmd" "$@"
 else
-    error "PWD is not a graph or cannot determine its backend"
+    case $! in
+        1)
+            error "$Cmd: not available for $Backend backend"
+            ;;
+        2)
+            error "PWD is not a graph or cannot determine its backend"
+            ;;
+    esac
 fi

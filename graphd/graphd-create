@@ -17,12 +17,13 @@ template="$GRAPHDDIR/$Backend/template"
 mkdir -p "$Name"
 cd "$Name"
 
-# initialize common skeleton
+# initialize with common skeleton
 customize "$template" <<-PARAMS
 @GraphName@=$Name
 @Backend@=$Backend
 PARAMS
 echo "$Backend" >.graphd.backend
 
-# more initialization
-backend-specific graphd-init "$@"
+# continue backend-specific initialization
+optional graphd-init "$@"
+

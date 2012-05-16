@@ -6,38 +6,40 @@
 # Created: 2012-05-08
 set -eu
 
-Self=$(readlink -f "$0" 2>/dev/null || {
-    # XXX readlink -f is only available in GNU coreutils
-    cd $(dirname -- "$0")
-    n=$(basename -- "$0")
-    if [ -L "$n" ]; then
-        L=$(readlink "$n")
-        if [ x"$L" = x"${L#/}" ]; then
-            echo "$L"; exit
-        else
-            cd "$(dirname -- "$L")"
-            n=$(basename -- "$L")
+if [ -z "${GRAPHD_HOME:-}" ]; then
+    Self=$(readlink -f "$0" 2>/dev/null || {
+        # XXX readlink -f is only available in GNU coreutils
+        cd $(dirname -- "$0")
+        n=$(basename -- "$0")
+        if [ -L "$n" ]; then
+            L=$(readlink "$n")
+            if [ x"$L" = x"${L#/}" ]; then
+                echo "$L"; exit
+            else
+                cd "$(dirname -- "$L")"
+                n=$(basename -- "$L")
+            fi
         fi
-    fi
-    echo "$(pwd -P)/$n"
-})
-Here=$(dirname "$Self")
+        echo "$(pwd -P)/$n"
+    })
+    Here=$(dirname "$Self")
 
-# Setup environment
-export GRAPHD_HOME=${Here%/@BINDIR@}
-export BINDIR="$GRAPHD_HOME/@BINDIR@"
-export LIBDIR="$GRAPHD_HOME/@LIBDIR@"
-export JARDIR="$GRAPHD_HOME/@JARDIR@"
-export NODEMODULESDIR="$GRAPHD_HOME/@NODEMODULESDIR@"
-export TOOLSDIR="$GRAPHD_HOME/@TOOLSDIR@"
-export GRAPHDDIR="$GRAPHD_HOME/@GRAPHDDIR@"
-export SMALLGRAPHSDIR="$GRAPHD_HOME/@SMALLGRAPHSDIR@"
-export RUNDIR="$GRAPHD_HOME/@DATADIR@"
-export DOCDIR="$GRAPHD_HOME/@DOCDIR@"
+    # Setup environment
+    export GRAPHD_HOME=${Here%/@BINDIR@}
+    export BINDIR="$GRAPHD_HOME/@BINDIR@"
+    export LIBDIR="$GRAPHD_HOME/@LIBDIR@"
+    export JARDIR="$GRAPHD_HOME/@JARDIR@"
+    export NODEMODULESDIR="$GRAPHD_HOME/@NODEMODULESDIR@"
+    export TOOLSDIR="$GRAPHD_HOME/@TOOLSDIR@"
+    export GRAPHDDIR="$GRAPHD_HOME/@GRAPHDDIR@"
+    export SMALLGRAPHSDIR="$GRAPHD_HOME/@SMALLGRAPHSDIR@"
+    export RUNDIR="$GRAPHD_HOME/@DATADIR@"
+    export DOCDIR="$GRAPHD_HOME/@DOCDIR@"
 
-export PATH="$TOOLSDIR:$PATH"
-unset CDPATH
-export NODE_PATH="$GRAPHD_HOME/node_modules${NODE_PATH:+:$NODE_PATH}"
+    export PATH="$TOOLSDIR:$PATH"
+    unset CDPATH
+    export NODE_PATH="$GRAPHD_HOME/node_modules${NODE_PATH:+:$NODE_PATH}"
+fi
 
 
 # Process input arguments
@@ -45,14 +47,14 @@ export NODE_PATH="$GRAPHD_HOME/node_modules${NODE_PATH:+:$NODE_PATH}"
 Cmd=$1; shift
 
 
-# Check it is a valid command
+# Check if it's a valid command
 exe=graphd-"$Cmd"
 if type "$exe" &>/dev/null; then
     set -- "$exe" "$@"
+elif backendExe=$(find-backend-specific "$exe"); then
+    set -- "$backendExe" "$@"
 else
-    error "$Cmd: Unknown graphd command" || true
-    echo "Try \`graphd help' for usage."
-    false
+    usage "$0" "$Cmd: invalid COMMAND"
 fi
 
 

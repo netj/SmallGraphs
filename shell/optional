@@ -6,7 +6,12 @@
 set -eu
 
 if ! type "$1" &>/dev/null; then
-    exit 127
+    if backendCmd=$(find-backend-specific "$1"); then
+        shift
+        set -- "$backendCmd" "$@"
+    else
+        exit 0
+    fi
 fi
 
 exec "$@"

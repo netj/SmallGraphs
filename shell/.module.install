@@ -4,6 +4,7 @@ error                       $TOOLSDIR/
 customize                   $TOOLSDIR/
 optional                    $TOOLSDIR/
 backend-specific            $TOOLSDIR/
+find-backend-specific       $TOOLSDIR/
 .build/format-json          $TOOLSDIR/
 
 graphd-hack                 $TOOLSDIR/
