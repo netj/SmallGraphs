@@ -97,6 +97,9 @@ vertices happen to be linked by edges of which types.
 You can now open <http://localhost:53411/> from your web browser to sketch and
 run graph queries.
 
+<img alt=""
+src="https://github.com/netj/SmallGraphs/raw/master/doc/SmallGraphs-screenshot.png">
+
 (WebKit-based browsers, such as [Safari][] or [Chrome][] are recommended.)
 
 
