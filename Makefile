@@ -15,6 +15,7 @@ export SMALLGRAPHSDIR := smallgraphs
 export RUNDIR         := run
 export DOCDIR         := doc
 
+PACKAGENAME := graphd
 #PACKAGEEXECUTES := bin/graphd
 
 STAGEDIR := @prefix@

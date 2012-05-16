@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # graphd -- GraphD Command-Line Interface
 # Usage: graphd COMMAND [ARG]...
+# 
+#   graphd start [PORT]
+#   graphd stop
+#   graphd create mysql NAME MYSQLDBNAME USERNAME PASSWORD [HOST [PORT]]
+#   graphd create giraph NAME
+#   graphd import-rdf NTRIPLESFILE
+# 
 #
 # Author: Jaeho Shin <netj@cs.stanford.edu>
 # Created: 2012-05-08

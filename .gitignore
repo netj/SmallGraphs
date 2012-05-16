@@ -7,3 +7,5 @@
 
 .build
 /@prefix@
+/graphd-*.sh
+/graphd-*.tar.gz
