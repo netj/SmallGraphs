@@ -156,6 +156,7 @@ require [
   emptySchema = { Namespaces: {}, Objects: {}, TypeLabels: {} }
   smallgraphsGraphSchema = emptySchema
   getLabelAttributeNameOfNode = (node) -> smallgraphsGraphSchema.Objects[node.objectType]?.Label
+  getAttributeDataTypeOf = (node, attrName) -> smallgraphsGraphSchema.Objects[node?.objectType]?.Attributes[attrName]
   smallgraphsOriginalTitle = document.title
   smallgraphsGraphURLOriginalMessage = $("#graph-url").html()
   smallgraphsResetSchema = ->
@@ -845,6 +846,42 @@ require [
         .remove()
       sketchpadCurrentSelection = []
 
+  updateNodeConstraintDisplay = (node, constraintType) ->
+    [constraintType] = determineNodeConstraintType node unless constraintType?
+    constraintText = $("text.constraint", node)
+    if node[constraintType]?
+      # display constraints
+      if constraintText.length == 0
+        constraintText = $(addToSketchpad "text",
+            dx: node.w + NodeConstraintXSpacing
+            dy: node.h + NodeConstraintYSpacing - NodeConstraintTextHeight
+          , node)
+          .addClass("constraint")
+      constraintText.text(
+        (smallgraph.serializeConstraint node[constraintType])
+          .replace(/^\[(.*)\]$/, "$1")
+      )
+    else
+      # or remove
+      constraintText.remove()
+
+  determineNodeConstraintType = (node) ->
+    if $(node).hasClass("attribute")
+      subjectNode = $("##{node.subjectId}")[0]
+      attrName = prefixAttributeMark node.attributeName
+      attrDataType = node.attributeType
+      constraintType = "constraint"
+    else # try constraining label
+      subjectNode = node
+      labelAttr = getLabelAttributeNameOfNode node
+      if labelAttr?
+        attrName = prefixAttributeMark labelAttr
+        attrDataType = getAttributeDataTypeOf node, labelAttr
+        constraintType = "labelConstraint"
+      else
+        attrName = "ID"
+        constraintType = "constraint"
+    [constraintType, subjectNode, attrName, attrDataType]
 
   constraintInputPrototype = null
   sketchpadSetupConstraint = (nodes) ->
@@ -857,29 +894,17 @@ require [
     dblclick: ->
       node = getNode(event.target)
       if node?
-        if $(node).hasClass("attribute")
-          subjectNode = $("##{node.subjectId}")[0]
-          attrName = prefixAttributeMark node.attributeName
-          constraintType = "constraint"
-        else # try constraining label
-          subjectNode = node
-          labelAttr = getLabelAttributeNameOfNode node
-          if labelAttr?
-            attrName = prefixAttributeMark labelAttr
-            constraintType = "labelConstraint"
-          else
-            attrName = "ID"
-            constraintType = "constraint"
+        [constraintType, subjectNode, attrName] = determineNodeConstraintType node
         # TODO maybe do this in a cleaner jQuery-based UI instead of some primitive prompt
         done = false
-        constraintString = (smallgraph.serializeConstraint node[constraintType])
-          .replace(/^\[(.*)\]$/, "$1")
+        constraintString = $("text.constraint", node).text()
         until done
           try
             constraintString = prompt """
             Enter the constraint for #{attrName} of #{subjectNode.objectType}(#{subjectNode.id})
              e.g. >123  or  ="small graphs".
             """, constraintString
+            return unless constraintString?
             if constraintString
               normalizeConstraint = (cStr) ->
                 # adjust user input
@@ -894,26 +919,15 @@ require [
                 expr = "\"#{expr}\"" unless m = expr.match /^(".*"|[0-9.]+)$/
                 "#{rel}#{expr}"
               constraintString = normalizeConstraint constraintString
-              node[constraintType] = smallgraph.parseConstraint "[#{constraintString}]"
+              constraint = smallgraph.parseConstraint "[#{constraintString}]"
             else
               delete node[constraintType]
             done = true
           catch err
             unless confirm "#{err}\nTry again?"
               throw err
-        constraintText = $("text.constraint", node)
-        if node[constraintType]?
-          # display constraints
-          if constraintText.length == 0
-            constraintText = $(addToSketchpad "text",
-                dx: node.w + NodeConstraintXSpacing
-                dy: node.h + NodeConstraintYSpacing - NodeConstraintTextHeight
-              , node)
-            constraintText.addClass("constraint")
-          constraintText.text(constraintString)
-        else
-          # or remove
-          constraintText.remove()
+        node[constraintType] = constraint
+        updateNodeConstraintDisplay node, constraintType
       # TODO edge constraint
 
   $("#query-constraint")
@@ -1685,6 +1699,7 @@ require [
     for datum in data
       aResult = smallgraphsCurrentResultPrototype.clone()
       smallgraphsCurrentResultMapping datum, aResult
+      aResult.click(smallgraphsToggleResultSelection)
       aResult.appendTo(results)
     smallgraphsCurrentOffset = offset
     # do more visual encoding
@@ -1699,7 +1714,7 @@ require [
         w = rect.attr("width")
         # FIXME sometimes w is strangely big
         wScale = d3.scale.linear()
-          .domain([overview.min, overview.max])
+          .domain([Math.min(0, overview.min), overview.max])  # TODO use 0 as lowerbound only for ratio data?
           .range([0, w])
         # XXX D3, as of 2.7.0, has a problem setting parentNode to div.result
         # so I had to use multiple group selection, which will have a little overhead :(
@@ -1740,9 +1755,35 @@ require [
     .button()
     .click(smallgraphsRunQuery)
 
+  generalizeConstraint = (prevConstraint, disjs) ->
+    # TODO try to generalize constraint instead of just adding disjunctions
+    # e.g. points -> interval or set of intervals
+    # TODO suggest possible generalizations to user
+    [disjs]
+
+  smallgraphsToggleResultSelection = (event) ->
+    $(this).toggleClass("selected")
   $("#result-refine")
     .button()
-    .click( -> $("#query-header").click())
+    .click( ->
+      # derive constraints from selected results
+      selectedResults = $(".result.selected", results)
+      if selectedResults.length > 0
+        $(".node", sketchpad)
+          .filter( -> not $(this).hasClass("aggregate"))
+          .each (i, node) ->
+            [constraintType, _, _, attrDataType] = determineNodeConstraintType node
+            node[constraintType] ?= []
+            disjs = []
+            for result in selectedResults
+              resultNode = $("##{node.id}", result)[0]
+              continue if constraintType == "labelConstraint" and not resultNode.data.label?
+              v = resultNode.value
+              disjs.push { rel: "=", expr: v }
+            node[constraintType] = generalizeConstraint node[constraintType], disjs
+            updateNodeConstraintDisplay node, constraintType
+      $("#query-header").click()
+    )
 
   $("#result-reorder")
     .button()
