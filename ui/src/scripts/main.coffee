@@ -814,18 +814,26 @@ require [
         width: 0, height: 0
       )
 
+  sketchpadCurrentOrdering = null # XXX define classes and make these sketchpad* variables their fields
   sketchpadAction_RemoveSelection =
     name: "remove selection"
     keypress: ->
       alsoRemoveTargetAttributeNodes = ->
         if this.target?.isAttributeNode?
           $(this.target).remove()
-      # first, remove edges that will become dangling by removing the selection
+      # first, remove from the ordering
+      $("#ordering-list li").each( ->
+        if this.node in sketchpadCurrentSelection
+          $(this).remove()
+      )
+      sketchpadCurrentOrdering =
+        removeAll(sketchpadCurrentOrdering, sketchpadCurrentSelection)
+      # then, remove edges that will become dangling by removing the selection
       # along with the attribute nodes without its edge
       $(".edge", sketchpad)
         .filter( ->
-          sketchpadCurrentSelection.indexOf(this.source) >= 0 or
-          sketchpadCurrentSelection.indexOf(this.target) >= 0
+          this.source in sketchpadCurrentSelection or
+            this.target in sketchpadCurrentSelection
         )
         .each(alsoRemoveTargetAttributeNodes)
         .remove()
@@ -849,13 +857,13 @@ require [
       if node?
         if $(node).hasClass("attribute")
           subjectNode = $("##{node.subjectId}")[0]
-          attrName = "@"+node.attributeName
+          attrName = prefixAttributeMark node.attributeName
           constraintType = "constraint"
         else # try constraining label
           subjectNode = node
           labelAttr = getLabelAttributeNameOfNode node
           if labelAttr?
-            attrName = "@"+labelAttr
+            attrName = prefixAttributeMark labelAttr
             constraintType = "labelConstraint"
           else
             attrName = "ID"
