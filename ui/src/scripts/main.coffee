@@ -58,6 +58,8 @@ require [
 
   Identity = (x) -> x
 
+  # XXX mute debug messages
+  console.debug = ->
 
   ###
   ## some UI vocabularies
@@ -1144,7 +1146,7 @@ require [
 
   sketchpadCurrentMode = null
   sketchpadSwitchToMode = (modeName) ->
-    console.log "switching mode to", modeName
+    console.debug "switching mode to", modeName
     mode = sketchpadMode[modeName]
     mouseActionHandlers = []
     keyActionHandlers = []
@@ -1339,7 +1341,7 @@ require [
     if typeof debugResultURL == "string"
       queryURL = debugResultURL
     # send it to server and get response
-    console.debug "sending query to #{queryURL}",
+    console.log "sending query to #{queryURL}",
       "limiting range to #{offset}-#{offset+ResultPageSize}",
       "\n#{smallgraph.serialize query}", query, "\n#{JSON.stringify query}"
     ajaxHandle = $.ajax(
