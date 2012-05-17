@@ -840,7 +840,35 @@ require [
 
   sketchpadAction_AddConstraint =
     name: "add constraints"
-    # TODO
+    dblclick: ->
+      node = getNode(event.target)
+      if node?
+        if $(node).hasClass("attribute")
+          subjectNode = $("##{node.subjectId}")[0]
+          # TODO maybe do this in a cleaner jQuery-based UI instead of some primitive prompt
+          done = false
+          constraintString = (smallgraph.serializeConstraint node.constraint).replace(/^\[(.*)\]$/, "$1")
+          until done
+            try
+              constraintString = prompt "Edit constraint for @#{node.attributeName} of #{subjectNode.objectType}(#{subjectNode.id})", constraintString
+              node.constraint = smallgraph.parseConstraint "[#{constraintString}]"
+              constraintText = $("text.constraint", node)
+              done = true
+            catch err
+              unless confirm "#{err}\nTry again?"
+                throw err
+          if node.constraint?
+            # display constraints
+            if constraintText.length == 0
+              constraintText = $(addToSketchpad "text",
+                  dx: node.w + 1, dy: NodeLabelTop
+                , node)
+              constraintText.addClass("constraint")
+            constraintText.text(constraintString)
+          else
+            # or remove
+            constraintText.remove()
+      # TODO edge constraint
 
   $("#query-constraint")
     .button()
@@ -1339,10 +1367,8 @@ require [
     # count occurences of objects to use references or not
     nodeOccurs = {}
     seenNode = (n) ->
-      if nodeOccurs[n]
-        nodeOccurs[n]++
-      else
-        nodeOccurs[n] = 1
+      nodeOccurs[n] ?= 0
+      nodeOccurs[n]++
     ws.forEach (w) ->
       seenNode w[0].source.id
       w.forEach (e) ->
@@ -1421,8 +1447,7 @@ require [
         aggregationMap[e.source.id].push [e.linkType, (e.target.aggregateFunction ? "count").toLowerCase()]
       else # or individual value
         attributes.push
-          look: [e.source.id, [e.linkType]]
-        # TODO attributes.push {look:[e.source.id, [{name:e.linkType, constraint:[/*constraints CNF*/]}]]}
+          look: [e.source.id, [{name:e.linkType, constraint:e.target.constraint}]]
       resultMappings.push (data, resultSVG) ->
           attr = data.names[e.source.id].attrs
           if attr?
@@ -1537,7 +1562,7 @@ require [
       )
       $(".node, .edge", resultPrototype)
         .removeClass("selected attribute invalid orderby-desc orderby-asc")
-      $(".edge text", resultPrototype)
+      $(".edge text, text.constraint", resultPrototype)
         .remove()
       $(".node text", resultPrototype)
         .text("")

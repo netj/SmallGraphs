@@ -1,11 +1,11 @@
-serializeExpr = (expr) ->
+exports.serializeExpr = serializeExpr = (expr) ->
     switch typeof expr
         when 'string'
             '"' + ((expr.replace /\\/, '\\').replace /"/, '\"') + '"'
         else
             expr
 
-serializeConstraint = (conj) ->
+exports.serializeConstraint = serializeConstraint = (conj) ->
     if conj
         ("[#{("#{c.rel}#{serializeExpr c.expr}" for c in disj).join "; "}]" for disj in conj).join ""
     else
@@ -28,7 +28,7 @@ serializeStep = (step) ->
         s += "-> "
     s
 
-serialize = (smallgraph) ->
+exports.serialize = serialize = (smallgraph) ->
     s = ""
     for decl in smallgraph
         if decl.walk
@@ -66,8 +66,3 @@ serialize = (smallgraph) ->
             s += ("$#{ord[0]}#{if ord[1]? then " @#{ord[1]}" else ""} #{ord[2]}" for ord in d).join ", "
         s += ";\n"
     s
-
-if typeof require != 'undefined' && typeof exports != 'undefined'
-    exports.serialize = serialize
-else if typeof window != 'undefined'
-    window.smallgraphSerialize = serialize
