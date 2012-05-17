@@ -14,10 +14,14 @@ make -C ..
 
 # copy everything built here
 rsync -avc --delete --exclude=/.git \
-    ../dist/smallgraphs/. gh-pages/.
+    ../@prefix@/smallgraphs/. gh-pages/.
 
 # add changes, commit
 cd gh-pages
+
+grep -v "<base .*>" <index.html >index.html.fix
+mv -f index.html.fix index.html
+
 git add .
 git add -u
 git commit
