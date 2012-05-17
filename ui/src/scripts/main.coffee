@@ -20,6 +20,9 @@ require [
   NodeHeight = 20#px
   NodeLabelLeft = 0#px
   NodeLabelTop  = 5#px
+  NodeConstraintTextHeight = 8#px
+  NodeConstraintXSpacing = 5#px
+  NodeConstraintYSpacing = 5#px
   NodeRounding = 10#px
   EdgeMarkerSize = 12#px
   EdgeLabelLeft = 0#px
@@ -150,6 +153,7 @@ require [
   # retreive schema, e.g. edge limiting allowed types of source/target nodes and vice versa
   emptySchema = { Namespaces: {}, Objects: {}, TypeLabels: {} }
   smallgraphsGraphSchema = emptySchema
+  getLabelAttributeNameOfNode = (node) -> smallgraphsGraphSchema.Objects[node.objectType]?.Label
   smallgraphsOriginalTitle = document.title
   smallgraphsGraphURLOriginalMessage = $("#graph-url").html()
   smallgraphsResetSchema = ->
@@ -845,29 +849,61 @@ require [
       if node?
         if $(node).hasClass("attribute")
           subjectNode = $("##{node.subjectId}")[0]
-          # TODO maybe do this in a cleaner jQuery-based UI instead of some primitive prompt
-          done = false
-          constraintString = (smallgraph.serializeConstraint node.constraint).replace(/^\[(.*)\]$/, "$1")
-          until done
-            try
-              constraintString = prompt "Edit constraint for @#{node.attributeName} of #{subjectNode.objectType}(#{subjectNode.id})", constraintString
-              node.constraint = smallgraph.parseConstraint "[#{constraintString}]"
-              constraintText = $("text.constraint", node)
-              done = true
-            catch err
-              unless confirm "#{err}\nTry again?"
-                throw err
-          if node.constraint?
-            # display constraints
-            if constraintText.length == 0
-              constraintText = $(addToSketchpad "text",
-                  dx: node.w + 1, dy: NodeLabelTop
-                , node)
-              constraintText.addClass("constraint")
-            constraintText.text(constraintString)
+          attrName = "@"+node.attributeName
+          constraintType = "constraint"
+        else # try constraining label
+          subjectNode = node
+          labelAttr = getLabelAttributeNameOfNode node
+          if labelAttr?
+            attrName = "@"+labelAttr
+            constraintType = "labelConstraint"
           else
-            # or remove
-            constraintText.remove()
+            attrName = "ID"
+            constraintType = "constraint"
+        # TODO maybe do this in a cleaner jQuery-based UI instead of some primitive prompt
+        done = false
+        constraintString = (smallgraph.serializeConstraint node[constraintType])
+          .replace(/^\[(.*)\]$/, "$1")
+        until done
+          try
+            constraintString = prompt """
+            Enter the constraint for #{attrName} of #{subjectNode.objectType}(#{subjectNode.id})
+             e.g. >123  or  ="small graphs".
+            """, constraintString
+            if constraintString
+              normalizeConstraint = (cStr) ->
+                # adjust user input
+                cStr = cStr.replace /^\s+|\s+$/g, ""
+                if m = cStr.match /^(=|!=|<=|<|>|>=)\s*(.*)$/
+                  [_, rel, expr] = m
+                else
+                  # treat as an equality if none specified
+                  rel = "="
+                  expr = cStr
+                # treat as a string and quote it if neither numeric nor already quoted
+                expr = "\"#{expr}\"" unless m = expr.match /^(".*"|[0-9.]+)$/
+                "#{rel}#{expr}"
+              constraintString = normalizeConstraint constraintString
+              node[constraintType] = smallgraph.parseConstraint "[#{constraintString}]"
+            else
+              delete node[constraintType]
+            done = true
+          catch err
+            unless confirm "#{err}\nTry again?"
+              throw err
+        constraintText = $("text.constraint", node)
+        if node[constraintType]?
+          # display constraints
+          if constraintText.length == 0
+            constraintText = $(addToSketchpad "text",
+                dx: node.w + NodeConstraintXSpacing
+                dy: node.h + NodeConstraintYSpacing - NodeConstraintTextHeight
+              , node)
+            constraintText.addClass("constraint")
+          constraintText.text(constraintString)
+        else
+          # or remove
+          constraintText.remove()
       # TODO edge constraint
 
   $("#query-constraint")
@@ -1421,13 +1457,14 @@ require [
     ## build a SmallGraph query from it
     stepObject = (o, noref) ->
       if not noref and nodeOccurs[o.id] > 1
-        { objectRef: o.id }
+        objectRef: o.id
       else
-        { objectType: o.objectType }
-      # TODO constraints
+        objectType: o.objectType
+        constraint: o.constraint
+        # TODO concentrate all constraints to here instead of spreading across "look"s
     stepLink = (e) ->
-      { linkType: e.linkType }
-      # TODO constraints
+      linkType: e.linkType
+      constraint: e.constraint
     # scan nodes being aggregated
     aggregationMap = {}
     $(".aggregate.node", sketch).each((i,n) ->
@@ -1444,7 +1481,11 @@ require [
     $(".attribute.edge", sketch).each((i,e) ->
       if aggregationMap[e.source.id]? # either aggregated
         # FIXME: assign aggregateFunction when adding attributes to aggregated nodes
-        aggregationMap[e.source.id].push [e.linkType, (e.target.aggregateFunction ? "count").toLowerCase()]
+        aggregationMap[e.source.id].push [
+          e.linkType
+          (e.target.aggregateFunction ? "count").toLowerCase()
+          e.target.constraint # FIXME XXX constraint on individual attributes are turned into one on aggregated values
+        ]
       else # or individual value
         attributes.push
           look: [e.source.id, [{name:e.linkType, constraint:e.target.constraint}]]
@@ -1460,6 +1501,18 @@ require [
             resultObj.value = v
       nodeOccurs[e.source.id]++
     )
+    #  labelConstraint
+    $(".node", sketch).each (i,n) ->
+      if n.labelConstraint?
+        nodeOccurs[n.id]++
+        attributes.push
+          look: [
+            n.id
+            [
+              name:getLabelAttributeNameOfNode n
+              constraint:n.labelConstraint
+            ]
+          ]
     # codegen aggregations
     aggregations = []
     for nId, attrsToAggregate of aggregationMap
