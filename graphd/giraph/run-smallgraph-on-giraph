@@ -9,8 +9,6 @@
 # Created: 2012-03-05
 set -eu
 
-Here=`dirname "$Self"`
-
 : ${NumWorkers:=1}
 
 export HADOOP_CLASSPATH="$JARDIR/giraph-with-dependencies.jar:$JARDIR/smallgraphs-giraph.jar"

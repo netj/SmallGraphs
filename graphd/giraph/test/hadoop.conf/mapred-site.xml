@@ -10,4 +10,9 @@
          <value>localhost:9001</value>
      </property>
 
+     <property>
+         <name>mapred.map.child.java.opts</name>
+         <value>-Xmx4g</value>
+     </property>
+
 </configuration>
