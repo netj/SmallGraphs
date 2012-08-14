@@ -44,7 +44,8 @@ class GraphManager
                 try
                     {driver:Graph} = require "./#{driverName}/#{driverName}graph"
                 catch err
-                    return done new Error "#{driverName}: unknown graph type"
+                    console.error "#{driverName}: load graph failed: #{err}"
+                    return done new Error "#{driverName}: unknown graph type: #{err}"
                 return done null, new Graph graphMetadata, basepath
     graphsById: {}
     get: (graphId, done) ->
