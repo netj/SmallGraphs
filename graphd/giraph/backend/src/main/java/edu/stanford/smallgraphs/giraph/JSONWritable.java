@@ -87,7 +87,7 @@ public abstract class JSONWritable implements Writable {
 	private static final Gson GSON = new GsonBuilder()
 			// .setPrettyPrinting()
 			.registerTypeAdapter(LongWritable.class, typeAdapterForLongWritable)
-			.registerTypeAdapter(PropertyMap.class, typeAdapterForPropertyMap)
+			//.registerTypeAdapter(PropertyMap.class, typeAdapterForPropertyMap)
 			// .registerTypeAdapter(PathElement.class,
 			// typeAdapterForPathElement)
 			.create();

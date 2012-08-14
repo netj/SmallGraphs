@@ -11,7 +11,7 @@ set -eu
 
 : ${NumWorkers:=1}
 
-export HADOOP_CLASSPATH="$JARDIR/giraph-with-dependencies.jar:$JARDIR/smallgraphs-giraph.jar"
+export HADOOP_CLASSPATH="$JARDIR/smallgraphs-giraph.jar"
 
 
 # process arguments
@@ -55,13 +55,12 @@ javac -cp "$HADOOP_CLASSPATH:`hadoop classpath`" \
 # create a jar
 jar="$tmp"/smallgiraph.jar
 jar cf "$jar" "$VertexClass".class
-HADOOP_CLASSPATH+=":$jar"
 
 # and run it
 [ $NumWorkers -gt 1 ] || HADOOP_OPTS+=" -Dgiraph.SplitMasterWorker=false"
 hadoop \
     jar "$jar" org.apache.giraph.GiraphRunner \
-    -libjars "$jar,${HADOOP_CLASSPATH//:/,}" \
+    -libjars "${HADOOP_CLASSPATH//:/,}" \
     "$VertexClass" \
     -w $NumWorkers \
     -if edu.stanford.smallgraphs.giraph.PropertyGraphJSONVertexInputFormat \

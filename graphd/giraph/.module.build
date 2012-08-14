@@ -3,4 +3,9 @@ set -eu
 
 coffee -o .build -c *.coffee
 
+cd ./giraph
+mvn -Phadoop_1.0 -DskipTests -Dmaven.javadoc.skip install
+cd ..
+
+cd ./backend
 mvn compile
