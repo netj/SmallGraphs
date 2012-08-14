@@ -39,4 +39,5 @@ class MySQLGraph extends RelationalDataBaseGraph
             q.emit 'error', err
 
 
+exports.driver =
 exports.MySQLGraph = MySQLGraph

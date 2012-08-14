@@ -23,10 +23,6 @@ fs = require "fs"
 
 smallgraph = require "smallgraph"
 
-# factory method
-{MySQLGraph} = require "./mysql/mysqlgraph"
-{GiraphGraph} = require "./giraph/giraphgraph"
-
 failWith = (fail, succ) -> (err, args...) ->
     if err
         fail(err)
@@ -36,6 +32,7 @@ failWith = (fail, succ) -> (err, args...) ->
         catch err2
             fail(err2)
 
+# factory
 class GraphManager
     constructor: (@basepath) ->
     load: (graphId, done) ->
@@ -43,12 +40,12 @@ class GraphManager
         graphDescriptorPath =  "#{basepath}/graphd.json"
         fs.readFile graphDescriptorPath, failWith done, (json) ->
             graphDescriptor = JSON.parse json
-            if graphDescriptor.mysql?
-                done null, new MySQLGraph graphDescriptor.mysql, basepath
-            else if graphDescriptor.giraph?
-                done null, new GiraphGraph graphDescriptor.giraph, basepath
-            else
-                done new Error "unknown graph type"
+            for driverName, graphMetadata of graphDescriptor
+                try
+                    {driver:Graph} = require "./#{driverName}/#{driverName}graph"
+                catch err
+                    return done new Error "#{driverName}: unknown graph type"
+                return done null, new Graph graphMetadata, basepath
     graphsById: {}
     get: (graphId, done) ->
         setTimeout =>

@@ -503,4 +503,5 @@ class GiraphGraph extends StateMachineGraph
                 continueYieldingSiblings result, ret
             assignSubMatchesAndContinue { walks: [] }, matches, tNode, emit
 
+exports.driver =
 exports.GiraphGraph = GiraphGraph
