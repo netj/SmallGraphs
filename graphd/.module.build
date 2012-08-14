@@ -6,7 +6,7 @@ cd .build
 
 coffee -o . -c ../!(test*).coffee
 
-ln -f ../package.json
+ln -sfn ../package.json
 ln -sfn ../../../smallgraph/.build node_modules/smallgraph
 [ npm-shrinkwrap.json -nt package.json ] || rm -f npm-shrinkwrap.json
 npm install

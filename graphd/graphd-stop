@@ -6,7 +6,7 @@
 # Created: 2012-05-09
 set -eu
 
-if [ -r .graphd.pid ] && pid=$(cat .graphd.pid) && ps -- "$pid" >/dev/null; then
+if [ -r .graphd.pid ] && pid=$(cat .graphd.pid) && ps -p "$pid" >/dev/null; then
     kill $pid
     rm -f .graphd.pid
 else

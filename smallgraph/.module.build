@@ -14,5 +14,5 @@ sed '/^exports.main = /,/^}$/d;  /^if .* require.main === module/,/^}$/d' <synta
 mv -f syntax.without-main.js syntax.js
 
 # dependencies
-ln -f ../package.json
+ln -sfn ../package.json
 npm install
