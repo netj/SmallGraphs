@@ -232,7 +232,7 @@ References
 
 [cs448b]: https://graphics.stanford.edu/wikis/cs448b-11-fall
 [cs448b-finalproject]: https://graphics.stanford.edu/wikis/cs448b-11-fall/FP-ShinJaeho
-[cs448b-finalpaper]: https://graphics.stanford.edu/wikis/cs448b-11-fall/FP-ShinJaeho?action=AttachFile&do=get&target=CS448B_FinalPaper_ShinJaeho_revised.pdf
+[cs448b-finalpaper]: http://db.tt/VtPmNq6I
 
 
 [CoffeeScript]: http://coffeescript.org/
