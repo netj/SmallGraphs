@@ -15,11 +15,30 @@ GraphDPort=53411
 [ -r .graphd.port ] && GraphDPort=$(cat .graphd.port)
 
 # process arguments and save configuration
+Foreground=false
+while getopts "f" opt; do
+    case $opt in
+        f)
+            Foreground=true
+            ;;
+    esac
+done
+shift $(($OPTIND - 1))
 if [ $# -gt 0 ]; then
     GraphDPort=$1; shift
     echo $GraphDPort >.graphd.port
 fi
 
-touch .graphd.pid
-node "$NODEMODULESDIR"/graphd $GraphDPort &
-echo $! >.graphd.pid
+launch() {
+    touch .graphd.pid
+    if $Foreground; then
+        echo $$ >.graphd.pid
+        exec "$@"
+    else
+        "$@" &
+        echo $! >.graphd.pid
+    fi
+}
+
+launch \
+node "$NODEMODULESDIR"/graphd $GraphDPort
