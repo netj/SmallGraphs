@@ -505,7 +505,9 @@ require [
         e.target = null
         this.line = $(addToSketchpad "path",
             d: "M0 0"
-          , e)
+          , e).css(
+            "marker-end": "url(#{location.href}#arrowhead)"
+          )
         this.label = $(addToSketchpad "text",
             dx: EdgeLabelLeft, dy: EdgeLabelTop
           , e)
