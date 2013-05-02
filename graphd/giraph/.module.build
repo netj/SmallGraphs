@@ -5,6 +5,7 @@ coffee -o .build -c *.coffee
 
 cd ./giraph
 mvn -Phadoop_1.0 -DskipTests -Dmaven.javadoc.skip install
+git config core.excludesfile ../git-info-exclude
 cd ..
 
 cd ./backend

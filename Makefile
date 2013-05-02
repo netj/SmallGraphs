@@ -21,6 +21,9 @@ PACKAGENAME := graphd
 STAGEDIR := @prefix@
 include buildkit/modules.mk
 
+buildkit/modules.mk:
+	git submodule update --init
+
 polish: links
 links:
 	mkdir -p $(STAGEDIR)/$(GRAPHDDIR)/public
