@@ -16,11 +16,9 @@ export RUNDIR         := run
 export DOCDIR         := doc
 
 PACKAGENAME := graphd
-#PACKAGEEXECUTES := bin/graphd
+PACKAGEEXECUTES := bin/graphd
 
-STAGEDIR := @prefix@
 include buildkit/modules.mk
-
 buildkit/modules.mk:
 	git submodule update --init
 
@@ -32,9 +30,13 @@ links:
 # TODO should make BuildKit take this dependency into account somehow
 shell/.module.build: Makefile
 
-.PHONY: check-builddeps publish
+stage \
+build: node_modules
+node_modules:
+	$(MAKE) check-builddeps
 
-build: check-builddeps
+
+.PHONY: check-builddeps publish
 
 # check builddeps
 check-builddeps:
