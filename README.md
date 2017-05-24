@@ -6,6 +6,8 @@ i.e. labeled multi-graph each of whose vertex/edge has associated key-value
 pairs.  *SmallGraphs* and *GraphD* are the key components of the toolchain that
 implements the effective usage of this query language.
 
+For a quick overview, read a [short writeup about SmallGraphs](https://www.dropbox.com/s/20fu4eyuxzzdqhi/smallgraphs.pdf?dl=0).
+
 
 Quick Start
 -----------
@@ -232,7 +234,7 @@ References
 
 [cs448b]: https://graphics.stanford.edu/wikis/cs448b-11-fall
 [cs448b-finalproject]: https://graphics.stanford.edu/wikis/cs448b-11-fall/FP-ShinJaeho
-[cs448b-finalpaper]: http://db.tt/VtPmNq6I
+[cs448b-finalpaper]: https://www.dropbox.com/s/20fu4eyuxzzdqhi/smallgraphs.pdf?dl=0
 
 
 [CoffeeScript]: http://coffeescript.org/
